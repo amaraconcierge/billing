@@ -168,7 +168,7 @@ button{cursor:pointer;}
 /* ── MODAL ── */
 .ov{position:fixed;inset:0;background:rgba(2,22,32,.52);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:10px 6px;}
 .ov.h{display:none;}
-.mbox{background:var(--wh);border-radius:var(--rl);border:1px solid var(--bo);width:100%;display:flex;flex-direction:column;box-shadow:var(--shm);animation:mIn .18s ease;}
+.mbox{background:var(--wh);border-radius:var(--rl);border:1px solid var(--bo);width:100%;display:flex;flex-direction:column;box-shadow:var(--shm);animation:mIn .18s ease;-webkit-overflow-scrolling:touch;}
 @keyframes mIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 .mhd{padding:15px 18px;border-bottom:1px solid var(--bo);display:flex;align-items:center;gap:10px;flex-shrink:0;}
 .mtit{font-family:var(--serif);font-size:21px;font-style:italic;font-weight:400;flex:1;letter-spacing:.02em;}
@@ -178,7 +178,7 @@ button{cursor:pointer;}
 .mtab{flex:1;min-width:80px;padding:10px 6px;font-size:11px;font-weight:500;border:none;background:transparent;color:var(--m2);border-bottom:2px solid transparent;transition:all .15s;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
 .mtab.on{color:var(--t);border-bottom-color:var(--t);background:rgba(15,110,86,.03);font-weight:600;}
 .mbody{padding:18px 22px;overflow-y:auto;max-height:78vh;}
-.mfoot{padding:11px 18px;border-top:1px solid var(--bo);display:flex;justify-content:flex-end;gap:7px;flex-shrink:0;}
+.mfoot{padding:11px 18px;border-top:1px solid var(--bo);display:flex;justify-content:flex-end;gap:7px;flex-shrink:0;flex-wrap:wrap;-webkit-overflow-scrolling:touch;}
 
 /* ── FORM ELEMENTS ── */
 .fg{margin-bottom:13px;}
@@ -2229,8 +2229,11 @@ function renderInfoTab(){
   var b=curBill;
   var patOpts=patients.map(function(p){return'<option value="'+esc(p.name)+'">';}).join('');
   return '<div class="fg"><label class="fl">Patient Name <span class="req">*</span></label>'+
-    '<input class="fi" list="pl" value="'+esc(b.patientName)+'" placeholder="Type or select patient&#8230;" data-save-key="patientName">'+
-    '<datalist id="pl">'+patOpts+'</datalist></div>'+
+    '<div style="position:relative;">'+
+    '<input class="fi" id="pat-search" autocomplete="off" value="'+esc(b.patientName)+'" placeholder="Type or select patient&#8230;" data-save-key="patientName"'+
+    ' oninput="showPatSuggestions(this.value)" onfocus="showPatSuggestions(this.value)" onblur="setTimeout(function(){hidePatSuggestions()},200)">'+
+    '<div id="pat-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--wh);border:1px solid var(--bo);border-radius:0 0 var(--r) var(--r);box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:999;max-height:220px;overflow-y:auto;"></div>'+
+    '</div></div>'+
     '<div class="fg"><label class="fl">Notes / Who to Bill</label>'+
     '<textarea class="fta" placeholder="Billing instructions, who to bill, additional notes&#8230;" data-save-key="notes">'+esc(b.notes||'')+'</textarea></div>'+
     '<div class="fg">'+
@@ -2265,6 +2268,50 @@ function renderStatusChips(curStatus){
   }).join('');
   return '<select class="fse" onchange="setF(&quot;status&quot;,this.value)" style="width:100%;font-size:13px;">'+opts+'</select>'+
     '</div></div></div>';
+}
+function showPatSuggestions(q){
+  var box=document.getElementById('pat-suggestions');
+  if(!box)return;
+  var matches=patients.filter(function(p){
+    return !q||p.name.toLowerCase().includes(q.toLowerCase());
+  }).slice(0,12);
+  if(!matches.length){box.style.display='none';return;}
+  box.innerHTML=matches.map(function(p){
+    return'<div style="padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bo);" '+
+      'ontouchstart="selectPatient(\''+esc(p.name)+'\')" '+
+      'onmousedown="selectPatient(\''+esc(p.name)+'\')">'+ 
+      '<span style="font-weight:600;">'+esc(p.name)+'</span>'+
+      (p.billTo?'<span style="font-size:11px;color:var(--m2);margin-left:6px;">'+esc(p.billTo)+'</span>':'')+
+      '</div>';
+  }).join('');
+  box.style.display='block';
+}
+function hidePatSuggestions(){
+  var box=document.getElementById('pat-suggestions');
+  if(box)box.style.display='none';
+}
+function selectPatient(name){
+  var inp=document.getElementById('pat-search');
+  if(inp){inp.value=name;}
+  curBill.patientName=name;
+  hidePatSuggestions();
+  // Auto-fill notes and rolling invoice from patient record
+  var matched=patients.find(function(p){return p.name===name;});
+  if(matched){
+    if(matched.billTo&&!curBill.notes){
+      curBill.notes=matched.billTo;
+      var notesEl=document.querySelector('[data-save-key="notes"]');
+      if(notesEl)notesEl.value=matched.billTo;
+    }
+    if(matched.rollingInvoice&&!curBill.rollingInvoice){
+      curBill.rollingInvoice=matched.rollingInvoice;
+      curBill.rollingColor=matched.rollingColor||'#185FA5';
+      var rollEl=document.querySelector('[data-save-key="rollingInvoice"]');
+      if(rollEl)rollEl.value=matched.rollingInvoice;
+      var colorEl=document.querySelector('input[type="color"][title="Invoice colour"]');
+      if(colorEl)colorEl.value=matched.rollingColor||'#185FA5';
+    }
+  }
 }
 function setF(k,v){
   curBill[k]=v;
@@ -4243,12 +4290,22 @@ function printCurrentBill(){
   }).join('\n');
   win.document.write(
     '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
     '<title>Amara Medical — Bill</title>'+
     '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,300;1,400&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">'+
-    '<style>'+css+'body{background:#fff!important;}@page{margin:15mm;}@media print{.no-print{display:none!important;}}</style>'+
+    '<style>'+css+
+    'body{background:#fff!important;padding-bottom:80px;}'+
+    '@page{margin:15mm;}'+
+    '@media print{.no-print{display:none!important;}}'+
+    '.pdf-bar{position:fixed;bottom:0;left:0;right:0;background:#021620;padding:12px 16px;display:flex;gap:10px;justify-content:center;z-index:9999;}'+
+    '.pdf-bar button{padding:10px 22px;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:sans-serif;font-weight:600;}'+
+    '.pdf-btn-print{background:#0F6E56;color:#fff;}'+
+    '.pdf-btn-close{background:rgba(255,255,255,.15);color:#fff;}'+
+    '</style>'+
     '</head><body>'+content.innerHTML+
-    '<div class="no-print" style="text-align:center;margin:20px 0;">'+
-    '<button onclick="window.print()" style="padding:10px 24px;background:#0F6E56;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:sans-serif;">Print / Save as PDF</button>'+
+    '<div class="no-print pdf-bar">'+
+    '<button class="pdf-btn-close" onclick="window.close()">&#215; Close</button>'+
+    '<button class="pdf-btn-print" onclick="window.print()">Print / Save as PDF</button>'+
     '</div></body></html>'
   );
   win.document.close();
