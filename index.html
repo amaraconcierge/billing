@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Amara Billing">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#021620">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23021620'/><text y='68' x='50' text-anchor='middle' font-size='58' font-family='serif' fill='%23FBF7EC'>A</text></svg>">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Amara Billing">
 <meta name="theme-color" content="#021620">
 <title>Amara Medical — Billing</title>
@@ -2315,7 +2321,8 @@ function notifyAccountsFinal(b){
     '<div style="background:var(--wh2);border:1px solid var(--bo);border-radius:var(--r);padding:11px 13px;font-size:11px;line-height:1.8;color:var(--tx);white-space:pre-wrap;margin-bottom:14px;max-height:180px;overflow-y:auto;">'+esc(summary)+'</div>'+
     '<div style="display:flex;flex-direction:column;gap:8px;">'+
     '<button onclick="copyNotifySummary()" style="padding:9px;border:1px solid var(--bo);border-radius:var(--r);background:var(--wh);cursor:pointer;font-size:12px;font-family:var(--sans);">Copy summary to clipboard</button>'+
-    '<a href="mailto:accounts@amarahealthcare.com,bp@amarahealthcare.com?subject='+encodeURIComponent(emailSubject)+'&body='+encodeURIComponent(emailBody)+'" target="_blank" style="display:block;padding:9px;border:1px solid var(--t);border-radius:var(--r);background:var(--t);color:#fff;cursor:pointer;font-size:12px;font-family:var(--sans);text-align:center;text-decoration:none;">Open in Mail — accounts@amarahealthcare.com</a>'+
+    '<a href="mailto:accounts@amarahealthcare.com,bp@amarahealthcare.com?subject='+encodeURIComponent(emailSubject)+'&body='+encodeURIComponent(emailBody)+'" target="_blank" style="display:block;padding:9px;border:1px solid var(--t);border-radius:var(--r);background:var(--t);color:#fff;cursor:pointer;font-size:12px;font-family:var(--sans);text-align:center;text-decoration:none;">Open in Mail (accounts &amp; bp)</a>'+
+    '<div style="font-size:10px;color:var(--m2);padding:4px 2px 2px;">Tip: generate the PDF below, then attach it to the email manually.</div>'+
     '<button onclick="printBillForAccounts(\''+b.id+'\')" style="padding:9px;border:1px solid var(--bo);border-radius:var(--r);background:var(--wh);cursor:pointer;font-size:12px;font-family:var(--sans);">Generate PDF bill</button>'+
     '</div>'+
     '<button onclick="this.closest(\'[style*=fixed]\').remove()" style="margin-top:12px;width:100%;padding:8px;border:none;background:none;cursor:pointer;font-size:12px;color:var(--m2);">Close</button>'+
