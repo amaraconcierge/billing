@@ -555,7 +555,7 @@ button{cursor:pointer;}
 <div class="ov h" id="vmod">
   <div class="mbox" style="max-width:700px;">
     <div class="mhd no-print"><div class="mtit">Bill Detail</div><button class="mcls" onclick="closeMod('vmod')">&#215;</button></div>
-    <div id="vmod-body"></div>
+    <div id="vmod-body" style="overflow-y:auto;max-height:78vh;-webkit-overflow-scrolling:touch;"></div>
     <div class="mfoot no-print">
       <button class="btn btn-g" onclick="closeMod('vmod')">Close</button>
       <button class="btn btn-g" onclick="editFromView()">Edit</button>
@@ -644,9 +644,20 @@ var FEES={
   // ── Nurse visit (flat per visit, ≤60 min) ──
   nurse:{'In Hours':500,'Out of Hours':750},
   nurse8h:{'In Hours':2500,'Out of Hours':3750},
-  phlebotomy:75,
+  phlebotomy:{'UAE':75,'Global':275},
   courierUAE:135,
   courierControlled:250,
+  ecgStandard:500,
+  ecgHolter72h:2000,
+  ecgHolterWeek:3000,
+  bpMonitor72h:2000,
+  bpMonitorWeek:3000,
+  injection:250,
+  statMedicine:20,
+  reReport:500,
+  internalMedOTC:75,
+  internalMedPrescription:195,
+  externalMedMin:75,
   prescription:{
     'In Hours-Inside UAE':250, 'Out of Hours-Inside UAE':375,
     'In Hours-Outside UAE':250,'Out of Hours-Outside UAE':375,
@@ -654,6 +665,7 @@ var FEES={
   },
   referral:{
     'In Hours-Inside UAE':220,'Out of Hours-Inside UAE':330,
+    'In Hours-Outside UAE':220,'Out of Hours-Outside UAE':330,
     'In Hours-International':312.16,'Out of Hours-International':468.24
   },
   // ── Lab test prices (Dubai Lab = Freiburg Medical Lab) ──
@@ -1122,14 +1134,50 @@ function calcBillGrandTotal(b){
       if(item.id==='ic'&&idata['padh']){total+=calcAdminFee(idata['padh'].h,idata['padh'].m,idata['padh_h']||'In Hours','Inside UAE','physAdmin');}
       // Nurse
       if(['is','ie','ii'].includes(item.id)){total+=FEES.nurse[idata['nv']||'In Hours']||0;}
+      // External nurse visit fee (nf toggle on external items)
+      if(['es','ee','ei'].includes(item.id)&&(idata['nf']===true||idata['nf']==='true')){total+=FEES.nurse[idata['nv']||'In Hours']||0;}
+      // Phlebotomy
+      if(idata['ph']){var phv=idata['ph'];if(phv==='UAE — AED 75')total+=FEES.phlebotomy['UAE']||75;else if(phv==='Global — AED 275')total+=FEES.phlebotomy['Global']||275;else if(phv===true||phv==='true')total+=FEES.phlebotomy['UAE']||75;}
+      // ECG / BP monitor fee (ef toggle)
+      if(idata['ef']===true||idata['ef']==='true'){total+=FEES.ecgStandard||500;}
+      // Injection / IV drips fee (if2 toggle)
+      if(idata['if2']===true||idata['if2']==='true'){total+=FEES.injection||250;}
+      // Stat medicine (sm toggle — per tablet)
+      if(idata['sm']===true||idata['sm']==='true'){total+=FEES.statMedicine||20;}
+      // Referral fee (rf toggle) — uses in/out of hours + location
+      if(idata['rf']===true||idata['rf']==='true'){var rfLoc=idata['al']||'Inside UAE';var rfH=idata['ch']||idata['nv']||'In Hours';var rfk=rfH+'-'+(rfLoc==='International'?'International':rfLoc.startsWith('Inside')?'Inside UAE':'Outside UAE');total+=FEES.referral[rfk]||FEES.referral['In Hours-Inside UAE']||220;}
+      // Re-report fee (rr toggle)
+      if(idata['rr']===true||idata['rr']==='true'){total+=FEES.reReport||500;}
+      // Internal medication type fee (imt selector on im item)
+      if(item.id==='im'&&idata['imt']){
+        if(idata['imt'].indexOf('OTC')>=0)total+=FEES.internalMedOTC||75;
+        else if(idata['imt'].indexOf('Prescription')>=0)total+=FEES.internalMedPrescription||195;
+      }
+      // External medication minimum fee (emf toggle on em item)
+      if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true')){total+=FEES.externalMedMin||75;}
+      // Prescription on medication items — em ONLY uses FEES.prescription (AED 250/375/367.25/550.875)
+      // im uses imt selector (OTC AED 75 / Prescription AED 195) — NOT FEES.prescription
+      if(item.id==='em'&&idata['pl']&&idata['ph2']){
+        var prxLoc=idata['pl']||'Inside UAE';var prxH=idata['ph2']||'In Hours';
+        var prxKey=prxH+'-'+(prxLoc.toLowerCase().indexOf('international')>=0?'International':prxLoc.toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');
+        total+=FEES.prescription&&FEES.prescription[prxKey]?FEES.prescription[prxKey]:0;
+      }
+      // Prescription on doctor's consultation (ptype field = in/out of hours selected)
+      if(item.id==='ic'&&idata['ptype']){var loc=idata['al']||'Inside UAE';var ch=idata['ch']||'In Hours';var pk=ch+'-'+(loc==='International'?'International':loc.startsWith('Inside')?'Inside UAE':'Outside UAE');total+=FEES.prescription&&FEES.prescription[pk]?FEES.prescription[pk]:0;}
+      // Courier
+      var coItem=idata['co']||idata['ct']||idata['ct2'];
+      if(coItem&&typeof coItem==='object'&&coItem.region){
+        if(coItem.region==='UAE'){
+          if(coItem.type==='Controlled drugs courier (Amara driver)')total+=FEES.courierControlled||250;
+          else total+=FEES.courierUAE||135;
+        } else if(coItem.customFee&&parseFloat(coItem.customFee)){total+=parseFloat(coItem.customFee)||0;}
+      }
       // External fees
       ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv.amount)&&(fv.cur||'AED')==='AED')total+=parseFloat(fv.amount)||0;});
       // Team admin
       if(idata['adh']){total+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
       // Labs
       if(Array.isArray(idata['lw'])&&idata['lw'].length)total+=calcLabTotal(idata['lw']);
-      // Prescription
-      if(item.id==='ic'&&idata['ptype']){var loc=idata['al']||'Inside UAE';var ch=idata['ch']||'In Hours';var pk=ch+'-'+(loc==='International'?'International':loc.startsWith('Inside')?'Inside UAE':'Outside UAE');total+=FEES.prescription&&FEES.prescription[pk]?FEES.prescription[pk]:0;}
     });
   }
   // Discounts
@@ -1582,53 +1630,55 @@ int:{label:'Internal Arrangements',sub:'Amara team — no markup',col:'#0F6E56',
   {id:'padh',l:'Physician admin time',t:'hours'},
   {id:'padh_h',l:'Physician admin hours type',t:'sel',o:['In Hours','Out of Hours']},
   {id:'docnotes',l:'Consultation notes',t:'mta'},
-  {id:'ph',l:'Phlebotomy fee',t:'tog',n:'Only if there are blood samples'},
+  {id:'ph',l:'Phlebotomy fee',t:'sel',o:['UAE — AED 75','Global — AED 275'],n:'Only if there are blood samples'},
   {id:'lw',l:'Lab work',t:'lab',n:'Ensure lab uses Amara profile (Dubai Lab) and TDL test code for UK'},
   {id:'labwhere',l:'Laboratory (where samples sent)',t:'labsel'},
-  {id:'co',l:'Courier',t:'courieropts'},
-  {id:'sm',l:'Stat Medicine (per tablet)',t:'tog'},
+  {id:'co',l:'Courier — transport samples',t:'courieropts'},
+  {id:'sm',l:'Stat Medicine (per tablet)',t:'tog',n:'If medications are given during the visit'},
+  {id:'ptype',l:'Prescription',t:'sel',o:['In Hours','Out of Hours'],n:'Add if prescription issued during consultation'},
   {id:'al',l:'Admin concierge location (if applicable)',t:'sel',o:['Inside UAE','International']},
-  {id:'adh',l:'Team admin time spent',t:'hours'},
+  {id:'adh',l:'Physician admin time (results / arrangements)',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'is',label:"Nurse's Home Visit — Sample Collection",sub:'Nurse visit & phlebotomy',fields:[
   {id:'nv',l:'Nurse visit',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'nu',l:'Nurse name',t:'txt'},{id:'nnotes',l:'Nurse visit notes',t:'mta'},
   {id:'dur',l:'Time spent',t:'hours'},
-  {id:'ph',l:'Phlebotomy fee',t:'tog',n:'Only if there are blood samples'},
-  {id:'lw',l:'Lab work',t:'lab',n:'Ensure lab uses Amara profile'},
+  {id:'ph',l:'Phlebotomy fee',t:'sel',o:['UAE — AED 75','Global — AED 275'],n:'Only if there are blood samples'},
+  {id:'lw',l:'Lab work',t:'lab',n:'Ensure lab uses Amara profile (Dubai Lab) and TDL test code for UK'},
   {id:'labwhere',l:'Laboratory (where samples sent)',t:'labsel'},
-  {id:'co',l:'Courier',t:'courieropts'},
-  {id:'al',l:'Admin concierge location (if applicable)',t:'sel',o:['Inside UAE','International']},
-  {id:'adh',l:'Team admin time spent',t:'hours'},
+  {id:'co',l:'Courier — transport samples',t:'courieropts'},
+  {id:'al',l:'Physician admin location',t:'sel',o:['Inside UAE','International']},
+  {id:'adh',l:'Physician admin time (results / arrangements)',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'ie',label:"Nurse's Home Visit — ECG / BP Monitor",sub:'ECG or BP monitor fee',fields:[
   {id:'nv',l:'Nurse visit',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'nu',l:'Nurse name',t:'txt'},{id:'nnotes',l:'Nurse visit notes',t:'mta'},
   {id:'dur',l:'Time spent',t:'hours'},
-  {id:'ef',l:'ECG or BP monitor fee',t:'tog'},
-  {id:'al',l:'Admin concierge location (if applicable)',t:'sel',o:['Inside UAE','International']},
-  {id:'adh',l:'Team admin time spent',t:'hours'},
+  {id:'ef',l:'ECG / BP monitor fee',t:'tog'},
+  {id:'co',l:'Courier — return monitor to hospital',t:'courieropts'},
+  {id:'al',l:'Physician admin location',t:'sel',o:['Inside UAE','International']},
+  {id:'adh',l:'Physician admin time (results / arrangements)',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'ii',label:"Nurse's Home Visit — Injection / Vaccination",sub:'Injection or IV drips',fields:[
   {id:'nv',l:'Nurse visit',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'nu',l:'Nurse name',t:'txt'},{id:'nnotes',l:'Nurse visit notes',t:'mta'},
   {id:'dur',l:'Time spent',t:'hours'},
-  {id:'if2',l:'Injection or IV drips fee',t:'tog'},
-  {id:'al',l:'Admin concierge location (if applicable)',t:'sel',o:['Inside UAE','International']},
-  {id:'adh',l:'Team admin time spent',t:'hours'},
+  {id:'if2',l:'Injection / IV drips fee',t:'tog'},
+  {id:'al',l:'Physician admin location',t:'sel',o:['Inside UAE','International']},
+  {id:'adh',l:'Physician admin time (results / arrangements)',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'im',label:'Medication',sub:'Internal medication arrangement',fields:[
-  {id:'pl',l:'Prescription location',t:'sel',o:['International','Inside UAE'],req:1},
+  {id:'pl',l:'Prescription location',t:'sel',o:['Inside UAE','International'],req:1},
   {id:'ph2',l:'Prescription hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'prx_dest',l:'Prescription sent to',t:'txt'},
-  {id:'mt',l:'',t:'prescchip'},
   {id:'meds',l:'Medications arranged',t:'mta',req:1},
-  {id:'ct2',l:'Courier type',t:'courieropts'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['International','Inside UAE']},
+  {id:'imt',l:'Internal medication type',t:'sel',o:['Internal Medication OTC — AED 75','Internal Medication Prescription — AED 195'],n:'Select medication type for fee calculation'},
+  {id:'ct2',l:'Courier — transport medications',t:'courieropts',n:'Standard courier or Controlled drugs (Akku)'},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]}
@@ -1640,12 +1690,11 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#185FA5',bg:'#E6
   {id:'nf',l:'Nurse visit fee',t:'tog'},
   {id:'feepaid',l:'Fee paid for nurse visit',t:'feefield',req:1},
   {id:'dur',l:'Time spent',t:'hours'},
-  {id:'ah',l:'Physician Admin Time',t:'sel',o:['In Hours','Out of Hours']},
-  {id:'ph',l:'Phlebotomy fee',t:'tog',n:'Only if there are blood samples'},
-  {id:'lw',l:'Lab work',t:'lab'},
+  {id:'ph',l:'Phlebotomy fee',t:'sel',o:['UAE — AED 75','Global — AED 275'],n:'Only if there are blood samples'},
+  {id:'lw',l:'Lab work',t:'lab',n:'Ensure lab uses Amara profile (Dubai Lab) and TDL test code for UK'},
   {id:'labwhere',l:'Laboratory (where samples sent)',t:'labsel'},
-  {id:'co',l:'Courier',t:'courieropts'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['International','Inside UAE']},
+  {id:'co',l:'Courier — transport samples',t:'courieropts'},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
@@ -1655,10 +1704,9 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#185FA5',bg:'#E6
   {id:'nf',l:'Nurse visit fee',t:'tog'},
   {id:'feepaid',l:'Fee paid for nurse / ECG',t:'feefield',req:1},
   {id:'dur',l:'Time spent',t:'hours'},
-  {id:'ef',l:'ECG or BP monitor fee',t:'tog'},
-  {id:'ah',l:'Physician Admin Time',t:'sel',o:['In Hours','Out of Hours']},
-  {id:'co',l:'Courier',t:'courieropts'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['International','Inside UAE']},
+  {id:'ef',l:'ECG / BP monitor fee',t:'tog'},
+  {id:'co',l:'Courier — return monitor to hospital',t:'courieropts'},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
@@ -1668,43 +1716,42 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#185FA5',bg:'#E6
   {id:'nf',l:'Nurse visit fee',t:'tog'},
   {id:'feepaid',l:'Fee paid for nurse / injection',t:'feefield',req:1},
   {id:'dur',l:'Time spent',t:'hours'},
-  {id:'pl',l:'Prescription location',t:'sel',o:['International','Inside UAE']},
+  {id:'pl',l:'Prescription location',t:'sel',o:['Inside UAE','International']},
   {id:'ph2',l:'Prescription hours',t:'sel',o:['In Hours','Out of Hours']},
   {id:'prx_dest',l:'Prescription sent to',t:'txt'},
-  {id:'if2',l:'Injection or IV drips fee',t:'tog'},
-  {id:'co',l:'Courier',t:'courieropts'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['International','Inside UAE']},
+  {id:'if2',l:'Injection / IV drips fee',t:'tog'},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'ep',label:'Scan / Procedure Arrangements',sub:'External scan or procedure',fields:[
   {id:'scanname',l:'Scan or procedure arranged',t:'txt',req:1},
   {id:'hospital',l:'Hospital / facility',t:'txt'},
-  {id:'sf',l:'Fee paid for scan / procedure',t:'feefield',req:1},
   {id:'rf',l:'Physician referral fee',t:'tog',n:'First-time specialist — referral fee applies'},
+  {id:'sf',l:'Fee paid for scan / procedure',t:'feefield',req:1},
   {id:'rr',l:'Re-reporting fee (UK)',t:'tog',n:'If re-reported in the UK'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['International','Inside UAE']},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'ec',label:"Doctor's Consultation — External",sub:'External doctor or consultant',fields:[
   {id:'cn',l:'Consultant / doctor name',t:'txt',req:1},
   {id:'hospital',l:'Hospital / clinic',t:'txt'},
-  {id:'cf',l:'Consultation fee (if we paid)',t:'feefield'},
   {id:'rf',l:'Physician referral fee',t:'tog',n:'First-time specialist — referral fee applies'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['International','Inside UAE']},
+  {id:'cf',l:'Consultation fee (if we paid)',t:'feefield'},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'em',label:'Medication — External',sub:'External medication arrangement',fields:[
-  {id:'mt',l:'',t:'prescchip'},
-  {id:'pl',l:'Prescription sent',t:'sel',o:['Outside the UAE','Inside the UAE'],req:1},
+  {id:'pl',l:'Prescription sent',t:'sel',o:['Inside UAE','Outside UAE'],req:1},
   {id:'ph2',l:'Prescription hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'prx_dest',l:'Prescription sent to',t:'txt'},
   {id:'meds',l:'Medications arranged',t:'mta',req:1},
   {id:'feepaid',l:'Fee paid for medications',t:'feefield',req:1},
-  {id:'ct',l:'Courier',t:'courieropts'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['International','Inside UAE']},
+  {id:'emf',l:'External medication fee',t:'tog',n:'Minimum AED 75 prescription fee applies'},
+  {id:'ct',l:'Courier — transport medications',t:'courieropts',n:'Standard courier or Controlled drugs (Akku)'},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]}
@@ -2150,6 +2197,24 @@ function render(){
           itemNames.push((sk==='ext'?'[Ext] ':'')+item.label);
           if(item.id==='ic'){rptTotal+=calcDocFee(idata['ct']||'Brief',idata['ch']||'In Hours',b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m);}
           if(['is','ie','ii'].includes(item.id)){rptTotal+=FEES.nurse[idata['nv']||'In Hours']||0;}
+          if(['es','ee','ei'].includes(item.id)&&(idata['nf']===true||idata['nf']==='true')){rptTotal+=FEES.nurse[idata['nv']||'In Hours']||0;}
+          // Phlebotomy
+          if(idata['ph']){var phv=idata['ph'];if(phv==='UAE — AED 75')rptTotal+=FEES.phlebotomy['UAE']||75;else if(phv==='Global — AED 275')rptTotal+=FEES.phlebotomy['Global']||275;else if(phv===true||phv==='true')rptTotal+=FEES.phlebotomy['UAE']||75;}
+          // Courier
+          var coTbl=idata['co']||idata['ct']||idata['ct2'];
+          if(coTbl&&typeof coTbl==='object'&&coTbl.region){
+            if(coTbl.region==='UAE'){if(coTbl.type==='Controlled drugs courier (Amara driver)')rptTotal+=FEES.courierControlled||250;else rptTotal+=FEES.courierUAE||135;}
+            else if(coTbl.customFee&&parseFloat(coTbl.customFee)){rptTotal+=parseFloat(coTbl.customFee)||0;}
+          }
+          if(idata['ef']===true||idata['ef']==='true')rptTotal+=FEES.ecgStandard||500;
+          if(idata['if2']===true||idata['if2']==='true')rptTotal+=FEES.injection||250;
+          if(idata['sm']===true||idata['sm']==='true')rptTotal+=FEES.statMedicine||20;
+          if(idata['rf']===true||idata['rf']==='true'){var rfLoc2=idata['al']||'Inside UAE';var rfH2=idata['ch']||idata['nv']||'In Hours';var rfk2=rfH2+'-'+(rfLoc2==='International'?'International':rfLoc2.startsWith('Inside')?'Inside UAE':'Outside UAE');rptTotal+=FEES.referral[rfk2]||220;}
+          if(idata['rr']===true||idata['rr']==='true')rptTotal+=FEES.reReport||500;
+          if(item.id==='im'&&idata['imt']){if(idata['imt'].indexOf('OTC')>=0)rptTotal+=FEES.internalMedOTC||75;else if(idata['imt'].indexOf('Prescription')>=0)rptTotal+=FEES.internalMedPrescription||195;}
+          if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true'))rptTotal+=FEES.externalMedMin||75;
+          if(item.id==='ic'&&idata['ptype']){var prxLocIC=idata['al']||'Inside UAE';var prxHIC=idata['ch']||'In Hours';var prxKIC=prxHIC+'-'+(prxLocIC==='International'?'International':prxLocIC.startsWith('Inside')?'Inside UAE':'Outside UAE');rptTotal+=FEES.prescription&&FEES.prescription[prxKIC]?FEES.prescription[prxKIC]:0;}
+          if(item.id==='em'&&idata['pl']&&idata['ph2']){var prxL=idata['pl'],prxH2=idata['ph2'];var prxK=prxH2+'-'+(prxL.toLowerCase().indexOf('international')>=0?'International':prxL.toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');rptTotal+=FEES.prescription&&FEES.prescription[prxK]?FEES.prescription[prxK]:0;}
           ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv.amount)&&(fv.cur||'AED')==='AED')rptTotal+=parseFloat(fv.amount)||0;});
           if(idata['adh']){rptTotal+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
           if(Array.isArray(idata['lw'])&&idata['lw'].length)rptTotal+=calcLabTotal(idata['lw']);
@@ -2607,12 +2672,24 @@ function renderDF(sk,itemId,f,val){
   }
   if(f.t==='courieropts'){
     var cv=val||{region:'',type:'',customFee:''};
-    var regionH='<div class="dl">'+f.l+'</div><div class="chips" style="margin-bottom:6px;">'+
-      ['UAE','UK','Global'].map(function(r){return'<button type="button" class="chip'+(cv.region===r?' on':'')+'" onclick="setCourier(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',\'region\',\''+r+'\')">'+r+'</button>';}).join('')+
+    var regionH='<div class="dl">'+f.l+(f.n?' <span style="font-weight:400;text-transform:none;letter-spacing:0;font-style:italic;color:var(--m2);"> — '+f.n+'</span>':'')+'</div><div class="chips" style="margin-bottom:6px;">'+
+      ['UAE','UK','Global'].map(function(r){
+        var isActive=cv.region===r;
+        // Clicking active region deselects (clears); clicking inactive selects
+        return'<button type="button" class="chip'+(isActive?' on':'')+'" onclick="setCourier(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',\'region\','+(isActive?'\'\'':'\''+r+'\'')+')">'+r+'</button>';
+      }).join('')+
       '</div>';
     var typeOpts='';
-    if(cv.region==='UAE')typeOpts='<div class="chips">'+['Standard courier','Controlled drugs courier (Amara driver)'].map(function(o){return'<button type="button" class="chip'+(cv.type===o?' on':'')+'" onclick="setCourier(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',\'type\',\''+esc(o)+'\')">'+esc(o)+'</button>';}).join('')+'</div>';
-    else if(cv.region==='UK')typeOpts='<div class="chips">'+['Standard','Custom fee'].map(function(o){return'<button type="button" class="chip'+(cv.type===o?' on':'')+'" onclick="setCourier(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',\'type\',\''+o+'\')">'+o+'</button>';}).join('')+'</div>'+
+    if(cv.region==='UAE')typeOpts='<div class="chips">'+
+      ['Standard courier','Controlled drugs courier (Amara driver)'].map(function(o){
+        var isActiveT=cv.type===o;
+        return'<button type="button" class="chip'+(isActiveT?' on':'')+'" onclick="setCourier(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',\'type\','+(isActiveT?'\'\'':'\''+esc(o)+'\'')+')">'+esc(o)+'</button>';
+      }).join('')+'</div>';
+    else if(cv.region==='UK')typeOpts='<div class="chips">'+
+      ['Standard','Custom fee'].map(function(o){
+        var isActiveT=cv.type===o;
+        return'<button type="button" class="chip'+(isActiveT?' on':'')+'" onclick="setCourier(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',\'type\','+(isActiveT?'\'\'':'\''+o+'\'')+')">'+o+'</button>';
+      }).join('')+'</div>'+
       (cv.type==='Custom fee'?'<input class="dfi" style="margin-top:5px;" value="'+esc(cv.customFee||'')+'" placeholder="Custom courier fee&#8230;" data-save-key="'+sk_+'|'+id_+'|'+fid_+'_customFee">':'');
     else if(cv.region==='Global')typeOpts='<input class="dfi" style="margin-top:5px;" value="'+esc(cv.customFee||'')+'" placeholder="Custom fee / details&#8230;" data-save-key="'+sk_+'|'+id_+'|'+fid_+'_customFee">';
     return '<div class="dr">'+regionH+typeOpts+'</div>';
@@ -2697,7 +2774,14 @@ function setCourier(sk,itemId,fId,part,v){
   if(!curBill.billingData[sk])curBill.billingData[sk]={};
   if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
   var cur=curBill.billingData[sk][itemId][fId]||{region:'',type:'',customFee:''};
-  cur[part]=v;if(part==='region')cur.type='';
+  if(part==='region'){
+    if(!v){cur={region:'',type:'',customFee:''};} // deselect clears all
+    else {cur.region=v;cur.type='';cur.customFee='';}
+  } else if(part==='type'){
+    cur.type=v||''; // empty = deselect type
+  } else {
+    cur[part]=v;
+  }
   curBill.billingData[sk][itemId][fId]=cur;
   renderBForm();
 }
@@ -2929,12 +3013,67 @@ function buildBillTotal(b){
           var paf=calcAdminFee(idata['padh'].h,idata['padh'].m,idata['padh_h']||'In Hours','Inside UAE','physAdmin');
           if(paf>0){lines.push({label:'Physician Admin Time ('+fmtAdminUnits(idata['padh'].h,idata['padh'].m)+')',amount:paf});grandTotal+=paf;}
         }
+        // Prescription issued during consult (ptype field)
+        if(idata['ptype']){
+          var ptLoc=idata['al']||'Inside UAE';var ptH=idata['ptype'];
+          var ptKey=ptH+'-'+(ptLoc==='International'?'International':ptLoc.startsWith('Inside')?'Inside UAE':'Outside UAE');
+          var ptf=FEES.prescription&&FEES.prescription[ptKey]?FEES.prescription[ptKey]:0;
+          if(ptf>0){lines.push({label:"Prescription fee ("+ptH+")",amount:ptf});grandTotal+=ptf;}
+        }
+        // Stat medicine
+        if(idata['sm']===true||idata['sm']==='true'){var smf=FEES.statMedicine||20;lines.push({label:'Stat Medicine',amount:smf});grandTotal+=smf;}
       }
-      // Nurse visit fee
+      // Nurse visit fee — internal
       if(['is','ie','ii'].includes(item.id)){
         var nv=idata['nv']||'In Hours';
         var nf=FEES.nurse[nv]||0;
-        if(nf>0){lines.push({label:item.label,amount:nf});grandTotal+=nf;}
+        if(nf>0){lines.push({label:item.label+' ('+nv+')',amount:nf});grandTotal+=nf;}
+      }
+      // Phlebotomy — label shows which item
+      if(idata['ph']){
+        var phv=idata['ph'];var phf=0;
+        if(phv==='UAE — AED 75')phf=FEES.phlebotomy['UAE']||75;
+        else if(phv==='Global — AED 275')phf=FEES.phlebotomy['Global']||275;
+        else if(phv===true||phv==='true')phf=FEES.phlebotomy['UAE']||75;
+        if(phf>0){lines.push({label:'Phlebotomy fee',amount:phf});grandTotal+=phf;}
+      }
+      // ECG / BP monitor
+      if(idata['ef']===true||idata['ef']==='true'){var ef2=FEES.ecgStandard||500;lines.push({label:'ECG / BP Monitor fee',amount:ef2});grandTotal+=ef2;}
+      // Injection / IV drips
+      if(idata['if2']===true||idata['if2']==='true'){var inj2=FEES.injection||250;lines.push({label:'Injection / IV Drips fee',amount:inj2});grandTotal+=inj2;}
+      // Referral fee
+      if(idata['rf']===true||idata['rf']==='true'){
+        var rfL=idata['al']||'Inside UAE';var rfH3=idata['ch']||idata['nv']||'In Hours';
+        var rfK2=rfH3+'-'+(rfL==='International'?'International':rfL.startsWith('Inside')?'Inside UAE':'Outside UAE');
+        var rff=FEES.referral[rfK2]||FEES.referral['In Hours-Inside UAE']||220;
+        lines.push({label:'Physician referral fee',amount:rff});grandTotal+=rff;
+      }
+      // Re-report
+      if(idata['rr']===true||idata['rr']==='true'){var rrf=FEES.reReport||500;lines.push({label:'Re-reporting fee (UK)',amount:rrf});grandTotal+=rrf;}
+      // Internal medication type
+      if(item.id==='im'&&idata['imt']){
+        var imtf=idata['imt'].indexOf('OTC')>=0?FEES.internalMedOTC||75:FEES.internalMedPrescription||195;
+        var imtl2=idata['imt'].indexOf('OTC')>=0?'Internal Medication OTC':'Internal Medication Prescription';
+        lines.push({label:imtl2,amount:imtf});grandTotal+=imtf;
+      }
+      // External medication minimum fee
+      if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true')){var emff=FEES.externalMedMin||75;lines.push({label:'External medication fee',amount:emff});grandTotal+=emff;}
+      // Courier (all items) — context-aware label
+      var coTot=idata['co']||idata['ct']||idata['ct2'];
+      if(coTot&&typeof coTot==='object'&&coTot.region){
+        var cof=0,col2='Courier';
+        var hasLabsItem=Array.isArray(idata['lw'])&&idata['lw'].length>0;
+        var isMedItem=['im','em'].includes(item.id);
+        if(coTot.region==='UAE'){
+          if(coTot.type==='Controlled drugs courier (Amara driver)'){
+            cof=FEES.courierControlled||250;
+            col2='Courier — Controlled medication (Amara driver)';
+          } else {
+            cof=FEES.courierUAE||135;
+            col2=hasLabsItem?'Courier — transport samples':isMedItem?'Courier — transport medication':'Courier — UAE Standard';
+          }
+        } else if(coTot.customFee&&parseFloat(coTot.customFee)){cof=parseFloat(coTot.customFee);col2='Courier ('+coTot.region+')';}
+        if(cof>0){lines.push({label:col2,amount:cof});grandTotal+=cof;}
       }
       // External fees (feepaid / sf / cf)
       ['feepaid','sf','cf'].forEach(function(fk){
@@ -2943,23 +3082,25 @@ function buildBillTotal(b){
         lines.push({label:item.label+' (fee paid)',amount:amt,cur:fv.cur||'AED',external:true});
         if((fv.cur||'AED')==='AED')grandTotal+=amt;
       });
-      // Admin time fee — adh field is always TEAM admin (concierge)
-      // Physician admin time uses padh field (on ic only) at physAdmin rate
+      // Admin time fee
       if(idata['adh']){
         var ph2v=idata['ph2']||'In Hours';var al2=idata['al']||'Inside UAE';
         var adminFee=calcAdminFee(idata['adh'].h,idata['adh'].m,ph2v,al2,'teamAdmin');
-        if(adminFee>0){lines.push({label:'Admin — '+item.label,amount:adminFee});grandTotal+=adminFee;}
+        if(adminFee>0){
+          var adminLbl='Team Admin — '+item.label;
+          lines.push({label:adminLbl,amount:adminFee});grandTotal+=adminFee;
+        }
       }
       // Lab work
       if(Array.isArray(idata['lw'])&&idata['lw'].length){
         var lt=calcLabTotal(idata['lw']);
         if(lt>0){lines.push({label:'Lab tests ('+idata['lw'].length+')',amount:lt});grandTotal+=lt;}
       }
-      // Prescription fee
-      if((item.id==='im'||item.id==='em')&&idata['pl']&&idata['ph2']){
-        var pk=(idata['ph2']||'In Hours')+'-'+(idata['pl']||'Inside UAE');
-        var pf=FEES.prescription[pk]||0;
-        if(pf>0){lines.push({label:'Prescription',amount:pf});grandTotal+=pf;}
+      // Prescription fee on external medication only (em) — internal uses imt selector
+      if(item.id==='em'&&idata['pl']&&idata['ph2']){
+        var prxK3=(idata['ph2']||'In Hours')+'-'+(idata['pl'].toLowerCase().indexOf('international')>=0?'International':idata['pl'].toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');
+        var pf3=FEES.prescription&&FEES.prescription[prxK3]?FEES.prescription[prxK3]:0;
+        if(pf3>0){lines.push({label:'Prescription fee',amount:pf3});grandTotal+=pf3;}
       }
     });
   }
@@ -3000,7 +3141,13 @@ function buildBillTotal(b){
 }
 function bvFieldVal(f,v,idata){
   if(v===undefined||v===null)return null;
-  if(f.t==='tog'){return v?'Included':null;}
+  if(f.t==='tog'){
+    if(!v)return null;
+    // Return price for known fee toggles
+    if(f.id==='sm')return'AED '+(FEES.statMedicine||20).toLocaleString('en-GB')+' (per tablet)';
+    if(f.id==='nf'){var nfAmt=FEES.nurse[(idata&&idata['nv'])||'In Hours']||500;return'AED '+nfAmt.toLocaleString('en-GB');}
+    return'Included';
+  }
   if(f.t==='sel'){return v?String(v):null;}
   if(f.t==='txt'||f.t==='mta'||f.t==='labsel'){var s=String(v||'').trim();return s||null;}
   if(f.t==='lab'){return Array.isArray(v)&&v.length?v.join(', '):null;}
@@ -3041,28 +3188,34 @@ function buildItemCard(item,idata,secCol,secBg){
 
   // DOCTOR'S CONSULTATION (ic / ec)
   if(itemId==='ic'||itemId==='ec'){
-    var parts=[];
     var ct=tv('ct');var ch=tv('ch');var mode=tv('mode');var dur=fmtDur('dur');
     var cn=tv('cn');var dn=tv('dn');var hosp=tv('hospital');
-    if(ct)parts.push(ct);
-    if(ch)parts.push(ch);
-    if(mode)parts.push(mode);
-    var summary=parts.join(' · ')+(dur?' — '+dur:'');
     var docName=cn||dn;
-    if(docName)summary=docName+(hosp?' at '+hosp:'')+(summary?' — '+summary:'');
-    if(summary)summaryRows.push({main:summary});
-    // Fee — settled fee for both; schedule only shown for INTERNAL doctor (ic)
+    // Patient-friendly mode label
+    var modeLabel={'Home visit':'Home visit','Zoom / video consultation':'Video consultation','Telephone consultation':'Telephone consultation'}[mode]||mode;
+    // Build clean summary: "Dr Jay Lakhani — Brief · In Hours · Home visit"
+    var summParts=[];
+    if(ct)summParts.push(ct+' Consultation');
+    if(ch)summParts.push(ch);
+    if(modeLabel)summParts.push(modeLabel);
+    var summary=(docName?docName+' — ':'')+summParts.join(' · ');
+    if(hosp&&itemId==='ec')summary+=(summary?' at ':'')+hosp;
+    if(dur)summary+=' — '+dur;
+    // Fee inline on same row
     var fee=fmtFee('cf')||fmtFee('feepaid');
     if(fee){
-      summaryRows.push({main:'Fee settled: '+fee,highlight:true});
+      summaryRows.push({title:"Doctor's Consultation fee",desc:summary+' — '+fee,highlight:true});
     } else if(itemId==='ic'){
       var _vbranch=viewId&&bills.find(function(x){return x.id===viewId;})?bills.find(function(x){return x.id===viewId;}).branch:'UAE';
       var autoFee=calcDocFee(ct,ch,_vbranch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m);
       if(autoFee){
         var _units=(ct==='Extended'&&idata['dur'])?Math.ceil(Math.max(30,(parseInt(idata['dur'].h)||0)*60+(parseInt(idata['dur'].m)||0))/30):1;
-        var feeLabel=ct==='Extended'?'Schedule fee ('+_units+' × 30 min unit'+(  _units>1?'s':'')+'): '+fmtFeeAuto(autoFee):'Schedule fee: '+fmtFeeAuto(autoFee);
-        summaryRows.push({main:feeLabel,label:'Standard Rate'});
+        summaryRows.push({title:"Doctor's Consultation fee",desc:summary,fee:autoFee,highlight:true});
+      } else {
+        summaryRows.push({title:"Doctor's Consultation",desc:summary});
       }
+    } else {
+      summaryRows.push({title:"External Consultation",desc:summary});
     }
     // Lab work with prices
     var labArr=Array.isArray(idata['lw'])?idata['lw']:[];
@@ -3070,88 +3223,123 @@ function buildItemCard(item,idata,secCol,secBg){
     if(labArr.length){
       var labTotal=calcLabTotal(labArr);
       var labLines=labArr.map(function(l){var p=getLabPrice(l);return l+(p?' (AED '+(p).toLocaleString('en-GB')+')'  :'');}).join(', ');
-      var labSummary=labLines+(labwhere?' — sent to '+labwhere:'')+(labTotal?' — Total: AED '+labTotal.toLocaleString('en-GB'):'');
-      summaryRows.push({main:labSummary,label:'Lab work'});
+      var labDesc=labLines+(labwhere?' — sent to '+labwhere:'');
+      summaryRows.push({title:'Lab work',desc:labDesc,fee:labTotal,highlight:labTotal>0});
     }
-    // Prescription
-    var pl=tv('pl');var ph2=tv('ph2');var prxd=tv('prx_dest');
-    if(pl||ph2)summaryRows.push({main:(pl?pl+' ':'')+(ph2?ph2:'')+' Prescription'+(prxd?' — sent to '+prxd:''),label:'Prescription'});
-    // Meds
-    var meds=tv('meds');if(meds)summaryRows.push({main:meds,label:"Physician's Prescription"});
-    // (Physician Admin Time field removed from internal items — handled by adh block below)
-    // Notes
-    // Physician admin time (logged separately from consultation)
+    // Phlebotomy fee (if blood samples taken during consultation)
+    var ph=idata['ph'];
+    if(ph){
+      var phAmt=0;var phReg='';
+      if(ph==='UAE — AED 75'){phAmt=FEES.phlebotomy['UAE']||75;phReg='UAE';}
+      else if(ph==='Global — AED 275'){phAmt=FEES.phlebotomy['Global']||275;phReg='Global';}
+      else if(ph===true||ph==='true'){phAmt=FEES.phlebotomy['UAE']||75;phReg='UAE';}
+      if(phReg)summaryRows.push({title:'Phlebotomy fee',desc:phReg,fee:phAmt,highlight:true});
+    }
+    // Prescription issued during consultation (ptype = hours selected)
+    var ptype=tv('ptype');
+    if(ptype&&itemId==='ic'){
+      var prxLoc2=idata['al']||'Inside UAE';var prxKey2=ptype+'-'+(prxLoc2==='International'?'International':prxLoc2.startsWith('Inside')?'Inside UAE':'Outside UAE');
+      var prxAmt2=FEES.prescription&&FEES.prescription[prxKey2]?FEES.prescription[prxKey2]:0;
+      summaryRows.push({title:"Physician's Prescription",desc:ptype+(prxLoc2?' · '+prxLoc2:''),fee:prxAmt2,highlight:prxAmt2>0});
+    }
+    // Stat medicine
+    var smv=idata['sm'];if(smv===true||smv==='true')summaryRows.push({title:'Stat Medicine',desc:'Per tablet',fee:FEES.statMedicine||20,highlight:true});
+    // Physician admin time (separate charge)
     var padh=idata['padh'];var padhHtype=tv('padh_h')||'In Hours';
     if(padh&&(parseInt(padh.h)||parseInt(padh.m))){
       var padhStr=(parseInt(padh.h)||0)+'h '+(parseInt(padh.m)||0)+'min';
       var physFee=calcAdminFee(padh.h,padh.m,padhHtype,'Inside UAE','physAdmin');
       var physUnits=fmtAdminUnits(padh.h,padh.m);
-      summaryRows.push({main:'Physician Admin Time: '+padhHtype+' — '+padhStr+(physFee?' ('+physUnits+' = '+fmtFeeAuto(physFee)+')':''),label:'Physician Admin'});
+      summaryRows.push({title:'Physician Admin Time',desc:padhHtype+' — '+padhStr+(physUnits?' — '+physUnits:''),fee:physFee,highlight:physFee>0});
     }
-    var dn=tv('docnotes');if(dn)detailRows.push({label:'Consultation notes',value:dn,italic:true});
+    var dn2=tv('docnotes');if(dn2)detailRows.push({label:'Consultation notes',value:dn2,italic:true});
   }
 
   // NURSE VISITS (is, ie, ii, es, ee, ei)
   else if(itemId==='is'||itemId==='ie'||itemId==='ii'||itemId==='es'||itemId==='ee'||itemId==='ei'){
     var nu=tv('nu');var nv=tv('nv');var dur=fmtDur('dur');
     var fee=fmtFee('feepaid');
-    // Main summary: "Nurse Jasmine — In Hours visit for sample collection — 25min | settled for AED 150"
-    var nurseType=itemId==='is'||itemId==='es'?'sample collection':
-                  itemId==='ie'||itemId==='ee'?'ECG / BP monitor':
-                  itemId==='ii'||itemId==='ei'?'injection / vaccination':'visit';
-    var summaryParts=[];
-    if(nu)summaryParts.push(nu);
-    if(nv)summaryParts.push(nv);
-    summaryParts.push('home visit for '+nurseType);
-    if(dur)summaryParts.push(dur);
-    var summary=summaryParts.join(' — ');
-    if(fee)summary+=' — settled for '+fee;
-    summaryRows.push({main:summary,highlight:!!fee});
+    var nurseType=itemId==='is'||itemId==='es'?'Sample Collection':
+                  itemId==='ie'||itemId==='ee'?'ECG / BP Monitor':
+                  itemId==='ii'||itemId==='ei'?'Injection / Vaccination':'Visit';
+    var isExt=['es','ee','ei'].includes(itemId);
+    // Build: "Nurse Jasmine — In Hours · Sample Collection"
+    var summParts2=[];
+    if(nv)summParts2.push(nv);
+    summParts2.push(nurseType);
+    var summary=(nu?nu+' — ':'')+summParts2.join(' · ');
+    if(dur)summary+=' — '+dur;
+    // Internal: auto-calculate nurse fee; External: use feepaid
+    if(fee){
+      summaryRows.push({title:'Nurse Visit fee',desc:summary+' — '+fee,highlight:true});
+    } else if(!isExt){
+      var nurseFee=FEES.nurse[nv||'In Hours']||0;
+      summaryRows.push({title:'Nurse Visit fee',desc:summary,fee:nurseFee,highlight:nurseFee>0});
+    } else {
+      summaryRows.push({title:'External Nurse Visit',desc:summary});
+    }
     // ECG
-    var ef=idata['ef'];if(ef===true||ef==='true')summaryRows.push({main:'ECG or BP Monitor fee',label:'Included'});
+    var ef=idata['ef'];if(ef===true||ef==='true')summaryRows.push({title:'ECG / BP Monitor fee',desc:'Device fee',fee:FEES.ecgStandard||500,highlight:true});
     // Injection
-    var inj=idata['if2'];if(inj===true||inj==='true')summaryRows.push({main:'Injection or IV Drips fee',label:'Included'});
+    var inj=idata['if2'];if(inj===true||inj==='true')summaryRows.push({title:'Injection / IV Drips fee',desc:'Administration fee',fee:FEES.injection||250,highlight:true});
     // Phlebotomy
-    var ph=idata['ph'];if(ph===true||ph==='true')summaryRows.push({main:'Phlebotomy fee',label:'Included'});
+    var ph=idata['ph'];
+    if(ph){
+      var phAmt=0;var phReg='';
+      if(ph==='UAE — AED 75'){phAmt=FEES.phlebotomy['UAE']||75;phReg='UAE';}
+      else if(ph==='Global — AED 275'){phAmt=FEES.phlebotomy['Global']||275;phReg='Global';}
+      else if(ph===true||ph==='true'){phAmt=FEES.phlebotomy['UAE']||75;phReg='UAE';}
+      if(phReg)summaryRows.push({title:'Phlebotomy fee',desc:phReg,fee:phAmt,highlight:true});
+    }
     // Lab work with prices
     var labArr=Array.isArray(idata['lw'])?idata['lw']:[];
     var labwhere=tv('labwhere');
     if(labArr.length){
       var labTotal=calcLabTotal(labArr);
       var labLines=labArr.map(function(l){var p=getLabPrice(l);return l+(p?' (AED '+(p).toLocaleString('en-GB')+')'  :'');}).join(', ');
-      var labSummary=labLines+(labwhere?' — sent to '+labwhere:'')+(labTotal?' — Total: AED '+labTotal.toLocaleString('en-GB'):'');
-      summaryRows.push({main:labSummary,label:'Lab work'});
+      var labDesc=labLines+(labwhere?' — sent to '+labwhere:'');
+      summaryRows.push({title:'Lab work',desc:labDesc,fee:labTotal,highlight:labTotal>0});
     }
-    // Prescription (nurse injection items)
+    // Prescription on injection items (ei has pl/ph2)
     var pl=tv('pl');var ph2=tv('ph2');var prxd=tv('prx_dest');
-    if(pl||ph2)summaryRows.push({main:(pl?pl+' ':'')+(ph2?ph2:'')+' Prescription'+(prxd?' — sent to '+prxd:''),label:'Prescription'});
-    // Courier — handle both courieropts object AND legacy boolean
-    var coVal=idata['co'];
-    var coStr='';
-    if(coVal&&typeof coVal==='object'&&coVal.region){
-      coStr=coVal.region+(coVal.type?' — '+coVal.type:'')+(coVal.customFee?' ('+coVal.customFee+')':'');
-    } else if(coVal===true||coVal==='true'){
-      coStr='Courier fee included';
-    } else {
-      coStr=fmtCourier('ct')||fmtCourier('ct2');
+    if(pl&&ph2){
+      var prxKeyNu=ph2+'-'+(pl.toLowerCase().indexOf('international')>=0?'International':pl.toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');
+      var prxAmtNu=FEES.prescription&&FEES.prescription[prxKeyNu]?FEES.prescription[prxKeyNu]:0;
+      summaryRows.push({title:"Physician's Prescription",desc:pl+' · '+ph2+(prxd?' — sent to '+prxd:''),fee:prxAmtNu,highlight:prxAmtNu>0});
     }
-    if(coStr)summaryRows.push({main:coStr,label:'Courier'});
-    // (Physician Admin Time field removed from internal items — handled by adh block below)
-    // Nurse notes
+    // Courier — context-aware label based on item type
+    var hasLabs=Array.isArray(idata['lw'])&&idata['lw'].length>0;
+    var coVal=idata['co'];var coStr='';var coAmt=0;var coTitle='';
+    if(coVal&&typeof coVal==='object'&&coVal.region){
+      // Title depends on context
+      coTitle=hasLabs?'Courier — transport samples':'Courier';
+      if(coVal.region==='UAE'){
+        if(coVal.type==='Controlled drugs courier (Amara driver)'){coAmt=FEES.courierControlled||250;coStr='UAE — Controlled drugs courier (Amara driver)';}
+        else{coAmt=FEES.courierUAE||135;coStr='UAE — Standard courier';}
+      } else {
+        coStr=coVal.region+(coVal.type?' — '+coVal.type:'')+(coVal.customFee?' (AED '+coVal.customFee+')':'');
+        if(coVal.customFee)coAmt=parseFloat(coVal.customFee)||0;
+      }
+    } else if(coVal===true||coVal==='true'){
+      coTitle=hasLabs?'Courier — transport samples':'Courier';coStr='UAE — Standard courier';coAmt=FEES.courierUAE||135;
+    }
+    if(coStr)summaryRows.push({title:coTitle||'Courier',desc:coStr,fee:coAmt,highlight:coAmt>0});
     var nn=tv('nnotes');if(nn)detailRows.push({label:'Nurse notes',value:nn,italic:true});
   }
 
   // SCAN / PROCEDURE (ep)
   else if(itemId==='ep'){
     var scanname=tv('scanname');var hosp=tv('hospital');var fee=fmtFee('sf')||fmtFee('feepaid');
-    var summary='';
-    if(scanname)summary=scanname;
-    if(hosp)summary+=(summary?' at ':'')+hosp;
-    if(fee)summary+=(summary?' — ':'')+' settled for '+fee;
-    if(summary)summaryRows.push({main:summary,highlight:!!fee});
-    // referral / re-report
-    var rf=idata['rf'];if(rf===true||rf==='true')summaryRows.push({main:'Physician referral fee',label:'Included'});
-    var rr=idata['rr'];if(rr===true||rr==='true')summaryRows.push({main:'Re-reporting fee (UK)',label:'Included'});
+    var scanDesc=scanname+(hosp?' at '+hosp:'')+(fee?' — settled for '+fee:'');
+    if(scanDesc)summaryRows.push({title:'Scan / Procedure',desc:scanDesc,highlight:!!fee});
+    var rf=idata['rf'];
+    if(rf===true||rf==='true'){
+      var rfDispLoc=idata['al']||'Inside UAE';var rfDispH=idata['ch']||idata['nv']||'In Hours';
+      var rfDispK=rfDispH+'-'+(rfDispLoc==='International'?'International':rfDispLoc.startsWith('Inside')?'Inside UAE':'Outside UAE');
+      var rfAmt=FEES.referral[rfDispK]||FEES.referral['In Hours-Inside UAE']||220;
+      summaryRows.push({title:'Physician Referral fee',desc:rfDispH+(rfDispLoc?' · '+rfDispLoc:''),fee:rfAmt,highlight:true});
+    }
+    var rr=idata['rr'];if(rr===true||rr==='true')summaryRows.push({title:'Re-reporting fee (UK)',desc:'Scan re-reported by UK radiologist',fee:FEES.reReport||500,highlight:true});
   }
 
   // MEDICATION (im / em)
@@ -3159,26 +3347,49 @@ function buildItemCard(item,idata,secCol,secBg){
     var pl=tv('pl');var ph2=tv('ph2');var prxd=tv('prx_dest');
     var meds=tv('meds');
     var fee=fmtFee('feepaid');
-    // Build one rich summary sentence for external:
-    // "Inside the UAE · Out of Hours Prescription for [meds] sent to [pharmacy] settled for AED XX"
-    if(itemId==='em'&&(pl||ph2||meds||fee)){
-      var parts=[];
-      if(pl)parts.push(pl);
-      if(ph2)parts.push(ph2+' Prescription');
-      var sentence=parts.join(' · ');
-      if(meds)sentence+=(sentence?' for ':' ')+ meds;
-      if(prxd)sentence+=' sent to '+prxd;
-      if(fee)sentence+=' — settled for '+fee;
-      if(sentence)summaryRows.push({main:sentence,label:"Physician's Prescription",highlight:!!fee});
-    } else {
-      // Internal medication
-      var prxLine=(pl?pl+' ':'')+(ph2?ph2:'')+' Prescription'+(prxd?' — sent to '+prxd:'');
-      if(prxLine.trim()&&prxLine.trim()!=='Prescription')summaryRows.push({main:prxLine.trim(),label:'Prescription'});
-      if(meds)summaryRows.push({main:meds,label:"Physician's Prescription"});
-      if(fee)summaryRows.push({main:'Fee settled: '+fee,highlight:true});
+    // External: prescription fee from FEES.prescription (AED 250 IH / 375 OOH). Internal (im): uses imt only
+    var prxFeeAmt=0;
+    if(itemId==='em'&&pl&&ph2){
+      var prxFeeKey=ph2+'-'+(pl.toLowerCase().indexOf('international')>=0?'International':pl.toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');
+      prxFeeAmt=FEES.prescription&&FEES.prescription[prxFeeKey]?FEES.prescription[prxFeeKey]:0;
     }
-    // Courier
-    var co=fmtCourier('ct')||fmtCourier('ct2');if(co)summaryRows.push({main:co,label:'Courier'});
+    // For internal (im): imt fee goes ON the prescription row
+    var imt=tv('imt');
+    if(itemId==='im'&&imt){
+      prxFeeAmt=imt.indexOf('OTC')>=0?FEES.internalMedOTC||75:FEES.internalMedPrescription||195;
+    }
+    // Build description: "Inside UAE · In Hours prescription for Augmentin sent to Medx"
+    var prxParts=[];
+    if(pl)prxParts.push(pl);
+    if(ph2)prxParts.push(ph2);
+    var prxDesc=prxParts.join(' · ');
+    if(meds)prxDesc+=(prxDesc?' prescription for ':'')+meds;
+    if(prxd)prxDesc+=' sent to '+prxd;
+    if(fee)prxDesc+=' — settled for '+fee;
+    var prxTitle=itemId==='em'?"Physician's Prescription (External)":
+                 (imt&&imt.indexOf('OTC')>=0?'Internal Medication OTC':'Physician\'s Prescription');
+    if(prxDesc)summaryRows.push({title:prxTitle,desc:prxDesc,fee:prxFeeAmt,highlight:prxFeeAmt>0||!!fee});
+    // External medication minimum fee (emf) — only for em
+    var emfv=idata['emf'];
+    if(emfv===true||emfv==='true')summaryRows.push({title:'External Medication fee',desc:'Minimum prescription handling fee',fee:FEES.externalMedMin||75,highlight:true});
+    // Courier — context-aware: check if controlled drugs type
+    var coMed=idata['ct']||idata['ct2']||idata['co'];var coMedStr='';var coMedAmt=0;var coMedTitle='';
+    if(coMed&&typeof coMed==='object'&&coMed.region){
+      if(coMed.region==='UAE'){
+        if(coMed.type==='Controlled drugs courier (Amara driver)'){
+          coMedAmt=FEES.courierControlled||250;coMedStr='UAE — Controlled drugs (Amara driver)';
+          coMedTitle='Courier — transport controlled medication';
+        } else {
+          coMedAmt=FEES.courierUAE||135;coMedStr='UAE — Standard courier';
+          coMedTitle='Courier — transport medication / prescription';
+        }
+      } else {
+        coMedStr=coMed.region+(coMed.type?' — '+coMed.type:'')+(coMed.customFee?' (AED '+coMed.customFee+')':'');
+        if(coMed.customFee)coMedAmt=parseFloat(coMed.customFee)||0;
+        coMedTitle='Courier — transport medication';
+      }
+    } else if(coMed){coMedStr=fmtCourier('ct')||fmtCourier('ct2');coMedTitle='Courier';}
+    if(coMedStr)summaryRows.push({title:coMedTitle||'Courier',desc:coMedStr,fee:coMedAmt,highlight:coMedAmt>0});
   }
 
   // FALLBACK — generic item rendering
@@ -3187,49 +3398,51 @@ function buildItemCard(item,idata,secCol,secBg){
       if(['pl','prx_dest','al','adh','adesc','lw','labwhere'].includes(f.id))return;
       var v=idata[f.id];if(!v&&v!==true)return;
       var vs=bvFieldVal(f,v,idata);if(!vs)return;
-      if(f.t==='feefield')summaryRows.push({main:vs,label:f.l,highlight:true});
-      else summaryRows.push({main:vs,label:f.l});
+      if(f.t==='feefield')summaryRows.push({title:f.l,desc:vs,highlight:true});
+      else summaryRows.push({title:f.l,desc:vs});
     });
     // Lab + labwhere
     var labs=Array.isArray(idata['lw'])?idata['lw'].join(', '):'';
     var labwhere=tv('labwhere');
-    if(labs)summaryRows.push({main:labs+(labwhere?' — sent to '+labwhere:''),label:'Lab work'});
+    if(labs){var labTotal2=calcLabTotal(idata['lw']||[]);summaryRows.push({title:'Lab work',desc:labs+(labwhere?' — sent to '+labwhere:''),fee:labTotal2,highlight:labTotal2>0});}
     // Prescription
     var pl=tv('pl');var ph2=tv('ph2');var prxd=tv('prx_dest');
-    if(pl||ph2)summaryRows.push({main:(pl?pl+' ':'')+(ph2||'')+' Prescription'+(prxd?' — sent to '+prxd:''),label:'Prescription'});
+    if(pl||ph2)summaryRows.push({title:"Physician's Prescription",desc:(pl?pl+' ':'')+(ph2||'')+(prxd?' — sent to '+prxd:'')});
   }
 
   // ── Always append: Admin time + desc ──
-  // Courier universal (for items not handled in their own block)
+  // Courier universal (for ic, ep items — not nurse/medication which handle their own)
   if(!['im','em','is','ie','ii','es','ee','ei'].includes(itemId)){
-    var coVal2=idata['co'];var coStr2='';
+    var coVal2=idata['co'];var coStr2='';var coAmt2=0;
+    var hasLabsIC=Array.isArray(idata['lw'])&&idata['lw'].length>0;
+    var coTitle2=hasLabsIC?'Courier — transport samples':(itemId==='ie'||itemId==='ee'?'Courier — return monitor':'Courier');
     if(coVal2&&typeof coVal2==='object'&&coVal2.region){
-      coStr2=coVal2.region+(coVal2.type?' — '+coVal2.type:'')+(coVal2.customFee?' ('+coVal2.customFee+')':'');
-    } else if(coVal2===true||coVal2==='true'){coStr2='Courier fee included';}
-    if(coStr2)summaryRows.push({main:coStr2,label:'Courier'});
+      if(coVal2.region==='UAE'){
+        if(coVal2.type==='Controlled drugs courier (Amara driver)'){coAmt2=FEES.courierControlled||250;coStr2='UAE — Controlled drugs (Amara driver)';coTitle2='Courier — transport controlled medication';}
+        else{coAmt2=FEES.courierUAE||135;coStr2='UAE — Standard courier';}
+      } else {
+        coStr2=coVal2.region+(coVal2.type?' — '+coVal2.type:'')+(coVal2.customFee?' (AED '+coVal2.customFee+')':'');
+        if(coVal2.customFee)coAmt2=parseFloat(coVal2.customFee)||0;
+      }
+    } else if(coVal2===true||coVal2==='true'){coStr2='UAE — Standard courier';coAmt2=FEES.courierUAE||135;}
+    if(coStr2)summaryRows.push({title:coTitle2,desc:coStr2,fee:coAmt2,highlight:coAmt2>0});
   }
   // Admin time
   var adh=idata['adh'];var al=tv('al');
   var adhStr=fmtDur('adh');
   if(adhStr){
     var ph2v=tv('ph2')||'';
-    var adminLine=(al?al+' · ':'')+( ph2v?ph2v+' · ':'')+'Admin Time '+adhStr;
-    // Show auto-calculated admin fee
-    // Internal items use teamAdmin rate; external doctor/nurse use physAdmin (ext items don't have this)
-    var isPhysAdmin=false; // int items now all use teamAdmin for the adh field
+    var isPhysAdmin=false;
     var adminType='teamAdmin';
     var _ah=adh&&adh.h||0,_am=adh&&adh.m||0;
-    var _adminMins=Math.max((_ah<15&&_am<15)?30:0,(parseInt(_ah)||0)*60+(parseInt(_am)||0));
-    if(_adminMins>0&&_adminMins<15)_adminMins=30;
-    var _adminUnits=_adminMins>0?Math.ceil(_adminMins/30):0;
     var adminFeeAmt=calcAdminFee(_ah,_am,ph2v||'In Hours',al||'Inside UAE',adminType);
     var _adminUnitStr=fmtAdminUnits(_ah,_am);
-    if(adminFeeAmt>0)adminLine+=' — '+_adminUnitStr+' = '+fmtFeeAuto(adminFeeAmt);
-    summaryRows.push({main:adminLine,label:isPhysAdmin?'Physician Admin':'Team Admin',adminDesc:idata['adesc']?stripTmplLabel(String(idata['adesc'])):''});
-  } else if(idata['adesc']&&String(idata['adesc']).trim()&&adhStr){
-    // Only show admin description if there's actual admin time logged
-    summaryRows.push({main:stripTmplLabel(String(idata['adesc'])),label:'Admin'});
+    var adminDesc=idata['adesc']?stripTmplLabel(String(idata['adesc'])):'';
+    var adminTitle=isPhysAdmin?'Physician Admin Time':'Team Admin Time';
+    var adminDescLine=(al?al+' · ':'')+( ph2v?ph2v+' · ':'')+adhStr+(_adminUnitStr?' — '+_adminUnitStr:'');
+    summaryRows.push({title:adminTitle,desc:adminDescLine,fee:adminFeeAmt,adminDesc:adminDesc,highlight:adminFeeAmt>0});
   }
+  // NOTE: if no adh time entered, admin desc is NOT shown (no row pushed)
 
   if(!summaryRows.length&&!detailRows.length)return'';
 
@@ -3240,15 +3453,24 @@ function buildItemCard(item,idata,secCol,secBg){
   card+='</div>';
   card+='<div>';
   summaryRows.forEach(function(row,ri){
-    card+='<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;'+( ri>0?'border-top:1px solid var(--bo);':'')+(row.highlight?'background:'+secBg+'22;':'')+'">';
-    card+='<span style="color:'+secCol+';font-size:13px;font-weight:700;flex-shrink:0;margin-top:1px;">✓</span>';
-    card+='<div style="flex:1;">';
-    if(row.label){
-      card+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:2px;">'+esc(row.label)+'</div>';
+    card+='<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;'+( ri>0?'border-top:1px solid var(--bo);':'')+(row.highlight?'background:'+secBg+'18;':'')+'">';
+    card+='<span style="color:'+secCol+';font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px;">✓</span>';
+    card+='<div style="flex:1;min-width:0;">';
+    // title = category label, fee = amount — shown on same line
+    var titleStr=row.title||row.label||'';
+    var descStr=row.desc||row.main||'';
+    var feeStr=row.fee&&row.fee>0?'AED '+(Math.round(row.fee*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2}):'';
+    if(titleStr||feeStr){
+      card+='<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:'+(descStr?'3px':'0')+'">';
+      card+='<div style="font-size:12px;font-weight:700;color:var(--tx);letter-spacing:.01em;line-height:1.3;">'+esc(titleStr)+'</div>';
+      if(feeStr)card+='<div style="font-size:12px;font-weight:700;color:var(--tx);white-space:nowrap;flex-shrink:0;">'+esc(feeStr)+'</div>';
+      card+='</div>';
     }
-    card+='<div style="font-size:13px;font-weight:'+(row.highlight?'600':'500')+';color:'+(row.highlight?'var(--oc)':'var(--tx)')+';">'+esc(row.main)+'</div>';
+    if(descStr){
+      card+='<div style="font-size:12px;font-weight:400;color:var(--mu);line-height:1.45;">'+esc(descStr)+'</div>';
+    }
     if(row.adminDesc){
-      card+='<div style="font-size:11px;color:var(--mu);margin-top:3px;line-height:1.5;white-space:pre-wrap;font-style:italic;">'+esc(row.adminDesc)+'</div>';
+      card+='<div style="font-size:11px;color:var(--m2);margin-top:3px;line-height:1.5;white-space:pre-wrap;font-style:italic;">'+esc(row.adminDesc)+'</div>';
     }
     card+='</div></div>';
   });
@@ -4007,9 +4229,20 @@ function renderSettings(){
         feeRow('Outside UAE — Out of Hours','prescription','Out of Hours-Outside UAE')+
         feeRow('International — In Hours','prescription','In Hours-International')+
         feeRow('International — Out of Hours','prescription','Out of Hours-International')+
+        '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin:12px 0 4px;">Phlebotomy</div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">UAE</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+((FEES.phlebotomy&&FEES.phlebotomy['UAE'])||75)+'" onchange="if(!FEES.phlebotomy)FEES.phlebotomy={};FEES.phlebotomy[\'UAE\']=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">Global</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+((FEES.phlebotomy&&FEES.phlebotomy['Global'])||275)+'" onchange="if(!FEES.phlebotomy)FEES.phlebotomy={};FEES.phlebotomy[\'Global\']=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
         '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin:12px 0 4px;">Courier</div>'+
         '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">UAE Standard</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+FEES.courierUAE+'" onchange="FEES.courierUAE=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
-        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">Controlled Drugs (Akku)</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+FEES.courierControlled+'" onchange="FEES.courierControlled=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">Controlled Drugs / Akku</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+FEES.courierControlled+'" onchange="FEES.courierControlled=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin:12px 0 4px;">Other Flat Fees</div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">ECG Standard</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+(FEES.ecgStandard||500)+'" onchange="FEES.ecgStandard=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">Injection / IV Drips (min flat fee)</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+(FEES.injection||250)+'" onchange="FEES.injection=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">Stat Medicine (per tablet)</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+(FEES.statMedicine||20)+'" onchange="FEES.statMedicine=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">Re-reporting fee (UK)</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+(FEES.reReport||500)+'" onchange="FEES.reReport=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">Internal Medication OTC</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+(FEES.internalMedOTC||75)+'" onchange="FEES.internalMedOTC=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">Internal Medication Prescription</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+(FEES.internalMedPrescription||195)+'" onchange="FEES.internalMedPrescription=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bo);"><span style="flex:1;font-size:12px;">External Medication fee (minimum)</span><span style="font-size:11px;color:var(--m2);">AED</span><input type="number" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+(FEES.externalMedMin||75)+'" onchange="FEES.externalMedMin=parseFloat(this.value)||0;toast(\'Rate updated\',\'ok\');saveFEES();"></div>'+
         '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin:12px 0 4px;">Internal Lab Test Prices</div>'+
         '<p style="font-size:11px;color:var(--m2);margin-bottom:8px;">Prices shown on lab chips and used in bill totals. Search and edit individual test prices below.</p>'+
         '<input id="fee-lab-search" class="fi" placeholder="Search lab tests..." style="margin-bottom:8px;" oninput="filterFeeLabList(this.value)">'+
@@ -4180,6 +4413,16 @@ function loadFEES(){
       });
     }
     mergeDeep(FEES,saved);
+    // Migration: if old phlebotomy was stored as a flat number, convert to object
+    if(typeof FEES.phlebotomy==='number'){FEES.phlebotomy={'UAE':FEES.phlebotomy,'Global':275};}
+    // Ensure new flat fee fields exist with defaults if missing from old saves
+    if(!FEES.ecgStandard)FEES.ecgStandard=500;
+    if(!FEES.injection)FEES.injection=250;
+    if(!FEES.statMedicine)FEES.statMedicine=20;
+    if(!FEES.reReport)FEES.reReport=500;
+    if(!FEES.internalMedOTC)FEES.internalMedOTC=75;
+    if(!FEES.internalMedPrescription)FEES.internalMedPrescription=195;
+    if(!FEES.externalMedMin)FEES.externalMedMin=75;
   }catch(e){}
 }
 function addStatus(){
