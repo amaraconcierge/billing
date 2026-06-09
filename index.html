@@ -3764,7 +3764,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
     if(prxd)_prxSubParts.push('sent to '+prxd);
     var prxSub=_prxSubParts.join(' · ');
     var prxTitle=itemId==='im'?(imt&&imt.indexOf('OTC')>=0?'Amara Medication (OTC)':imt&&imt.indexOf('Custom')>=0?'Medication — custom fee':'Amara Prescription Medication'):"Physician’s Prescription";
-    if(prxSub)summaryRows.push({title:prxTitle,desc:prxSub,fee:prxFeeAmt||null,amtCur:prxFeeCur});
+    if(prxSub||prxFeeAmt>0||(itemId==='im'&&imt))summaryRows.push({title:prxTitle,desc:prxSub||(meds?'for '+meds:(imt||'')),fee:prxFeeAmt||null,amtCur:prxFeeCur});
     // External medication fee paid (feepaid = what was paid to the pharmacy)
     if(fee){
       var _fvMed=idata['feepaid'];
