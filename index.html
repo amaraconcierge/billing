@@ -457,7 +457,9 @@ button{cursor:pointer;}
   .mbox{width:100vw!important;max-width:100vw!important;border-radius:14px 14px 0 0!important;margin:0!important;}
   .mbody{max-height:72vh!important;padding:14px 16px!important;}
   .mhd{padding:13px 16px!important;}
-  .mfoot{padding:10px 14px!important;gap:6px!important;}
+  .mfoot{padding:10px 14px!important;gap:6px!important;justify-content:stretch!important;}
+  .mfoot .btn,.mfoot .ab{flex:1 1 auto;justify-content:center;min-width:62px;padding:10px 8px!important;font-size:12px!important;}
+  .mfoot .btn-p,.mfoot .ab.pri{flex-basis:100%;order:9;}
   /* Keep centered for small alert-style modals */
   #kmod .ov, #tmmod .ov{align-items:center!important;}
 
@@ -714,7 +716,7 @@ button{cursor:pointer;}
     <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
       <span id="cloud-status" title="Settings sync status" style="font-size:14px;opacity:0.4;cursor:pointer;transition:opacity .3s;" onclick="showSettingsSQL()">☁️</span>
       <div onclick="manualRefresh()" title="Click to refresh now" style="display:flex;align-items:center;gap:5px;cursor:pointer;"><div class="sdot" id="sdot"></div><span id="slbl" style="font-size:10px;color:rgba(251,247,236,.3);"></span></div>
-      <button class="tbtn priv" id="privBtn" onclick="togglePrivacy()" title="Toggle patient-name privacy"></button><button class="tbtn" onclick="logout()">Log out</button><button class="tbtn" onclick="openMod('kmod')">Backup</button>
+      <button class="tbtn priv" id="privBtn" onclick="togglePrivacy()" title="Toggle patient-name privacy"></button><select id="actingAs" onchange="setCurUser(this.value)" title="Acting as — stamps your changes in the Activity Log" style="background:rgba(251,247,236,.1);color:#FBF7EC;border:1px solid rgba(251,247,236,.25);border-radius:6px;font-size:11px;padding:3px 6px;font-family:var(--sans);max-width:124px;"></select><button class="tbtn" onclick="logout()">Log out</button><button class="tbtn" onclick="openMod('kmod')">Backup</button>
       <button class="tbtn solid" onclick="openNew()">+ New Bill</button>
     </div>
   </div>
@@ -1417,7 +1419,7 @@ function calcBillGrandTotal(b){
       // Stat medicine (sm toggle — per tablet)
       if(idata['sm']===true||idata['sm']==='true'){total+=FEES.statMedicine||20;}
       // Referral fee (rf toggle) — uses in/out of hours + location
-      if(sk!=='extUK'&&(idata['rf']===true||idata['rf']==='true')){var rfLoc=idata['al']||'Inside UAE';var rfH=idata['ch']||idata['nv']||'In Hours';var rfk=rfH+'-'+(rfLoc==='International'?'International':rfLoc.startsWith('Inside')?'Inside UAE':'Outside UAE');total+=FEES.referral[rfk]||FEES.referral['In Hours-Inside UAE']||220;}
+      if(sk!=='extUK'&&(idata['rf']===true||idata['rf']==='true')){var rfLoc=idata['al']||'Inside UAE';var rfH=idata['rf_h']||idata['ch']||idata['nv']||'In Hours';var rfk=rfH+'-'+(rfLoc==='International'?'International':rfLoc.startsWith('Inside')?'Inside UAE':'Outside UAE');total+=FEES.referral[rfk]||FEES.referral['In Hours-Inside UAE']||220;}
       // Re-report fee (rr toggle)
       if(idata['rr']===true||idata['rr']==='true'){total+=FEES.reReport||500;}
       // Internal medication type fee (imt selector on im item)
@@ -1489,6 +1491,9 @@ var CFG={
     {name:'Draft',       color:'#888888', bg:'#F2F2F2'},
   ],
   labWorks:{UAE:[],UK:[],Global:[]},
+  patientLinks:{},
+  protPins:{settings:'1982',reports:'1982'},
+  auditLog:[],
   labs:[
     'Amara Core Profile',
     'Amara Complete Profile',
@@ -2179,31 +2184,39 @@ async function dbSave(bill){
   var bd=Object.assign({},bill.billingData||{});
   if(bill.rollingInvoice){bd._rollingInvoice=bill.rollingInvoice;bd._rollingColor=bill.rollingColor||'#185FA5';}
   else{delete bd._rollingInvoice;delete bd._rollingColor;}
+  var _isNew=!bill.id;var _oldB=_isNew?null:bills.find(function(x){return x.id===bill.id;});
+  var _chg=_isNew?[]:_billDiff(_oldB&&_oldB.billingData,bill.billingData);
+  var _act=(bill.billingData&&Array.isArray(bill.billingData._activity))?bill.billingData._activity.slice():[];
+  _act.push({ts:Date.now(),user:_curUser||'\u2014',action:_isNew?'created':'edited',changes:_chg});if(_act.length>50)_act=_act.slice(-50);
+  bd._activity=_act;if(bill.billingData)bill.billingData._activity=_act;
   var row={patient_name:bill.patientName,branch:bill.branch,status:bill.status,assigned_to:bill.billedBy,notes:bill.notes,billing_data:JSON.stringify(bd),updated_at:new Date().toISOString(),invoice_no:bill.invoiceNo||null};
   try{
     if(bill.id){var u=await d.from('bills').update(row).eq('id',bill.id);if(u.error)throw u.error;bills=bills.map(function(b){return b.id===bill.id?Object.assign({},bill,{updatedAt:row.updated_at}):b;});}
     else{row.created_at=new Date().toISOString();var ins=await d.from('bills').insert(row).select().single();if(ins.error)throw ins.error;bill.id=ins.data.id;bill.createdAt=ins.data.created_at;bill.updatedAt=ins.data.updated_at;bills=[Object.assign({},bill)].concat(bills);}
-    setSS('ok','Saved '+_nowHM());toast('Bill saved successfully','ok');clearStash();updCts();render();renderPats();return true;
+    setSS('ok','Saved '+_nowHM());toast('Bill saved successfully','ok');clearStash();updCts();render();renderPats();logAudit(_isNew?'Created':'Edited','Bill',bill.patientName||'(unnamed)',(bill.branch||'')+((!_isNew&&_chg.length)?' \u00b7 added '+_chg.join(', '):''));return true;
   }catch(e){setSS('er','Not saved');toast('Save failed: '+e.message+' — your entry is kept, please try again.','er');stashUnsaved(bill);return false;}
 }
 async function dbDelBill(id){
+  var _delB=bills.find(function(x){return x.id===id;});
   var d=gDB();if(!d)return;setSS('sy','Deleting…');
-  try{var r=await d.from('bills').delete().eq('id',id);if(r.error)throw r.error;bills=bills.filter(function(b){return b.id!==id;});setSS('ok','Synced');toast('Bill deleted','in');updCts();render();renderPats();}
+  try{var r=await d.from('bills').delete().eq('id',id);if(r.error)throw r.error;bills=bills.filter(function(b){return b.id!==id;});setSS('ok','Synced');toast('Bill deleted','in');updCts();render();renderPats();logAudit('Deleted','Bill',(_delB&&_delB.patientName)||'',(_delB&&_delB.branch)||'');}
   catch(e){toast('Delete failed: '+e.message,'er');}
 }
 async function dbSavePat(p){
+  var _isNewP=!p.id;
   var d=gDB();if(!d)d=await gDBReady();if(!d)return false;
   var row={name:p.name,notes:p.notes||'',bill_to:p.billTo||''};
   try{
     if(p.id){var u=await d.from('patients').update(row).eq('id',p.id);if(u.error)throw u.error;patients=patients.map(function(x){return x.id===p.id?Object.assign({},p):x;});}
     else{row.created_at=new Date().toISOString();var ins=await d.from('patients').insert(row).select().single();if(ins.error)throw ins.error;patients=patients.concat([Object.assign({},p,{id:ins.data.id,createdAt:ins.data.created_at})]);}
-    updCts();renderPats();return true;
+    updCts();renderPats();logAudit(_isNewP?'Created':'Edited','Patient',p.name||'',p.billTo?('Bill to '+p.billTo):'');return true;
   }catch(e){toast('Patient save failed: '+e.message,'er');return false;}
 }
 async function dbDelPat(id){
+  var _delP=patients.find(function(x){return x.id===id;});
   var d=gDB();if(!d)return;
   var r=await d.from('patients').delete().eq('id',id);
-  if(!r.error){patients=patients.filter(function(x){return x.id!==id;});updCts();renderPats();toast('Patient removed','in');}
+  if(!r.error){patients=patients.filter(function(x){return x.id!==id;});updCts();renderPats();toast('Patient removed','in');logAudit('Deleted','Patient',(_delP&&_delP.name)||'');}
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2223,6 +2236,9 @@ function APP_INIT(){
       CFG.doctors=stored.doctors||CFG.doctors;
       if(stored.partners)CFG.partners=stored.partners;
       if(stored.labWorks)CFG.labWorks=stored.labWorks;
+      if(stored.patientLinks)CFG.patientLinks=stored.patientLinks;
+      if(stored.protPins)CFG.protPins=stored.protPins;
+      if(stored.auditLog)CFG.auditLog=stored.auditLog;
       if(stored.referralLedger)CFG.referralLedger=stored.referralLedger;
       if(stored.collections)CFG.collections=stored.collections;
       if(stored.billComments)CFG.billComments=stored.billComments;
@@ -2325,7 +2341,7 @@ function showPage(p){
     var pg=document.getElementById('page-'+x);var nt=document.getElementById('nt-'+x);
     if(pg)pg.classList.toggle('on',x===p);if(nt)nt.classList.toggle('on',x===p);
   });
-  if((p==='settings'||p==='reports'||p==='admin')&&!_protUnlocked){_protShowLock(p);return;}
+  if((p==='settings'||p==='reports'||p==='admin')&&!_protUnlocked[p]){_protShowLock(p);return;}
   if(p==='settings')renderSettings();
   if(p==='fees')renderExternalPage();
   if(p==='reports')renderReportsPage();
@@ -2508,6 +2524,7 @@ function groupLabel(txt,count,col){
 }
 function render(){
   try{assignPatCodesAll();_updPrivBtn();}catch(e){}
+  try{_popActingAs();}catch(e){}
   try{filteredBills=getFiltered();}catch(e){filteredBills=[];}renderStats();
   var g=document.getElementById('bg');
   g.style.display=''; // reset any inline override from date-grouped views
@@ -2633,7 +2650,7 @@ function render(){
           if(idata['ef']===true||idata['ef']==='true')rptTotal+=FEES.ecgStandard||500;
           if(idata['if2']===true||idata['if2']==='true')rptTotal+=FEES.injection||250;
           if(idata['sm']===true||idata['sm']==='true')rptTotal+=FEES.statMedicine||20;
-          if(idata['rf']===true||idata['rf']==='true'){var rfLoc2=idata['al']||'Inside UAE';var rfH2=idata['ch']||idata['nv']||'In Hours';var rfk2=rfH2+'-'+(rfLoc2==='International'?'International':rfLoc2.startsWith('Inside')?'Inside UAE':'Outside UAE');rptTotal+=FEES.referral[rfk2]||220;}
+          if(idata['rf']===true||idata['rf']==='true'){var rfLoc2=idata['al']||'Inside UAE';var rfH2=idata['rf_h']||idata['ch']||idata['nv']||'In Hours';var rfk2=rfH2+'-'+(rfLoc2==='International'?'International':rfLoc2.startsWith('Inside')?'Inside UAE':'Outside UAE');rptTotal+=FEES.referral[rfk2]||220;}
           if(idata['rr']===true||idata['rr']==='true')rptTotal+=FEES.reReport||500;
           if(item.id==='im'&&idata['imt']){if(idata['imt'].indexOf('OTC')>=0)rptTotal+=FEES.internalMedOTC||75;else if(idata['imt'].indexOf('Custom')>=0){var _mfr=idata['mfee'];if(_mfr&&parseFloat(_mfr.amount))rptTotal+=parseFloat(_mfr.amount)||0;}else rptTotal+=FEES.internalMedPrescription||195;}
           if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true'))rptTotal+=FEES.externalMedMin||75;
@@ -2667,7 +2684,7 @@ function render(){
 }
 
 function openNew(){
-  curBill={patientName:'',branch:'UAE',status:(CFG.statuses&&CFG.statuses[0]?CFG.statuses[0].name:'In progress'),billedBy:'',notes:'',billingData:{},followUps:[]};
+  curBill={patientName:'',branch:'UAE',status:(CFG.statuses&&CFG.statuses[0]?CFG.statuses[0].name:'In progress'),billedBy:_curUser||'',notes:'',billingData:{},followUps:[]};
   openItems={};document.getElementById('bmod-t').textContent='New Patient Bill';swTab('i');openMod('bmod');
 }
 function openEdit(id){
@@ -2839,7 +2856,7 @@ function renderInfoTab(){
     '<div class="fr2">'+
     '<div class="fg"><label class="fl">Branch</label><div class="br-opts">'+
     ['UAE','UK','Global'].map(function(br){return'<button type="button" class="br-btn'+(b.branch===br?' on':'')+'" onclick="setF(\'branch\',\''+br+'\')">'+br+'</button>';}).join('')+
-    '</div></div>'+
+    '</div>'+(function(){var _hr=(b.patientName&&typeof pRegion==='function')?(pRegion(b.patientName)||''):'';if(!_hr)return '';return '<p style="font-size:10px;margin:5px 0 0;color:'+(_hr!==b.branch?'var(--oc)':'var(--m2)')+';">Patient home region: <b>'+esc(_hr)+'</b>'+(_hr!==b.branch?' \u2014 billing in '+esc(b.branch)+' (travelling)':'')+'</p>';})()+'</div>'+
     '<div class="fg"><label class="fl">Status</label>'+
     renderStatusChips(b.status)+
     '</div>'+
@@ -2896,6 +2913,8 @@ function selectPatient(name){
   // Auto-fill notes and rolling invoice from patient record
   var matched=patients.find(function(p){return p.name===name;});
   if(matched){
+    var _pr=(typeof pRegion==='function'?pRegion(matched.name):'')||'';
+    if(_pr&&['UAE','UK','Global'].indexOf(_pr)>=0)curBill.branch=_pr;
     if(matched.billTo&&!curBill.notes){
       curBill.notes=matched.billTo;
       var notesEl=document.querySelector('[data-save-key="notes"]');
@@ -2910,6 +2929,7 @@ function selectPatient(name){
       if(colorEl)colorEl.value=matched.rollingColor||'#185FA5';
     }
   }
+  if(curTab==='i')try{renderBForm();}catch(e){}
 }
 function setF(k,v){
   if(curBill[k]===v)return; // no-op if value unchanged
@@ -3601,7 +3621,7 @@ function buildBillTotal(b){
       if((item.id==='inv'||item.id==='env')&&idata['padh']){var _ipf=calcAdminFee(idata['padh'].h,idata['padh'].m,idata['padh_h']||'In Hours',idata['pal']||'Inside UAE','physAdmin');if(_ipf>0){lines.push({label:'Physician Admin Time ('+fmtAdminUnits(idata['padh'].h,idata['padh'].m)+')',amount:_ipf});grandTotal+=_ipf;}}
       // Referral fee — UAE only (extUK handled in UK block above)
       if(sk!=='extUK'&&(idata['rf']===true||idata['rf']==='true')){
-        var rfL=idata['al']||'Inside UAE';var rfH3=idata['ch']||idata['nv']||'In Hours';
+        var rfL=idata['al']||'Inside UAE';var rfH3=idata['rf_h']||idata['ch']||idata['nv']||'In Hours';
         var rfK2=rfH3+'-'+(rfL==='International'?'International':rfL.startsWith('Inside')?'Inside UAE':'Outside UAE');
         var rff=FEES.referral[rfK2]||FEES.referral['In Hours-Inside UAE']||220;
         lines.push({label:'Physician referral fee',amount:rff});grandTotal+=rff;
@@ -3851,7 +3871,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
     }
     // External (UAE) consultation — referral fee is its OWN line, shown whenever a referral was sent (even alongside a consultation fee)
     if(itemId==='ec'&&(idata['rf']===true||idata['rf']==='true')){
-      var _ecRfLoc=idata['al']||'Inside UAE';var _ecRfH=idata['ch']||idata['nv']||'In Hours';
+      var _ecRfLoc=idata['al']||'Inside UAE';var _ecRfH=idata['rf_h']||idata['ch']||idata['nv']||'In Hours';
       var _ecRfk=_ecRfH+'-'+(_ecRfLoc==='International'?'International':_ecRfLoc.startsWith('Inside')?'Inside UAE':'Outside UAE');
       var _ecRefFee=FEES.referral[_ecRfk]||FEES.referral['In Hours-Inside UAE']||220;
       var _ecCons=tv('cn');
@@ -4265,6 +4285,7 @@ function buildView(b){
     fuHtml+
     buildBillTotal(b)+
     (b.notes?'<div class="bv-note"><strong>Notes / Who to Bill:</strong> '+esc(b.notes)+'</div>':'')+
+    _billActivityHtml(b)+
     '</div>';
 }
 
@@ -4395,6 +4416,7 @@ function renderReports(){
     rptTable('Bills by Team Member',byTeam,'team')+
     rptBillsTable()+
     rptTeamReport()+
+    rptTeamRevenue()+
     '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">'+
     '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'+
     '<button class="ab" onclick="dlExcel()">&#8595; Export Excel</button>'+
@@ -4403,6 +4425,73 @@ function renderReports(){
     rptPinBtn()+
     '</div>'+rptPinStatus();pg.innerHTML=h;
 }
+function rptTeamRevenue(){
+  if(!bills.length)return '';
+  var M={};
+  function g(k){if(!M[k])M[k]={bills:0,consultAED:0,adminAED:0,adminGBP:0,labAED:0,labGBP:0,fuAED:0,fuGBP:0,totalAED:0,totalGBP:0};return M[k];}
+  bills.forEach(function(b){
+    var key=b.billedBy||'Unassigned';var m=g(key);m.bills++;
+    m.totalAED+=calcBillGrandTotal(b)||0;
+    var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
+    ukl.forEach(function(l){if((l.cur||'GBP')==='GBP'){m.totalGBP+=l.amount||0;if(/admin/i.test(l.label||''))m.adminGBP+=l.amount||0;}});
+    for(var sk in SECS){
+      var sd=b.billingData&&b.billingData[sk];if(!sd)continue;var reg=_skRegion(sk);
+      SECS[sk].items.forEach(function(item){
+        var idata=sd[item.id];if(!idata)return;
+        if(item.id==='ic')m.consultAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m)||0;
+        if(idata.cf&&parseFloat(idata.cf.amount)&&(idata.cf.cur||'AED')==='AED')m.consultAED+=(parseFloat(idata.cf.amount)||0)*1.05;
+        if(idata.adh)m.adminAED+=calcAdminFee(idata.adh.h,idata.adh.m,idata.ph2||'In Hours',idata.al||'Inside UAE','teamAdmin')||0;
+        if(idata.padh)m.adminAED+=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours','Inside UAE','physAdmin')||0;
+        if(Array.isArray(idata.lw)&&idata.lw.length){var lt=_labTotalFor(idata.lw,reg);if(reg==='UK')m.labGBP+=lt;else m.labAED+=lt;}
+      });
+    }
+    var ukLW=(b.billingData&&b.billingData.extUK&&b.billingData.extUK._labworks&&b.billingData.extUK._labworks.lw)||[];
+    if(ukLW.length)m.labGBP+=_labTotalFor(ukLW,'UK');
+    var fus=(b.billingData&&b.billingData._followUps)||[];
+    fus.forEach(function(fu){if(fu.amount&&parseFloat(fu.amount)){var fa=parseFloat(fu.amount)||0;var v=(fu.type==='Fee settlement')?Math.round(fa*(1+_settleMk(fu.cur||'AED'))*100)/100:fa;if((fu.cur||'AED')==='GBP')m.fuGBP+=v;else m.fuAED+=v;}});
+  });
+  var order=(CFG.team||[]).slice();
+  var keys=Object.keys(M).sort(function(a,b){var ia=order.indexOf(a),ib=order.indexOf(b);if(ia<0)ia=999;if(ib<0)ib=999;return (ia-ib)||a.localeCompare(b);});
+  if(!keys.length)return '';
+  function f2(n){return (Math.round((n||0)*100)/100).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:2});}
+  function mc(aed,gbp){var p=[];if(aed>0.005)p.push('AED '+f2(aed));if(gbp>0.005)p.push('<span style="color:var(--b);">GBP '+f2(gbp)+'</span>');return p.length?p.join('<br>'):'\u2014';}
+  var tot={bills:0,consultAED:0,adminAED:0,adminGBP:0,arrAED:0,arrGBP:0,labAED:0,labGBP:0,fuAED:0,fuGBP:0,totalAED:0,totalGBP:0};
+  var rows=keys.map(function(k,i){var m=M[k];
+    var arrAED=Math.max(0,m.totalAED-m.consultAED-m.adminAED-m.labAED-m.fuAED);
+    var arrGBP=Math.max(0,m.totalGBP-m.labGBP-m.fuGBP-m.adminGBP);
+    tot.bills+=m.bills;tot.consultAED+=m.consultAED;tot.adminAED+=m.adminAED;tot.adminGBP+=m.adminGBP;tot.arrAED+=arrAED;tot.arrGBP+=arrGBP;tot.labAED+=m.labAED;tot.labGBP+=m.labGBP;tot.fuAED+=m.fuAED;tot.fuGBP+=m.fuGBP;tot.totalAED+=m.totalAED;tot.totalGBP+=m.totalGBP;
+    var bg=i%2?'var(--wh2)':'var(--wh)';
+    return '<tr style="background:'+bg+';border-bottom:1px solid var(--bo);vertical-align:top;">'+
+      '<td style="padding:8px 11px;font-weight:600;font-size:12px;">'+esc(k)+'</td>'+
+      '<td style="padding:8px 11px;text-align:center;font-size:12px;">'+m.bills+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.consultAED,0)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.adminAED,m.adminGBP)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(arrAED,arrGBP)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.labAED,m.labGBP)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.fuAED,m.fuGBP)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;font-weight:700;color:var(--oc);">'+mc(m.totalAED,m.totalGBP)+'</td>'+
+      '</tr>';
+  }).join('');
+  var totRow='<tr style="background:var(--wh2);border-top:2px solid var(--bo2);font-weight:700;">'+
+    '<td style="padding:9px 11px;font-size:12px;">All Team</td>'+
+    '<td style="padding:9px 11px;text-align:center;font-size:12px;">'+tot.bills+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.consultAED,0)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.adminAED,tot.adminGBP)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.arrAED,tot.arrGBP)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.labAED,tot.labGBP)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.fuAED,tot.fuGBP)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;color:var(--oc);">'+mc(tot.totalAED,tot.totalGBP)+'</td>'+
+    '</tr>';
+  return '<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 10px;"><span style="font-size:15px;font-weight:700;color:var(--tx);">Itemised Revenue by Team Member</span><button data-sec="rpt-teamrev" onclick="togRptSec(this)" style="font-size:10px;padding:2px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);color:var(--m2);cursor:pointer;">hide</button></div>'+
+    '<div id="rpt-teamrev" style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);overflow-x:auto;box-shadow:var(--sh);margin-bottom:10px;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:820px;">'+
+    '<thead><tr style="background:var(--g);color:#FBF7EC;">'+
+    ['Team Member','Bills','Consults','Admin Time','Arrangements','Lab Works','Follow-ups','Total'].map(function(c){return '<th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+
+    '</tr></thead><tbody>'+rows+totRow+'</tbody></table>'+
+    '<div style="padding:7px 11px;font-size:10px;color:var(--m2);border-top:1px solid var(--bo);">Revenue is attributed to the team member who handled each bill. \u201CArrangements\u201D covers referrals, prescriptions, courier and other external fees.</div>'+
+    '</div>';
+}
+
 function rptTeamReport(){
   // Team time & activity breakdown
   var teamStats={};
@@ -4478,6 +4567,9 @@ function rptTeamReport(){
         if(idata.lw&&Array.isArray(idata.lw)&&idata.lw.length)ts.labOrders++;
       });
     }
+    // UK rich-structure admin time (extUK stores rich item ids, not SECS ids)
+    var _ukd=b.billingData&&b.billingData.extUK;
+    if(_ukd){((CFG.billingStructure&&CFG.billingStructure.external_uk)||[]).forEach(function(_it){var _d=_ukd[_it.id];if(!_d)return;if(_d.adh&&(parseInt(_d.adh.h)||parseInt(_d.adh.m))){var _mins=(parseInt(_d.adh.h)||0)*60+(parseInt(_d.adh.m)||0);ts.totalAdminMins+=_mins;var _wh=_d.when||'In Hours';if(String(_wh).indexOf('Out')>=0)ts.oohMins+=_mins;else ts.inHoursMins+=_mins;ts.localMins+=_mins;}});}
     // Follow-up admin time
     var fus=b.billingData&&b.billingData._followUps||[];
     fus.forEach(function(fu){if(fu.adh){var hh=parseInt(fu.adh&&fu.adh.h)||0,mm=parseInt(fu.adh&&fu.adh.m)||0;ts.totalAdminMins+=hh*60+mm;}});
@@ -4694,6 +4786,13 @@ function viewPat(id){
     h+='<div style="font-size:12px;color:var(--mu);line-height:1.6;white-space:pre-wrap;">'+esc(p.notes)+'</div>';
     h+='</div>';
   }
+  var _pvl=pLinks(p.name);
+  if(_pvl.length){
+    h+='<div style="padding:12px 16px;border-top:1px solid var(--bo);">';
+    h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:7px;">\ud83d\udd17 Family &amp; Links</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:6px;">'+_pvl.map(function(l){return '<span onclick="openPatByName(\''+_jq(l.name)+'\')" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;background:var(--wh2);border:1px solid var(--bo);border-radius:20px;padding:5px 11px;font-size:12px;"><b style="color:var(--g);">'+esc(l.name)+'</b><span style="color:var(--mu);font-size:10px;">'+esc(l.rel)+'</span></span>';}).join('')+'</div>';
+    h+='</div>';
+  }
   // Custom sections data
   secs.forEach(function(sec){
     if(sec.builtin||sec.visible===false)return;
@@ -4745,6 +4844,19 @@ function renderPatForm(){
     });
     base+='</div>';
   }
+  var _plLinks=pLinks(curPat.name);
+  var _plRel=['Spouse','Parent','Child','Sibling','Relative','Friend','Referred by'];
+  var _plOthers=patients.filter(function(p){return _pnorm(p.name)!==_pnorm(curPat.name);}).slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+  base+='<div class="fg" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bo);">'+
+    '<label class="fl">\ud83d\udd17 Family &amp; Links</label>'+
+    (_plLinks.length?'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+_plLinks.map(function(l){return '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--wh2);border:1px solid var(--bo);border-radius:20px;padding:4px 6px 4px 11px;font-size:12px;"><span onclick="openPatByName(\''+_jq(l.name)+'\')" style="cursor:pointer;"><b style="color:var(--g);">'+esc(l.name)+'</b> <span style="color:var(--mu);font-size:10px;">'+esc(l.rel)+'</span></span><span onclick="delPatLink(\''+_jq(curPat.name)+'\',\''+_jq(l.name)+'\');_refreshPatForm()" style="cursor:pointer;color:var(--re);font-size:14px;">&#215;</span></span>';}).join('')+'</div>':'<p style="font-size:11px;color:var(--m2);margin:0 0 8px;">No links yet.</p>')+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+
+      '<select class="fi" id="pl_pat" style="flex:2;min-width:150px;"><option value="">Select patient&#8230;</option>'+_plOthers.map(function(p){var c=pCode(p.name);return '<option value="'+esc(p.name)+'">'+esc(p.name)+(c?' ('+esc(c)+')':'')+'</option>';}).join('')+'</select>'+
+      '<select class="fi" id="pl_rel" style="flex:1;min-width:110px;">'+_plRel.map(function(r){return '<option>'+r+'</option>';}).join('')+'</select>'+
+      '<button class="add-btn" onclick="addPatLinkFromForm()">Link</button>'+
+    '</div>'+
+    '<p style="font-size:10px;color:var(--m2);margin:4px 0 0;">Relationships are two-way and clickable. Enter the patient name above before linking.</p>'+
+    '</div>';
   return base;
 }
 async function savePat(){
@@ -4805,6 +4917,26 @@ function renderSettings(){
   function catHead(label,icon){return'<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--bo2);"><span style="font-size:15px;">'+icon+'</span><span style="font-family:var(--serif);font-size:15px;font-style:italic;color:var(--t);">'+label+'</span></div>';}
   var secs=[
     {id:'_cat1',cat:true,label:'People & Team'},
+    {id:'auditlog',title:'Activity Log',sub:'Every change, add & delete \u2014 with who & when',fn:function(){
+      _alEnsure();
+      if(!CFG.auditLog.length)return '<p style="font-size:12px;color:var(--m2);">No activity recorded yet. Changes to bills, patients and settings will appear here, stamped with the team member set in \u201CActing as\u201D (top bar).</p>';
+      var rows=CFG.auditLog.slice(0,250).map(function(e){
+        var col=e.action==='Deleted'?'var(--re)':(e.action==='Created'?'var(--code-consult)':'var(--gl)');
+        return '<div style="display:flex;gap:10px;padding:8px 2px;border-bottom:1px solid var(--bo);font-size:12px;">'+
+          '<div style="min-width:86px;color:var(--m2);font-size:11px;flex-shrink:0;">'+_fmtAudit(e.ts)+'</div>'+
+          '<div style="flex:1;min-width:0;"><span style="font-weight:700;color:'+col+';">'+esc(e.action)+'</span> '+esc(e.type)+' <b>'+esc(e.target)+'</b>'+(e.detail?' <span style="color:var(--m2);">\u2014 '+esc(e.detail)+'</span>':'')+'<div style="font-size:10px;color:var(--m2);margin-top:1px;">by '+esc(e.user)+'</div></div>'+
+          '</div>';
+      }).join('');
+      return '<div style="max-height:440px;overflow-y:auto;border:1px solid var(--bo);border-radius:var(--r);padding:4px 10px;">'+rows+'</div>'+
+        '<button class="add-btn" style="margin-top:10px;background:var(--re);" onclick="if(confirm(\'Clear the entire activity log? This cannot be undone.\')){CFG.auditLog=[];saveCFG();renderSettings();}">Clear log</button>';
+    }},
+    {id:'protpins',title:'Access PINs',sub:'Separate codes for Settings & Reports',fn:function(){
+      var pp=CFG.protPins||{settings:'1982',reports:'1982'};
+      return '<p style="font-size:12px;color:var(--m2);margin-bottom:12px;line-height:1.5;">Separate access codes for the <b>Settings</b> and <b>Reports</b> tabs, so you can share one without the other. The master code <b>1982</b> always opens both \u2014 keep it confidential.</p>'+
+        '<div class="fg"><label class="fl">Settings PIN (4 digits)</label><input class="fi" id="pin_settings" inputmode="numeric" maxlength="4" value="'+esc(pp.settings||'1982')+'"></div>'+
+        '<div class="fg"><label class="fl">Reports PIN (4 digits)</label><input class="fi" id="pin_reports" inputmode="numeric" maxlength="4" value="'+esc(pp.reports||'1982')+'"></div>'+
+        '<button class="add-btn" onclick="saveProtPins()">Save PINs</button>';
+    }},
     {id:'team',title:'Team Members',sub:CFG.team.length+' members',fn:function(){
       return '<div class="tag-list">'+CFG.team.map(function(t){return'<span class="tag-i">'+esc(t)+' <span class="tag-x" onclick="rmC(\'team\',\''+esc(t)+'\')">&#215;</span></span>';}).join('')+'</div>'+
         '<div class="add-row"><input class="add-inp" id="nt" placeholder="Add team member&#8230;" onkeydown="if(event.key===\'Enter\')addC(\'team\')"><button class="add-btn" onclick="addC(\'team\')">Add</button></div>';
@@ -5264,8 +5396,8 @@ function editStatusColor(i,prop,v){
     if(bv)document.getElementById('vmod-body').innerHTML=buildView(bv);
   }
 }
-function addC(k){var ids={team:'nt',labs:'nl',extLabs:'nel',doctors:'nd'};var inp=document.getElementById(ids[k]);if(!inp)return;var v=(inp.value||'').trim();if(!v||CFG[k].includes(v))return;CFG[k].push(v);inp.value='';saveCFG();renderSettings();}
-function rmC(k,v){CFG[k]=CFG[k].filter(function(x){return x!==v;});saveCFG();renderSettings();}
+function addC(k){var ids={team:'nt',labs:'nl',extLabs:'nel',doctors:'nd'};var inp=document.getElementById(ids[k]);if(!inp)return;var v=(inp.value||'').trim();if(!v||CFG[k].includes(v))return;CFG[k].push(v);inp.value='';saveCFG();logAudit('Added','Setting: '+k,v);renderSettings();}
+function rmC(k,v){CFG[k]=CFG[k].filter(function(x){return x!==v;});saveCFG();logAudit('Deleted','Setting: '+k,v);renderSettings();}
 
 // ══════════════════════════════════════════════════════════════
 // FEE MANAGEMENT — full CRUD
@@ -5430,6 +5562,9 @@ function saveCFG(){
   // Build save object
   var toSave={
     labWorks:CFG.labWorks,
+    patientLinks:CFG.patientLinks,
+    protPins:CFG.protPins,
+    auditLog:CFG.auditLog,
     team:CFG.team,
     partners:CFG.partners,
     referralLedger:CFG.referralLedger,
@@ -5557,6 +5692,9 @@ async function dbLoadSettings(){
       if(stored.doctors)CFG.doctors=stored.doctors;
       if(stored.partners)CFG.partners=stored.partners;
       if(stored.labWorks)CFG.labWorks=stored.labWorks;
+      if(stored.patientLinks)CFG.patientLinks=stored.patientLinks;
+      if(stored.protPins)CFG.protPins=stored.protPins;
+      if(stored.auditLog)CFG.auditLog=stored.auditLog;
       if(stored.referralLedger)CFG.referralLedger=stored.referralLedger;
       if(stored.collections)CFG.collections=stored.collections;
       if(stored.billComments)CFG.billComments=stored.billComments;
@@ -8950,7 +9088,7 @@ buildUKCard=function(item,idata,b){
 // Admin now lives under Settings (its top nav tab is hidden).
 // Session-based: unlocked until the page is reloaded or locked.
 // ═══════════════════════════════════════════════════════════════
-var _protUnlocked=false;
+var _protUnlocked={settings:false,reports:false,admin:false};
 var _PROT_PW='1982';
 
 function _protShowLock(p){
@@ -8967,17 +9105,18 @@ function _protShowLock(p){
 }
 function tryProtUnlock(p){
   var el=document.getElementById('protPwd');
-  if(el&&_hp(el.value)===_hp(_PROT_PW)){
-    _protUnlocked=true;
-    try{rptUnlocked=true;}catch(e){}  // also satisfy the legacy reports PIN if one was set
+  var pins=CFG.protPins||{};var exp=(pins[p]||_PROT_PW);
+  if(el&&(el.value===exp||el.value===_PROT_PW)){
+    _protUnlocked[p]=true;
+    if(p==='reports'){try{rptUnlocked=true;}catch(e){}}
     showPage(p);
   } else {
-    var e=document.getElementById('protErr');if(e)e.textContent='Incorrect password';
+    var e=document.getElementById('protErr');if(e)e.textContent='Incorrect code';
     if(el){el.value='';el.focus();}
   }
 }
 function lockProtected(){
-  _protUnlocked=false;
+  _protUnlocked={settings:false,reports:false,admin:false};
   try{rptUnlocked=false;}catch(e){}
   showPage('bills');
   if(typeof toast==='function')toast('Settings & Reports locked','ok');
@@ -9434,7 +9573,7 @@ function rptTab(s){_rptSub=s;renderReportsPage();}
 function renderReportsPage(){if(_rptSub==='accounts')renderAccounts();else renderReports();var pg=document.getElementById('page-reports');if(pg)pg.insertAdjacentHTML('afterbegin',subBar([['reports','Reports'],['accounts','Accounts']],_rptSub,'rptTab'));}
 
 /* ── log out ── */
-function logout(){_PB='';try{_protUnlocked=false;}catch(e){}try{rptUnlocked=false;}catch(e){}var app=document.getElementById('app');if(app)app.style.display='none';var ls=document.getElementById('ls');if(ls)ls.style.display='flex';var sp=document.getElementById('splash'),pw=document.getElementById('pinwrap');if(sp)sp.style.display='none';if(pw)pw.style.display='flex';if(typeof _upd==='function')_upd();}
+function logout(){_PB='';try{_protUnlocked={settings:false,reports:false,admin:false};}catch(e){}try{rptUnlocked=false;}catch(e){}var app=document.getElementById('app');if(app)app.style.display='none';var ls=document.getElementById('ls');if(ls)ls.style.display='flex';var sp=document.getElementById('splash'),pw=document.getElementById('pinwrap');if(sp)sp.style.display='none';if(pw)pw.style.display='flex';if(typeof _upd==='function')_upd();}
 
 
 /* ════════ v118: ITEMISED ARRANGEMENT LINES · ICONS · COMMENT AUTHOR ════════ */
@@ -9561,7 +9700,7 @@ function _edgeColorFor(b){try{var l=billArrangementLines(b);var m={consult:'--co
 /* Standard Rate (5%) tax — applies to: referral letters, prescription sent, concierge (team) admin, couriers */
 function _itemStdTax(it,d,sk){var out=[];if(!it||!d)return out;
   function K(ch,loc){loc=loc||'Inside UAE';return ch+'-'+(/international/i.test(loc)?'International':/inside/i.test(loc)?'Inside UAE':'Outside UAE');}
-  if(sk!=='extUK'&&(d.rf===true||d.rf==='true')){var f=(FEES.referral&&FEES.referral[K(d.ch||d.nv||'In Hours',d.al)])||(FEES.referral&&FEES.referral['In Hours-Inside UAE'])||220;if(f)out.push({label:'Referral letter',base:f});}
+  if(sk!=='extUK'&&(d.rf===true||d.rf==='true')){var f=(FEES.referral&&FEES.referral[K(d.rf_h||d.ch||d.nv||'In Hours',d.al)])||(FEES.referral&&FEES.referral['In Hours-Inside UAE'])||220;if(f)out.push({label:'Referral letter',base:f});}
   if(it.id==='ic'&&d.ptype){var f2=(FEES.prescription&&FEES.prescription[K(d.ch||'In Hours',d.al)])||0;if(f2)out.push({label:'Prescription sent',base:f2});}
   if(it.id==='em'&&d.pl&&d.ph2){var f3=(FEES.prescription&&FEES.prescription[K(d.ph2||'In Hours',d.pl)])||0;if(f3)out.push({label:'Prescription sent',base:f3});}
   if(d.adh&&(parseInt(d.adh.h)||parseInt(d.adh.m))){var fa=calcAdminFee(d.adh.h,d.adh.m,d.ph2||'In Hours',d.al||'Inside UAE','teamAdmin');if(fa)out.push({label:'Concierge admin',base:fa});}
@@ -9613,7 +9752,7 @@ function importPatientsExcel(){
               var roll=String(r['Rolling invoice']||r['Rolling Invoice']||r.rollingInvoice||r.Rolling||'').trim();
               var notes=String(r.Notes||r.notes||'').trim();
               var key=name.toLowerCase();
-              if(seen[key]){skip++;continue;}
+              if(seen[key]){try{assignPatCode(name,region);}catch(_e){}skip++;continue;}
               seen[key]=1;
               var ok=await dbSavePat({name:name,notes:notes,billTo:billTo,rollingInvoice:roll});
               if(ok){try{assignPatCode(name,region);}catch(_e){}count++;}
@@ -9634,9 +9773,9 @@ function _clnUK(l){return String(l==null?'':l).replace(/\s*\(if settled by Amara
 var _lwReg='UAE';
 function _lwEnsure(){if(!CFG.labWorks||typeof CFG.labWorks!=='object'||Array.isArray(CFG.labWorks))CFG.labWorks={UAE:[],UK:[],Global:[]};['UAE','UK','Global'].forEach(function(r){if(!Array.isArray(CFG.labWorks[r]))CFG.labWorks[r]=[];});}
 function lwTab(r){_lwReg=r;renderSettings();}
-function lwAdd(){_lwEnsure();var n=(_v('lw_name')||'').trim();if(!n){toast('Enter a lab work name','er');return;}var fee=parseFloat(_v('lw_fee'))||0;var reg=_lwReg||'UAE';if(CFG.labWorks[reg].some(function(x){return (x.name||'').toLowerCase()===n.toLowerCase();})){toast('Already in the '+reg+' list','er');return;}CFG.labWorks[reg].push({name:n,fee:fee});saveCFG();renderSettings();toast('Added to '+reg,'ok');}
-function lwDel(reg,idx){_lwEnsure();if(CFG.labWorks[reg])CFG.labWorks[reg].splice(idx,1);saveCFG();renderSettings();}
-function lwClear(reg){_lwEnsure();if(!CFG.labWorks[reg]||!CFG.labWorks[reg].length)return;if(!confirm('Delete all '+CFG.labWorks[reg].length+' lab works for '+reg+'?'))return;CFG.labWorks[reg]=[];saveCFG();renderSettings();toast(reg+' lab works cleared','in');}
+function lwAdd(){_lwEnsure();var n=(_v('lw_name')||'').trim();if(!n){toast('Enter a lab work name','er');return;}var fee=parseFloat(_v('lw_fee'))||0;var reg=_lwReg||'UAE';if(CFG.labWorks[reg].some(function(x){return (x.name||'').toLowerCase()===n.toLowerCase();})){toast('Already in the '+reg+' list','er');return;}CFG.labWorks[reg].push({name:n,fee:fee});saveCFG();logAudit('Added','Lab work ('+reg+')',n);renderSettings();toast('Added to '+reg,'ok');}
+function lwDel(reg,idx){_lwEnsure();var _ln=(CFG.labWorks[reg]&&CFG.labWorks[reg][idx]&&CFG.labWorks[reg][idx].name)||'';if(CFG.labWorks[reg])CFG.labWorks[reg].splice(idx,1);saveCFG();logAudit('Deleted','Lab work ('+reg+')',_ln);renderSettings();}
+function lwClear(reg){_lwEnsure();if(!CFG.labWorks[reg]||!CFG.labWorks[reg].length)return;if(!confirm('Delete all '+CFG.labWorks[reg].length+' lab works for '+reg+'?'))return;CFG.labWorks[reg]=[];saveCFG();logAudit('Cleared','Lab works ('+reg+')','');renderSettings();toast(reg+' lab works cleared','in');}
 function lwBulkExcel(){var inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls,.csv';inp.onchange=function(){var f=inp.files&&inp.files[0];if(!f)return;_loadXLSX(function(){var rd=new FileReader();rd.onload=function(e){try{_lwEnsure();var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});var count=0;wb.SheetNames.forEach(function(sn){var su=String(sn).trim().toUpperCase();var sheetReg=(su.indexOf('UK')>=0||su.indexOf('KINGDOM')>=0)?'UK':(su.indexOf('GLOB')>=0?'Global':(su.indexOf('UAE')>=0?'UAE':''));XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:''}).forEach(function(r){var name=String(r['Test name']||r['Lab']||r['Name']||r.name||r.Test||'').trim();if(!name)return;var fee=parseFloat(r['Fee']||r['Price']||r['Amount']||r.fee||0)||0;var rg=String(r['Region']||r.region||sheetReg||'UAE').trim().toUpperCase();var region=(rg.indexOf('UK')>=0||rg.indexOf('KINGDOM')>=0)?'UK':(rg.indexOf('GLOB')>=0?'Global':'UAE');if(CFG.labWorks[region].some(function(x){return (x.name||'').toLowerCase()===name.toLowerCase();}))return;CFG.labWorks[region].push({name:name,fee:fee});count++;});});saveCFG();renderSettings();toast('Imported '+count+' lab work'+(count!==1?'s':''),'ok');}catch(err){toast('Could not read that file','er');}};rd.readAsArrayBuffer(f);});};inp.click();}
 function lwExportExcel(){_lwEnsure();_loadXLSX(function(){var rows=[['Test name','Fee','Region']];['UAE','UK','Global'].forEach(function(r){CFG.labWorks[r].forEach(function(it){rows.push([it.name,it.fee,r]);});});var ws=XLSX.utils.aoa_to_sheet(rows);var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Lab Works');XLSX.writeFile(wb,'amara-lab-works.xlsx');});}
 function _skRegion(sk){return sk==='extUK'?'UK':sk==='extGlobal'?'Global':'UAE';}
@@ -9645,6 +9784,26 @@ function _labListFor(region){_lwEnsure();var extra=(CFG.labWorks[region]||[]).sl
 function _labFeeFor(name,region){_lwEnsure();if(region==='UAE'&&FEES&&FEES.labs&&FEES.labs[name]!=null)return FEES.labs[name]||0;var f=(CFG.labWorks[region]||[]).find(function(x){return (x.name||'')===name;});return f?(Number(f.fee)||0):0;}
 function _labTotalFor(arr,region){if(!arr||!arr.length)return 0;return arr.reduce(function(s,n){return s+_labFeeFor(n,region);},0);}
 function lwEdit(reg,idx,field,val){_lwEnsure();var L=CFG.labWorks[reg];if(!L||!L[idx])return;if(field==='fee')L[idx].fee=parseFloat(val)||0;else L[idx].name=String(val).trim();saveCFG();}
+function _plEnsure(){if(!CFG.patientLinks||typeof CFG.patientLinks!=='object'||Array.isArray(CFG.patientLinks))CFG.patientLinks={};}
+function pLinks(name){_plEnsure();return CFG.patientLinks[_pnorm(name)]||[];}
+function _relInverse(rel){var m={'Spouse':'Spouse','Parent':'Child','Child':'Parent','Sibling':'Sibling','Relative':'Relative','Friend':'Friend','Referred by':'Referred'};return m[rel]||rel;}
+function _jq(s){return esc(s).replace(/'/g,"\\'");}
+function addPatLink(fromName,toName,rel){_plEnsure();fromName=(fromName||'').trim();toName=(toName||'').trim();if(!fromName||!toName||_pnorm(fromName)===_pnorm(toName))return;var fk=_pnorm(fromName),tk=_pnorm(toName);if(!CFG.patientLinks[fk])CFG.patientLinks[fk]=[];if(!CFG.patientLinks[tk])CFG.patientLinks[tk]=[];CFG.patientLinks[fk]=CFG.patientLinks[fk].filter(function(l){return _pnorm(l.name)!==tk;});CFG.patientLinks[fk].push({name:toName,rel:rel});CFG.patientLinks[tk]=CFG.patientLinks[tk].filter(function(l){return _pnorm(l.name)!==fk;});CFG.patientLinks[tk].push({name:fromName,rel:_relInverse(rel)});saveCFG();}
+function delPatLink(fromName,toName){_plEnsure();var fk=_pnorm(fromName),tk=_pnorm(toName);if(CFG.patientLinks[fk])CFG.patientLinks[fk]=CFG.patientLinks[fk].filter(function(l){return _pnorm(l.name)!==tk;});if(CFG.patientLinks[tk])CFG.patientLinks[tk]=CFG.patientLinks[tk].filter(function(l){return _pnorm(l.name)!==fk;});saveCFG();}
+function _refreshPatForm(){var el=document.getElementById('pmod-body');if(el)el.innerHTML=renderPatForm();}
+function addPatLinkFromForm(){var pn=_v('pl_pat'),rel=_v('pl_rel')||'Relative';if(!curPat||!(curPat.name||'').trim()){toast('Enter the patient name first','er');return;}if(!pn){toast('Select a patient to link','er');return;}addPatLink(curPat.name,pn,rel);_refreshPatForm();toast('Linked','ok');}
+function openPatByName(name){var p=patients.find(function(x){return _pnorm(x.name)===_pnorm(name);});if(p){try{closeMod('pmod');}catch(e){}viewPat(p.id);}}
+function saveProtPins(){var ss=(_v('pin_settings')||'').trim(),rr=(_v('pin_reports')||'').trim();if(ss&&!/^\d{4}$/.test(ss)){toast('Settings PIN must be 4 digits','er');return;}if(rr&&!/^\d{4}$/.test(rr)){toast('Reports PIN must be 4 digits','er');return;}if(!CFG.protPins)CFG.protPins={};CFG.protPins.settings=ss||'1982';CFG.protPins.reports=rr||'1982';saveCFG();logAudit('Edited','Access PINs','');toast('Access PINs updated','ok');}
+var _curUser=(typeof localStorage!=='undefined'&&localStorage.getItem('amara_user'))||'';
+function setCurUser(v){_curUser=v||'';try{localStorage.setItem('amara_user',_curUser);}catch(e){}var s=document.getElementById('actingAs');if(s)s.value=_curUser;}
+function _popActingAs(){var s=document.getElementById('actingAs');if(!s)return;s.innerHTML='<option value="">Acting as\u2026</option>'+((CFG&&CFG.team)||[]).map(function(t){return '<option'+(_curUser===t?' selected':'')+'>'+esc(t)+'</option>';}).join('');}
+function _alEnsure(){if(!CFG.auditLog||!Array.isArray(CFG.auditLog))CFG.auditLog=[];}
+function logAudit(action,type,target,detail){try{_alEnsure();CFG.auditLog.unshift({ts:Date.now(),user:_curUser||'\u2014',action:action||'',type:type||'',target:target||'',detail:detail||''});if(CFG.auditLog.length>400)CFG.auditLog=CFG.auditLog.slice(0,400);if(typeof saveCFG==='function')saveCFG();}catch(e){}}
+function _fmtAudit(ts){try{var d=new Date(ts);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}catch(e){return '';}}
+function _hasData(item,idata){try{return (item.fields||[]).some(function(f){var v=idata[f.id];return v&&(Array.isArray(v)?v.length>0:(typeof v==='object'&&v?(v.amount?parseFloat(v.amount)>0:(parseInt(v.h)||parseInt(v.m))):(v!==false&&v!=='')));});}catch(e){return false;}}
+function _billDiff(oldBd,newBd){var added=[];try{for(var sk in SECS){var os=(oldBd&&oldBd[sk])||{},ns=(newBd&&newBd[sk])||{};SECS[sk].items.forEach(function(it){var had=os[it.id]&&_hasData(it,os[it.id]),has=ns[it.id]&&_hasData(it,ns[it.id]);if(has&&!had)added.push((sk!=='int'?'[Ext] ':'')+it.label);});}var of=((oldBd&&oldBd._followUps)||[]).length,nf=((newBd&&newBd._followUps)||[]).length;if(nf>of)added.push((nf-of)+' follow-up'+((nf-of)>1?'s':''));}catch(e){}return added;}
+function _billActivityHtml(b){var a=(b&&b.billingData&&b.billingData._activity)||[];if(!a.length)return '';var rows=a.slice().reverse().map(function(e){return '<div style="font-size:11px;color:var(--mu);padding:2px 0;"><b style="color:var(--tx);">'+esc(e.user||'\u2014')+'</b> '+esc(e.action||'edited')+' \u00b7 '+_fmtAudit(e.ts)+(e.changes&&e.changes.length?' \u2014 added '+esc(e.changes.join(', ')):'')+'</div>';}).join('');return '<div style="margin-top:14px;padding:11px 14px;background:var(--wh2);border:1px solid var(--bo);border-radius:var(--rl);"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:6px;">🕒 Activity history</div>'+rows+'</div>';}
+function saveProtPinsAudit(){}
 </script>
 </body>
 </html>
