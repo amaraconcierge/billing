@@ -512,6 +512,111 @@ button{cursor:pointer;}
   .rpt-grid{grid-template-columns:1fr!important;}
 }
 
+/* ─── Comprehensive mobile polish ─────────────────────────────────────────── */
+@media (max-width:768px){
+
+  /* Topbar: hide non-essential buttons, keep privacy + logout only */
+  .topbar .tbtn.backup-btn{display:none;}
+  /* Acting-as dropdown: shrink on small screens */
+  #actingAs{max-width:100px!important;}
+
+  /* Bill modal: full-height sheet */
+  .mbox{max-height:94vh!important;}
+  .mbody{max-height:calc(94vh - 110px)!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;}
+
+  /* Bill form: billing item rows stack cleanly */
+  .bl-det{padding:11px 12px 13px 12px!important;} /* remove the 43px left indent — no room on mobile */
+  .bl-row{padding:11px 12px!important;}
+  .dr{margin-bottom:10px!important;}
+  /* Group rows: always stack on mobile */
+  .grp-row{flex-direction:column!important;gap:8px!important;}
+  .grp-col{min-width:100%!important;width:100%!important;}
+
+  /* Chips: full-width wrap with larger tap targets */
+  .chips{flex-wrap:wrap!important;gap:6px!important;}
+  .chip{font-size:12px!important;padding:7px 12px!important;min-height:36px!important;display:inline-flex!important;align-items:center!important;}
+
+  /* Lab picker: full-width dropdown */
+  .lab-dd{width:100%!important;}
+  .lab-grid{max-height:180px!important;}
+  .lab-hd{font-size:13px!important;padding:10px 12px!important;min-height:42px!important;}
+
+  /* Bill view modal: section cards */
+  .bv-row{flex-direction:column!important;gap:2px!important;}
+  .bv-lbl{min-width:unset!important;color:var(--m2)!important;}
+  .bv-fv{text-align:left!important;max-width:100%!important;}
+
+  /* Patient cards grid: single column */
+  .pats-grid{grid-template-columns:1fr!important;}
+  .pcard{padding:12px!important;}
+
+  /* Patient form: card at top — tighten */
+  #pmod-body > div:first-child{margin-bottom:12px!important;}
+
+  /* Action rows: wrap, smaller buttons */
+  .arow{gap:5px!important;}
+  .arow .ab,.arow .ab.pri{font-size:11px!important;padding:7px 11px!important;}
+
+  /* Filter panels: stack inputs */
+  .pat-filters{flex-direction:column!important;gap:6px!important;}
+
+  /* Reports: stat cards 2-up */
+  .rpt-grid{grid-template-columns:repeat(2,1fr)!important;}
+  .rpt-card{padding:10px 12px!important;}
+
+  /* Reports tables: scroll horizontally, freeze first column */
+  .rpt-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;border-radius:var(--rl)!important;}
+  .rpt-table-wrap table td:first-child,
+  .rpt-table-wrap table th:first-child{position:sticky!important;left:0!important;background:var(--wh)!important;z-index:2!important;min-width:90px!important;max-width:110px!important;}
+  .rpt-table-wrap table thead tr th:first-child{background:var(--g)!important;}
+
+  /* Accounts: invoice breakdown */
+  .pa-acc-h{flex-wrap:wrap!important;gap:6px!important;}
+  .pa-acc-h .nm{font-size:13px!important;width:100%!important;}
+  .pa-acc-h .inv{font-size:11px!important;}
+  .pa-addrow{flex-direction:column!important;gap:6px!important;}
+  .pa-addrow .pa-in,.pa-addrow .pa-btn{width:100%!important;box-sizing:border-box!important;}
+
+  /* Ledger table: hide Region col on very small, show on 600+ */
+  .led-region-col{display:none!important;}
+
+  /* Settings: cards stack cleanly */
+  .sett-card{flex-direction:row!important;}
+
+  /* Admin tables: scroll */
+  #page-admin table{display:block!important;overflow-x:auto!important;}
+
+  /* Form inputs: ensure 14px minimum to stop iOS zoom */
+  input[type=text],input[type=email],input[type=number],input[type=date],input[type=password],textarea,select{font-size:14px!important;min-height:38px!important;}
+  .dfi,.dfta{font-size:14px!important;}
+  .pa-in{font-size:14px!important;min-height:38px!important;}
+
+  /* Hours picker (ihooh/unit fields): stack label+chips */
+  .ihooh-row,.unit-row{flex-direction:column!important;gap:6px!important;}
+
+  /* Safe area bottom padding for iPhone home bar */
+  .page{padding-bottom:max(80px,calc(64px + env(safe-area-inset-bottom,0px)))!important;}
+  .nav-tabs{padding-bottom:max(0px,env(safe-area-inset-bottom,0px))!important;}
+
+  /* Hours + fee inputs: larger tap targets on mobile */
+  .hrs-n{width:64px!important;padding:9px 7px!important;font-size:16px!important;min-height:42px!important;}
+  .fee-inp{min-height:42px!important;font-size:16px!important;}
+  .fee-cur-sel{min-height:42px!important;font-size:14px!important;}
+}
+
+@media (max-width:400px){
+  /* Extra small: bill card footer wraps, hide billed-by */
+  .bc-ft{flex-direction:column!important;align-items:flex-start!important;gap:4px!important;}
+  .bc-acts{width:100%!important;justify-content:flex-end!important;}
+  .rpt-grid{grid-template-columns:1fr!important;}
+  /* Topbar: hide acting-as on very small */
+  #actingAs{display:none!important;}
+  /* Modal bottom sheet: more height */
+  .mbody{max-height:calc(96vh - 100px)!important;}
+  /* Settings: tighten */
+  .sett-card{padding:10px!important;}
+}
+
 /* ═══ PREMIUM SHELL + PARTNERS / ACCOUNTS (v116) ═══ */
 .blogo{height:30px;width:auto;display:block;}
 .bname{font-family:'Cormorant Garamond',serif !important;font-style:normal !important;font-weight:600 !important;font-size:20px !important;letter-spacing:.04em !important;}
@@ -565,6 +670,8 @@ button{cursor:pointer;}
 .pa-log .d{color:var(--m2);font-size:11px;white-space:nowrap;}
 .pa-log .by{font-weight:600;color:var(--gl);}
 @media(max-width:640px){.pa-led th:nth-child(3),.pa-led td:nth-child(3){display:none;}.pa-head{font-size:24px;}}
+@media(min-width:600px){.led-region-col{display:table-cell!important;}}
+@media(max-width:599px){.led-region-col{display:none;}}
 
 
 /* ═══ v117: arrangement summary · comments · sub-tabs · polish ═══ */
@@ -1450,7 +1557,7 @@ function calcBillGrandTotal(b){
       // External fees
       ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv.amount)&&(fv.cur||'AED')==='AED')total+=(parseFloat(fv.amount)||0)*1.05;});
       // Team admin
-      if(idata['adh']){total+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
+      if(idata['adh']){total+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['adh_h']||idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
       // Labs
       if(Array.isArray(idata['lw'])&&idata['lw'].length)total+=_labTotalFor(idata['lw'],_skRegion(sk));
     });
@@ -1476,6 +1583,8 @@ var SURL='https://ddicbzvtaxoxgyujiwat.supabase.co', SKEY='eyJhbGciOiJIUzI1NiIsI
 var db=null, bills=[], patients=[], filteredBills=[];
 var curBill=null, curTab='i', openItems={}, curPat=null, viewId=null, activeSF='', _savingBill=false;
 
+var _EYE='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+var _EYEOFF='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.7 9.7 0 0 1 12 6c6.5 0 10 6 10 6a16.7 16.7 0 0 1-3.4 4M6.2 7.2A16.7 16.7 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 3.4-.6"/><path d="M9.9 9.9a2.6 2.6 0 0 0 3.7 3.7"/></svg>';
 var CFG={
   partners:{hospitals:[],clinicians:[],pharmacies:[]},
   referralLedger:[],
@@ -1484,7 +1593,7 @@ var CFG={
   patientMeta:{},
   privacyMode:true,
   team:['Ari','Prenita','Carmela','Aldrin','Ellaine','Dr Jay','Dr Cristina','Dr Sharma','Nurse Jasmine'],
-  doctors:['Dr Jay Lakhani','Dr Cristina Goedhuis','Dr Vaibhav Sharma'],
+  doctors:['Dr Jay Lakhani','Dr Cristina Goedhuis','Dr Vaibhav Sharma','Dr Elizabeth Thorne'],
   statuses:[
     {name:'In progress', color:'#73706A', bg:'#F0ECE6'},
     {name:'Final',       color:'#5A7A55', bg:'#EDF0EA'},
@@ -2057,6 +2166,12 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#3D6B85',bg:'#EA
   {id:'al',l:'Concierge admin location',t:'sel',o:['Inside UAE','International'],grp:'g3'},
   {id:'adh_h',l:'Concierge admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'g3'},
   {id:'adesc',l:'Description',t:'admintmpl'}
+ ]},
+ {id:'eadm',label:'Admin Concierge Time',sub:'Concierge admin — per 30-min unit',note:'Standalone concierge time (Inside UAE / International, in / out of hours).',fields:[
+  {id:'al',l:'Location',t:'sel',o:['Inside UAE','International'],req:1,grp:'ga'},
+  {id:'adh_h',l:'Hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'ga'},
+  {id:'adh',l:'Admin concierge time',t:'hours',req:1},
+  {id:'adesc',l:'Description of work',t:'admintmpl'}
  ]}
 ]},
 extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#EAEFF3',items:[
@@ -2127,6 +2242,11 @@ extGlobal:{label:'Global Arrangements',sub:'Custom fees',col:'#9A6A2E',bg:'#F5EE
   {id:'meds',l:'Medications arranged',t:'mta',req:1},{id:'feepaid',l:'Fee paid (custom)',t:'feefield'},
   {id:'co',l:'Courier',t:'courieropts'},{id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
+ ]},
+ {id:'gadm',label:'Admin Concierge Time',sub:'Concierge admin — per 30-min unit',note:'Standalone concierge time (in / out of hours).',fields:[
+  {id:'adh_h',l:'Hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
+  {id:'adh',l:'Admin concierge time',t:'hours',req:1},
+  {id:'adesc',l:'Description of work',t:'admintmpl'}
  ]}
 ]}
 };
@@ -2163,10 +2283,14 @@ async function dbLoad(){
     bills=(r.data||[]).map(function(x){return{id:x.id,patientName:x.patient_name||'',branch:x.branch||'UAE',status:x.status||'Draft',billedBy:x.assigned_to||'',notes:x.notes||'',invoiceNo:x.invoice_no||'',billingData:(typeof x.billing_data==='string'?JSON.parse(x.billing_data||'{}'):(x.billing_data||{})),createdAt:x.created_at,updatedAt:x.updated_at};});
     var rp=await d.from('patients').select('*').order('name');
     if(!rp.error)patients=(rp.data||[]).map(function(x){
-      var rn=x.notes||'',ri='',rc='#185FA5',cn=rn;
-      var ri_idx=rn.lastIndexOf('\n__r:');
-      if(ri_idx>=0){try{var rm=JSON.parse(rn.slice(ri_idx+5));ri=rm.i||'';rc=rm.c||'#185FA5';}catch(e){}cn=rn.slice(0,ri_idx);}
-      return{id:x.id,name:x.name||'',notes:cn,billTo:x.bill_to||'',rollingInvoice:ri,rollingColor:rc,createdAt:x.created_at};
+      // Rolling invoice: prefer real column; fall back to legacy __r: suffix in notes for old rows
+      var rn=x.notes||'',ri=x.rolling_invoice||'',rc=x.rolling_color||'#185FA5',cn=rn;
+      if(!ri){var ri_idx=rn.lastIndexOf('\n__r:');if(ri_idx>=0){try{var rm=JSON.parse(rn.slice(ri_idx+5));ri=rm.i||'';rc=rm.c||'#185FA5';}catch(e){}cn=rn.slice(0,ri_idx);}}
+      var _lks=[];try{_lks=JSON.parse(x.links||'[]');}catch(e){}
+      return{id:x.id,name:x.name||'',notes:cn,billTo:x.bill_to||'',
+        region:x.region||'UAE', code:x.code||'',
+        rollingInvoice:ri,rollingColor:rc,
+        links:_lks,createdAt:x.created_at};
     });
     setSS('ok','Synced '+_nowHM());updCts();render();renderPats();popBillTo();
     // Load shared team settings from cloud (non-blocking — already have local fallback)
@@ -2191,7 +2315,16 @@ async function dbSave(bill){
   bd._activity=_act;if(bill.billingData)bill.billingData._activity=_act;
   var row={patient_name:bill.patientName,branch:bill.branch,status:bill.status,assigned_to:bill.billedBy,notes:bill.notes,billing_data:JSON.stringify(bd),updated_at:new Date().toISOString(),invoice_no:bill.invoiceNo||null};
   try{
-    if(bill.id){var u=await d.from('bills').update(row).eq('id',bill.id);if(u.error)throw u.error;bills=bills.map(function(b){return b.id===bill.id?Object.assign({},bill,{updatedAt:row.updated_at}):b;});}
+    if(bill.id){
+      // Concurrent-edit guard: check if another user saved after we loaded this bill
+      var _knownUpdated=bill.updatedAt||bill.createdAt||'';
+      var _chkR=await d.from('bills').select('updated_at').eq('id',bill.id).single();
+      if(!_chkR.error&&_chkR.data&&_chkR.data.updated_at&&_knownUpdated&&_chkR.data.updated_at>_knownUpdated){
+        var _proceed=confirm('\u26a0\ufe0f This bill was edited by another team member since you opened it.\n\nSave anyway and overwrite their changes?\n\nCancel to discard your edits and reload.');
+        if(!_proceed){await dbLoad();closeMod('bmod');toast('Reloaded — no changes saved','in');return false;}
+      }
+      var u=await d.from('bills').update(row).eq('id',bill.id);if(u.error)throw u.error;bills=bills.map(function(b){return b.id===bill.id?Object.assign({},bill,{updatedAt:row.updated_at}):b;});
+    }
     else{row.created_at=new Date().toISOString();var ins=await d.from('bills').insert(row).select().single();if(ins.error)throw ins.error;bill.id=ins.data.id;bill.createdAt=ins.data.created_at;bill.updatedAt=ins.data.updated_at;bills=[Object.assign({},bill)].concat(bills);}
     setSS('ok','Saved '+_nowHM());toast('Bill saved successfully','ok');clearStash();updCts();render();renderPats();logAudit(_isNew?'Created':'Edited','Bill',bill.patientName||'(unnamed)',(bill.branch||'')+((!_isNew&&_chg.length)?' \u00b7 added '+_chg.join(', '):''));return true;
   }catch(e){setSS('er','Not saved');toast('Save failed: '+e.message+' — your entry is kept, please try again.','er');stashUnsaved(bill);return false;}
@@ -2205,7 +2338,19 @@ async function dbDelBill(id){
 async function dbSavePat(p){
   var _isNewP=!p.id;
   var d=gDB();if(!d)d=await gDBReady();if(!d)return false;
-  var row={name:p.name,notes:p.notes||'',bill_to:p.billTo||''};
+  // Promote structured fields to real columns (migration already applied in Supabase).
+  // Graceful: if a column is absent the upsert still succeeds for the other columns.
+  var _meta=CFG.patientMeta&&CFG.patientMeta[_pnorm(p.name)]||{};
+  var _code=_meta.code||(typeof pCode==='function'?pCode(p.name):'')||'';
+  // Region: prefer explicit p.region, then freshly-set meta (assignPatCode runs before this call), then DB meta, then UAE
+  var _region=p.region||_meta.region||'UAE';
+  var _links=(typeof pLinks==='function'?pLinks(p.name):[])||[];
+  var row={
+    name:p.name, notes:p.notes||'', bill_to:p.billTo||'',
+    code:_code||null, region:_region,
+    rolling_invoice:p.rollingInvoice||null, rolling_color:p.rollingColor||null,
+    links:JSON.stringify(_links)
+  };
   try{
     if(p.id){var u=await d.from('patients').update(row).eq('id',p.id);if(u.error)throw u.error;patients=patients.map(function(x){return x.id===p.id?Object.assign({},p):x;});}
     else{row.created_at=new Date().toISOString();var ins=await d.from('patients').insert(row).select().single();if(ins.error)throw ins.error;patients=patients.concat([Object.assign({},p,{id:ins.data.id,createdAt:ins.data.created_at})]);}
@@ -2222,6 +2367,15 @@ async function dbDelPat(id){
 // ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
+// Ensure required internal doctors / billers are always present, even when
+// stored or cloud config predates them. Idempotent; safe to call repeatedly.
+function ensureCoreLists(){
+  var REQUIRED_DOCTORS=['Dr Jay Lakhani','Dr Cristina Goedhuis','Dr Vaibhav Sharma','Dr Elizabeth Thorne'];
+  if(!Array.isArray(CFG.doctors))CFG.doctors=[];
+  REQUIRED_DOCTORS.forEach(function(d){if(CFG.doctors.indexOf(d)<0)CFG.doctors.push(d);});
+  if(!Array.isArray(CFG.team))CFG.team=[];
+  if(CFG.team.indexOf('Dr Elizabeth Thorne')<0&&CFG.team.indexOf('Dr Elizabeth')<0)CFG.team.push('Dr Elizabeth Thorne');
+}
 function APP_INIT(){
   // Load stored config but MERGE carefully:
   // User customisations (team, doctors, statuses, extLabs) come from storage.
@@ -2282,6 +2436,7 @@ function APP_INIT(){
       }
     }catch(e){CFG.labs=BUILTIN_LABS;}
   }
+  ensureCoreLists();
   loadFEES(); // Load persisted fee overrides
   adminLoad(); // Load admin custom fees, bill items, audit log
   adminLoadAppearance(); // Apply saved colours/fonts/brand
@@ -2304,8 +2459,10 @@ function APP_INIT(){
   window.addEventListener('focus',function(){if(!_busy())dbLoad();});
   window.addEventListener('online',function(){setSS('sy','Reconnecting…');dbLoad();});
   window.addEventListener('offline',function(){setSS('er','Offline — will sync when back');});
+  window.addEventListener('beforeunload',function(){if(_cfgSaveTimer){clearTimeout(_cfgSaveTimer);_cfgSaveTimer=null;try{dbSaveSettings();}catch(e){}}});
   recoverUnsaved();
   document.addEventListener('click',function(e){if(!e.target.closest('.fwrap'))document.getElementById('fpop').classList.remove('open');});
+  document.addEventListener('click',function(e){var m=document.getElementById('pat-more-menu');if(m&&!e.target.closest('#pat-more-wrap'))m.style.display='none';});
 }
 function popTeam(){var s=document.getElementById('fTm');s.innerHTML='<option value="">All Team</option>';CFG.team.forEach(function(t){var o=document.createElement('option');o.textContent=t;s.appendChild(o);});}
 function popBillTo(){
@@ -2697,6 +2854,8 @@ function openEdit(id){
 }
 var extRegion='x';
 function setExtRegion(r){extRegion=r;renderBForm();}
+var intRegion='x';
+function setIntRegion(r){intRegion=r;renderBForm();}
 function swTab(t){
   curTab=t;['i','n','x','f'].forEach(function(x){var el=document.getElementById('mt'+x);if(el)el.classList.toggle('on',x===t);});
   renderBForm();
@@ -2708,7 +2867,13 @@ function renderBForm(){
   var body=document.getElementById('bmod-body');
   if(curTab==='i'){body.innerHTML=lockBanner()+lockWrap(renderInfoTab());attachTextListeners(body,'info');return;}
   if(curTab==='f'){body.innerHTML=lockBanner()+renderFUTab();attachTextListeners(body,'fu');return;}
-  if(curTab==='n'){body.innerHTML=lockBanner()+lockWrap(renderSecTab('int'));attachTextListeners(body,'int');return;}
+  if(curTab==='n'){
+    var _iOpts=[{r:'x',l:'UAE'},{r:'u',l:'UK'}];
+    var intPills='<div style="display:flex;gap:6px;margin-bottom:14px;">'+_iOpts.map(function(opt){var on=intRegion===opt.r;return'<button type="button" data-ir="'+opt.r+'" onclick="setIntRegion(this.dataset.ir)" style="padding:6px 16px;border-radius:99px;font-size:12px;font-weight:600;border:1.5px solid '+(on?'var(--g)':'var(--bo)')+';background:'+(on?'var(--g)':'var(--wh)')+';color:'+(on?'#FBF7EC':'var(--m2)')+';cursor:pointer;">'+opt.l+'</button>';}).join('')+'</div>';
+    if(intRegion==='u'){body.innerHTML=lockBanner()+lockWrap(intPills+renderUKSec('intUK','internal_uk'));attachTextListeners(body,'intUK');}
+    else{body.innerHTML=lockBanner()+lockWrap(intPills+renderSecTab('int'));attachTextListeners(body,'int');}
+    return;
+  }
   // External tab — show UAE/UK/Global region pills then section
   var sk=extRegion==='u'?'extUK':extRegion==='g'?'extGlobal':'ext';
   var _rOpts=[{r:'x',l:'UAE'},{r:'u',l:'UK'},{r:'g',l:'Global'}];
@@ -4218,6 +4383,7 @@ function buildView(b){
     });
   }
   if(typeof buildUKCard==='function'){ensureRichRegions();var _ukItems=(CFG.billingStructure&&CFG.billingStructure.external_uk)||[];var _uksd=(b.billingData&&b.billingData.extUK)||{};_ukItems.forEach(function(item){var _id=_uksd[item.id];if(!_id)return;var _c=buildUKCard(item,_id,b);if(_c)ukCards+=_c;});}
+  if(typeof buildUKCard==='function'){var _iuk=_seedUKInt()||[];var _isdv=(b.billingData&&b.billingData.intUK)||{};_iuk.forEach(function(item){var _id=_isdv[item.id];if(!_id)return;var _c=buildUKCard(item,_id,b);if(_c)ukCards+=_c;});}
   // Section blocks with label
   var secHtml='';
   if(intCards){
@@ -4414,9 +4580,7 @@ function renderReports(){
     '</div>'+
     '<div id="rpt-byteam">'+
     rptTable('Bills by Team Member',byTeam,'team')+
-    rptBillsTable()+
-    rptTeamReport()+
-    rptTeamRevenue()+
+    rptUnifiedTable()+
     '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">'+
     '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'+
     '<button class="ab" onclick="dlExcel()">&#8595; Export Excel</button>'+
@@ -4425,12 +4589,97 @@ function renderReports(){
     rptPinBtn()+
     '</div>'+rptPinStatus();pg.innerHTML=h;
 }
+function rptUnifiedTable(){
+  if(!bills.length)return '';
+  // ── Build per-member stats ──
+  var M={};
+  function g(k){if(!M[k])M[k]={bills:0,consultAED:0,adminAED:0,adminGBP:0,feeSettledAED:0,feeSettledGBP:0,labAED:0,labGBP:0,fuAED:0,fuGBP:0,totalAED:0,totalGBP:0,adminMins:0,docConsults:0,nurseVisits:0,scans:0,meds:0};return M[k];}
+  bills.forEach(function(b){
+    var billerKey=b.billedBy||'Unassigned';var m=g(billerKey);m.bills++;
+    m.totalAED+=calcBillGrandTotal(b)||0;
+    var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
+    ukl.forEach(function(l){if((l.cur||'GBP')==='GBP'){m.totalGBP+=l.amount||0;if(/admin/i.test(l.label||''))m.adminGBP+=l.amount||0;if(/lab/i.test(l.label||''))m.labGBP+=l.amount||0;if(/fee settled|pass|arrangement/i.test(l.label||''))m.feeSettledGBP+=l.amount||0;}});
+    for(var sk in SECS){
+      var sd=b.billingData&&b.billingData[sk];if(!sd)continue;var reg=_skRegion(sk);
+      SECS[sk].items.forEach(function(item){
+        var idata=sd[item.id];if(!idata)return;
+        if(item.id==='ic'){
+          var docKey=(idata.dn&&String(idata.dn).trim())||billerKey;
+          var dM=g(docKey);dM.docConsults++;
+          dM.consultAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m)||0;
+          if(idata.padh)dM.adminAED+=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours','Inside UAE','physAdmin')||0;
+          if(idata.adh){m.adminAED+=calcAdminFee(idata.adh.h,idata.adh.m,idata.adh_h||idata.ph2||'In Hours',idata.al||'Inside UAE','teamAdmin')||0;m.adminMins+=(parseInt(idata.adh.h)||0)*60+(parseInt(idata.adh.m)||0);}
+        } else {
+          if(item.id==='inv'||item.id==='im'||item.id==='es'||item.id==='ges')m.nurseVisits++;
+          if(item.id==='ee'||item.id==='gep')m.scans++;
+          if(item.id==='em'||item.id==='gem')m.meds++;
+          ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv&&fv.amount)&&(fv.cur||'AED')==='AED')m.feeSettledAED+=(parseFloat(fv.amount)||0)*1.05;});
+          if(idata.adh){m.adminAED+=calcAdminFee(idata.adh.h,idata.adh.m,idata.adh_h||idata.ph2||'In Hours',idata.al||'Inside UAE','teamAdmin')||0;m.adminMins+=(parseInt(idata.adh.h)||0)*60+(parseInt(idata.adh.m)||0);}
+          if(idata.padh)m.adminAED+=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours','Inside UAE','physAdmin')||0;
+        }
+        if(Array.isArray(idata.lw)&&idata.lw.length){var lt=_labTotalFor(idata.lw,reg);if(reg==='UK')m.labGBP+=lt;else m.labAED+=lt;}
+      });
+    }
+    var ukLW=(b.billingData&&b.billingData.extUK&&b.billingData.extUK._labworks&&b.billingData.extUK._labworks.lw)||[];
+    if(ukLW.length)m.labGBP+=_labTotalFor(ukLW,'UK');
+    var fus=(b.billingData&&b.billingData._followUps)||[];
+    fus.forEach(function(fu){if(fu.amount&&parseFloat(fu.amount)){var fa=parseFloat(fu.amount)||0;var v=(fu.type==='Fee settlement')?Math.round(fa*(1+_settleMk(fu.cur||'AED'))*100)/100:fa;if((fu.cur||'AED')==='GBP')m.fuGBP+=v;else m.fuAED+=v;}});
+  });
+  var order=(CFG.team||[]).slice();
+  var keys=Object.keys(M).sort(function(a,b){var ia=order.indexOf(a),ib=order.indexOf(b);if(ia<0)ia=999;if(ib<0)ib=999;return(ia-ib)||a.localeCompare(b);});
+  if(!keys.length)return '';
+  function f2(n){return(Math.round((n||0)*100)/100).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:2});}
+  function mc(aed,gbp){var p=[];if(aed>0.005)p.push('AED '+f2(aed));if(gbp>0.005)p.push('<span style="color:var(--b);">GBP '+f2(gbp)+'</span>');return p.length?p.join('<br>'):'\u2014';}
+  function fmins(m){if(!m)return '\u2014';var h=Math.floor(m/60),mn=m%60;return(h?h+'h ':'')+(mn?mn+'min':'');}
+  var tot={bills:0,consultAED:0,adminAED:0,adminGBP:0,feeAED:0,feeGBP:0,labAED:0,labGBP:0,fuAED:0,fuGBP:0,totalAED:0,totalGBP:0,adminMins:0,docConsults:0,nurseVisits:0,scans:0,meds:0};
+  var cols=['Member','Bills','Consults','Admin Time','Admin Fee','Fee Settled','Lab Works','Follow-ups','Activity','Total'];
+  var rows=keys.map(function(k,i){var m=M[k];
+    tot.bills+=m.bills;tot.consultAED+=m.consultAED;tot.adminAED+=m.adminAED;tot.adminGBP+=m.adminGBP;tot.feeAED+=m.feeSettledAED;tot.feeGBP+=m.feeSettledGBP;tot.labAED+=m.labAED;tot.labGBP+=m.labGBP;tot.fuAED+=m.fuAED;tot.fuGBP+=m.fuGBP;tot.totalAED+=m.totalAED;tot.totalGBP+=m.totalGBP;tot.adminMins+=m.adminMins;tot.docConsults+=m.docConsults;tot.nurseVisits+=m.nurseVisits;tot.scans+=m.scans;tot.meds+=m.meds;
+    var act=[];if(m.docConsults)act.push(m.docConsults+' consult'+(m.docConsults>1?'s':''));if(m.nurseVisits)act.push(m.nurseVisits+' nurse');if(m.scans)act.push(m.scans+' scan'+(m.scans>1?'s':''));if(m.meds)act.push(m.meds+' med'+(m.meds>1?'s':''));
+    var bg=i%2?'var(--wh2)':'var(--wh)';
+    return '<tr style="background:'+bg+';border-bottom:1px solid var(--bo);vertical-align:top;">'+
+      '<td style="padding:8px 11px;font-weight:700;font-size:12px;">'+esc(k)+'</td>'+
+      '<td style="padding:8px 11px;text-align:center;font-size:12px;">'+m.bills+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.consultAED,0)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;color:var(--m2);">'+fmins(m.adminMins)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.adminAED,m.adminGBP)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.feeSettledAED,m.feeSettledGBP)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.labAED,m.labGBP)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;">'+mc(m.fuAED,m.fuGBP)+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;color:var(--m2);">'+act.join('<br>')+'</td>'+
+      '<td style="padding:8px 11px;font-size:11px;font-weight:700;color:var(--oc);">'+mc(m.totalAED,m.totalGBP)+'</td>'+
+      '</tr>';
+  }).join('');
+  var totAct=[];if(tot.docConsults)totAct.push(tot.docConsults+' consults');if(tot.nurseVisits)totAct.push(tot.nurseVisits+' nurse');if(tot.scans)totAct.push(tot.scans+' scans');if(tot.meds)totAct.push(tot.meds+' meds');
+  var totRow='<tr style="background:var(--g);color:#FBF7EC;font-weight:700;">'+
+    '<td style="padding:9px 11px;font-size:12px;">All Team</td>'+
+    '<td style="padding:9px 11px;text-align:center;">'+tot.bills+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.consultAED,0)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+fmins(tot.adminMins)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.adminAED,tot.adminGBP)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.feeAED,tot.feeGBP)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.labAED,tot.labGBP)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.fuAED,tot.fuGBP)+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+totAct.join(', ')+'</td>'+
+    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.totalAED,tot.totalGBP)+'</td>'+
+    '</tr>';
+  return '<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 10px;">'+
+    '<span style="font-size:15px;font-weight:700;color:var(--tx);">Team Performance & Revenue</span>'+
+    '<button data-sec="rpt-unified" onclick="togRptSec(this)" style="font-size:10px;padding:2px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);color:var(--m2);cursor:pointer;">hide</button></div>'+
+    '<div id="rpt-unified" style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);overflow-x:auto;box-shadow:var(--sh);margin-bottom:10px;">'+
+    '<div class="rpt-table-wrap"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:900px;">'+
+    '<thead><tr style="background:var(--g);color:#FBF7EC;">'+
+    cols.map(function(c){return '<th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+
+    '</tr></thead><tbody>'+rows+totRow+'</tbody></table></div>'+
+    '<div style="padding:7px 11px;font-size:10px;color:var(--m2);border-top:1px solid var(--bo);">Consults credited to named doctor. Admin time, fee settlements, and lab works credited to the concierge biller. GBP figures shown in blue.</div>'+
+    '</div>';
+}
 function rptTeamRevenue(){
   if(!bills.length)return '';
   var M={};
   function g(k){if(!M[k])M[k]={bills:0,consultAED:0,adminAED:0,adminGBP:0,labAED:0,labGBP:0,fuAED:0,fuGBP:0,totalAED:0,totalGBP:0};return M[k];}
   bills.forEach(function(b){
-    var key=b.billedBy||'Unassigned';var m=g(key);m.bills++;
+    var billerKey=b.billedBy||'Unassigned';var m=g(billerKey);m.bills++;
     m.totalAED+=calcBillGrandTotal(b)||0;
     var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
     ukl.forEach(function(l){if((l.cur||'GBP')==='GBP'){m.totalGBP+=l.amount||0;if(/admin/i.test(l.label||''))m.adminGBP+=l.amount||0;}});
@@ -4438,10 +4687,20 @@ function rptTeamRevenue(){
       var sd=b.billingData&&b.billingData[sk];if(!sd)continue;var reg=_skRegion(sk);
       SECS[sk].items.forEach(function(item){
         var idata=sd[item.id];if(!idata)return;
-        if(item.id==='ic')m.consultAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m)||0;
-        if(idata.cf&&parseFloat(idata.cf.amount)&&(idata.cf.cur||'AED')==='AED')m.consultAED+=(parseFloat(idata.cf.amount)||0)*1.05;
-        if(idata.adh)m.adminAED+=calcAdminFee(idata.adh.h,idata.adh.m,idata.ph2||'In Hours',idata.al||'Inside UAE','teamAdmin')||0;
-        if(idata.padh)m.adminAED+=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours','Inside UAE','physAdmin')||0;
+        if(item.id==='ic'){
+          // Consultation fee + physician admin → credited to the named doctor
+          var docKey=(idata.dn&&String(idata.dn).trim())||billerKey;
+          var dM=g(docKey);
+          dM.consultAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m)||0;
+          if(idata.cf&&parseFloat(idata.cf&&idata.cf.amount)&&(idata.cf.cur||'AED')==='AED')dM.consultAED+=(parseFloat(idata.cf.amount)||0)*1.05;
+          if(idata.padh)dM.adminAED+=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours','Inside UAE','physAdmin')||0;
+          // Concierge admin time on a consult → biller
+          if(idata.adh)m.adminAED+=calcAdminFee(idata.adh.h,idata.adh.m,idata.adh_h||idata.ph2||'In Hours',idata.al||'Inside UAE','teamAdmin')||0;
+        } else {
+          if(idata.cf&&parseFloat(idata.cf&&idata.cf.amount)&&(idata.cf.cur||'AED')==='AED')m.consultAED+=(parseFloat(idata.cf.amount)||0)*1.05;
+          if(idata.adh)m.adminAED+=calcAdminFee(idata.adh.h,idata.adh.m,idata.adh_h||idata.ph2||'In Hours',idata.al||'Inside UAE','teamAdmin')||0;
+          if(idata.padh)m.adminAED+=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours','Inside UAE','physAdmin')||0;
+        }
         if(Array.isArray(idata.lw)&&idata.lw.length){var lt=_labTotalFor(idata.lw,reg);if(reg==='UK')m.labGBP+=lt;else m.labAED+=lt;}
       });
     }
@@ -4726,15 +4985,42 @@ function renderPats(){
   try{assignPatCodesAll();}catch(e){}
   var h='<div class="arow">'+
     '<button class="ab pri" onclick="openNewPat()">+ Add Patient</button>'+
-    '<button class="ab" onclick="openBulkPat()">Bulk Import</button>'+'<button class="ab" onclick="importPatientsExcel()">Import Excel</button>'+'<button class="ab" onclick="exportPatientsExcel()">Export Excel</button>'+
-    '<button class="ab d" onclick="bulkDelPatients()" style="border-color:rgba(150,48,48,.22);color:var(--re);">Bulk Delete</button>'+
+    '<div style="position:relative;display:inline-block;" id="pat-more-wrap">'+
+      '<button class="ab" onclick="(function(){var m=document.getElementById(\'pat-more-menu\');m.style.display=m.style.display===\'block\'?\'none\':\'block\';})()">&#8942; More</button>'+
+      '<div id="pat-more-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);box-shadow:0 4px 16px rgba(26,26,26,.12);z-index:200;min-width:180px;overflow:hidden;">'+
+        '<button class="ab" onclick="document.getElementById(\'pat-more-menu\').style.display=\'none\';openBulkPat();" style="width:100%;text-align:left;border:none;border-bottom:1px solid var(--bo);border-radius:0;padding:10px 14px;font-size:12px;">📋 Bulk text import</button>'+
+        '<button class="ab" onclick="document.getElementById(\'pat-more-menu\').style.display=\'none\';importPatientsExcel();" style="width:100%;text-align:left;border:none;border-bottom:1px solid var(--bo);border-radius:0;padding:10px 14px;font-size:12px;">📥 Import Excel</button>'+
+        '<button class="ab" onclick="document.getElementById(\'pat-more-menu\').style.display=\'none\';exportPatientsExcel();" style="width:100%;text-align:left;border:none;border-bottom:1px solid var(--bo);border-radius:0;padding:10px 14px;font-size:12px;">📤 Export Excel</button>'+
+        '<button class="ab" onclick="document.getElementById(\'pat-more-menu\').style.display=\'none\';bulkDelPatients();" style="width:100%;text-align:left;border:none;border-radius:0;padding:10px 14px;font-size:12px;color:var(--re);">🗑 Bulk delete</button>'+
+      '</div>'+
+    '</div>'+
     '</div>';
   var _btos=[...new Set(patients.filter(function(p){return p.billTo;}).map(function(p){return p.billTo;}))].sort();
   var _rolls=[...new Set([].concat((CFG.rollingInvoices||[]).map(function(r){return r.name;}),patients.map(function(p){return p.rollingInvoice;})).filter(Boolean))].sort();
-  h+='<div class="pat-filters"><input class="pa-in" id="patFQ" placeholder="Search patients\u2026" value="'+esc(_patFQ)+'" oninput="patFilter()" style="min-width:190px;"><select class="pa-in" id="patFRg" onchange="patFilter()"><option value="">All regions</option>'+['UAE','UK','Global'].map(function(r){return '<option'+(r===_patFRg?' selected':'')+'>'+r+'</option>';}).join('')+'</select><select class="pa-in" id="patFB" onchange="patFilter()"><option value="">All \u2014 who to bill</option>'+_btos.map(function(x){return '<option'+(x===_patFB?' selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select><select class="pa-in" id="patFR" onchange="patFilter()"><option value="">All rolling invoices</option>'+_rolls.map(function(x){return '<option'+(x===_patFR?' selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select>'+((_patFB||_patFR||_patFQ||_patFRg)?'<button class="pa-link" onclick="clearPatFilters()">Clear filters</button>':'')+'</div>';
+  var _activeFilters=(_patFB?1:0)+(_patFR?1:0)+(_patFRg?1:0);
+  var _filterOpen=!!window._patFilterOpen;
+  h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'+
+    '<input class="pa-in" id="patFQ" placeholder="Search patients\u2026" value="'+esc(_patFQ)+'" oninput="patFilter()" style="flex:1;min-width:0;">'+
+    '<button onclick="window._patFilterOpen=!window._patFilterOpen;renderPats();" style="display:flex;align-items:center;gap:5px;padding:7px 12px;border:1px solid var(--bo);border-radius:var(--rl);background:'+(_filterOpen||_activeFilters?'var(--g)':'var(--wh)')+';color:'+(_filterOpen||_activeFilters?'#FBF7EC':'var(--m2)')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">'+
+    '\u25bc\u00a0Filter / Sort'+(_activeFilters?' \u00b7 '+_activeFilters:'')+'</button>'+
+    (_patFB||_patFR||_patFQ||_patFRg?'<button class="pa-link" onclick="clearPatFilters()" style="white-space:nowrap;">Clear all</button>':'')+'</div>';
+  if(_filterOpen){
+    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);padding:12px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:10px;">'+
+      '<div style="display:flex;flex-direction:column;gap:3px;min-width:130px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m2);">Region</label><select class="pa-in" id="patFRg" onchange="patFilter()" style="margin:0;"><option value="">All regions</option>'+['UAE','UK','Global'].map(function(r){return '<option'+(r===_patFRg?' selected':'')+'>'+r+'</option>';}).join('')+'</select></div>'+
+      '<div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:150px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m2);">Bill to</label><select class="pa-in" id="patFB" onchange="patFilter()" style="margin:0;"><option value="">All</option>'+_btos.map(function(x){return '<option'+(x===_patFB?' selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select></div>'+
+      '<div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:150px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m2);">Rolling invoice</label><select class="pa-in" id="patFR" onchange="patFilter()" style="margin:0;"><option value="">All</option>'+_rolls.map(function(x){return '<option'+(x===_patFR?' selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select></div>'+
+      '<div style="display:flex;flex-direction:column;gap:3px;min-width:130px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m2);">Sort</label><select class="pa-in" id="patSort" onchange="_patSort=this.value;renderPats();" style="margin:0;"><option value="alpha"'+(_patSort==='alpha'?' selected':'')+'>A → Z</option><option value="region"'+(_patSort==='region'?' selected':'')+'>Region</option><option value="bills"'+(_patSort==='bills'?' selected':'')+'>Most bills</option><option value="recent"'+(_patSort==='recent'?' selected':'')+'>Recently added</option></select></div>'+
+      '</div>';
+  }
   if(!patients.length){pg.innerHTML=h+'<div class="empty"><div class="ei">&#128100;</div><div class="et">No patients yet</div><div class="es">Add patients to track all their bills in one place.</div></div>';return;}
   // Sort patients alphabetically by first name, then group by first letter
-  var sortedPats=patients.slice().filter(function(p){return (!_patFB||p.billTo===_patFB)&&(!_patFR||(p.rollingInvoice||'')===_patFR)&&(!_patFQ||(p.name||'').toLowerCase().indexOf(_patFQ.toLowerCase())>=0)&&(!_patFRg||pRegion(p.name)===_patFRg);}).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+  var sortedPats=patients.slice().filter(function(p){return (!_patFB||p.billTo===_patFB)&&(!_patFR||(p.rollingInvoice||'')===_patFR)&&(!_patFQ||(p.name||'').toLowerCase().indexOf(_patFQ.toLowerCase())>=0)&&(!_patFRg||pRegion(p.name)===_patFRg);}).sort(function(a,b){
+    var s=_patSort||'alpha';
+    if(s==='region'){var ra=pRegion(a.name)||'UAE',rb=pRegion(b.name)||'UAE';if(ra!==rb)return ra.localeCompare(rb);}
+    if(s==='bills'){var ba=bills.filter(function(x){return (x.patientName||'').toLowerCase()===(a.name||'').toLowerCase();}).length;var bb=bills.filter(function(x){return (x.patientName||'').toLowerCase()===(b.name||'').toLowerCase();}).length;if(ba!==bb)return bb-ba;}
+    if(s==='recent'){return new Date(b.createdAt||0)-new Date(a.createdAt||0);}
+    return (a.name||'').localeCompare(b.name||'');
+  });
   var patLetters={},patLOrder=[];
   sortedPats.forEach(function(p){
     var letter=(p.name&&p.name[0]?p.name[0].toUpperCase():'#');
@@ -4768,43 +5054,7 @@ function viewPat(id){
     '<button class="ab" onclick="editPat(\''+p.id+'\')">Edit</button>'+
     '<button class="ab" onclick="openPatientDetailEditor(\''+p.id+'\')" style="background:var(--ocb);border-color:rgba(184,129,58,.35);color:var(--oc);">🎨 Sections</button>'+
     '<button class="ab d" onclick="delPat(\''+p.id+'\')" style="border-color:rgba(150,48,48,.22);color:var(--re);">Remove</button></div>';
-  // Rich patient card header
-  h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:14px;overflow:hidden;box-shadow:var(--sh);">';
-  h+='<div style="background:linear-gradient(135deg,#021620 0%,#0A3050 100%);padding:16px 20px;display:flex;align-items:center;gap:14px;">';
-  h+='<div class="pat-av" style="width:48px;height:48px;font-size:17px;flex-shrink:0;background:rgba(251,247,236,.12);color:#FBF7EC;">'+ini(p.name)+'</div>';
-  h+='<div style="flex:1;min-width:0;">';
-  h+='<div style="font-family:var(--serif);font-size:22px;font-style:italic;color:#FBF7EC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</div>';
-  if(p.billTo)h+='<div style="font-size:12px;color:rgba(251,247,236,.55);margin-top:2px;">Bill to: '+esc(p.billTo)+'</div>';
-  if(p.rollingInvoice)h+='<div style="margin-top:5px;"><span style="font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px;background:'+(p.rollingColor||'#185FA5')+'33;color:'+(p.rollingColor||'#185FA5')+';border:1px solid '+(p.rollingColor||'#185FA5')+'55;">'+esc(p.rollingInvoice)+'</span></div>';
-  h+='</div>';
-  h+='<div style="text-align:right;flex-shrink:0;"><div style="font-family:var(--serif);font-size:26px;font-style:italic;color:#FBF7EC;">'+pb.length+'</div><div style="font-size:9px;color:rgba(251,247,236,.4);text-transform:uppercase;letter-spacing:.08em;">bills</div></div>';
-  h+='</div>';
-  // Notes
-  if(p.notes){
-    h+='<div style="padding:12px 16px;border-top:1px solid var(--bo);">';
-    h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:5px;">📝 Notes</div>';
-    h+='<div style="font-size:12px;color:var(--mu);line-height:1.6;white-space:pre-wrap;">'+esc(p.notes)+'</div>';
-    h+='</div>';
-  }
-  var _pvl=pLinks(p.name);
-  if(_pvl.length){
-    h+='<div style="padding:12px 16px;border-top:1px solid var(--bo);">';
-    h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:7px;">\ud83d\udd17 Family &amp; Links</div>';
-    h+='<div style="display:flex;flex-wrap:wrap;gap:6px;">'+_pvl.map(function(l){return '<span onclick="openPatByName(\''+_jq(l.name)+'\')" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;background:var(--wh2);border:1px solid var(--bo);border-radius:20px;padding:5px 11px;font-size:12px;"><b style="color:var(--g);">'+esc(l.name)+'</b><span style="color:var(--mu);font-size:10px;">'+esc(l.rel)+'</span></span>';}).join('')+'</div>';
-    h+='</div>';
-  }
-  // Custom sections data
-  secs.forEach(function(sec){
-    if(sec.builtin||sec.visible===false)return;
-    var val=p.sectionData&&p.sectionData[sec.id];
-    if(!val)return;
-    h+='<div style="padding:12px 16px;border-top:1px solid var(--bo);">';
-    h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:5px;">'+esc(sec.icon||'📋')+' '+esc(sec.label)+'</div>';
-    h+='<div style="font-size:12px;color:var(--mu);line-height:1.6;white-space:pre-wrap;">'+esc(val)+'</div>';
-    h+='</div>';
-  });
-  h+='<div style="padding:8px 16px;background:var(--wh2);border-top:1px solid var(--bo);font-size:10px;color:var(--m2);">Added '+fdt(p.createdAt)+'</div>';
-  h+='</div>';
+  h+=renderPatCard(p);
   h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--m2);margin-bottom:9px;">🧾 Bills ('+pb.length+')</div>';
   h+='<div class="bg">';
   if(!pb.length){h+='<div class="empty" style="padding:28px 0;"><div class="et">No bills</div><div class="es">No bills for this patient yet.</div></div>';}
@@ -4815,10 +5065,52 @@ function viewPat(id){
 var curPat=null;
 function openNewPat(){curPat={name:'',notes:'',billTo:'',region:'UAE'};document.getElementById('pmod-t').textContent='Add Patient';document.getElementById('pmod-body').innerHTML=renderPatForm();openMod('pmod');}
 function editPat(id){var p=patients.find(function(x){return x.id==id;});if(!p)return;curPat=Object.assign({},p);curPat.region=pRegion(p.name)||'UAE';document.getElementById('pmod-t').textContent='Edit Patient';document.getElementById('pmod-body').innerHTML=renderPatForm();openMod('pmod');}
+function _regionCountry(r){return r==='UK'?'United Kingdom':r==='Global'?'Global':'United Arab Emirates';}
+function _patInitials(n){return (String(n||'').trim().split(/\s+/).slice(0,2).map(function(w){return w[0]||'';}).join('')||'?').toUpperCase();}
+// Read-only patient record card — matches the proposed record-view mockup.
+function renderPatCard(p){
+  if(!p)return '';
+  var name=p.name||'';
+  var code=(typeof pCode==='function'&&pCode(name))||'';
+  var region=(typeof pRegion==='function'&&pRegion(name))||p.region||'UAE';
+  var billTo=p.billTo||'';
+  var roll=p.rollingInvoice||'';
+  var rollCol=p.rollingColor||'#185FA5';
+  var links=(typeof pLinks==='function'?pLinks(name):[])||[];
+  function row(icon,label,valHtml){return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--bo);"><span style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--m2);"><span style="opacity:.6;">'+icon+'</span>'+esc(label)+'</span><span style="font-size:13px;font-weight:600;color:var(--tx);text-align:right;">'+(valHtml||'<span style=\"color:var(--m2);font-weight:400;\">\u2014</span>')+'</span></div>';}
+  var h='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);padding:14px 15px;margin-bottom:16px;box-shadow:0 1px 3px rgba(26,26,26,.05);">'+
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">'+
+      '<div style="width:42px;height:42px;border-radius:50%;background:var(--wh2);border:1px solid var(--bo);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--g);font-size:14px;flex-shrink:0;">'+esc(_patInitials(name))+'</div>'+
+      '<div style="min-width:0;"><div style="font-size:16px;font-weight:700;color:var(--tx);">'+esc(name||'\u2014')+'</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">'+
+        (code?'<span style="font-size:10px;font-weight:700;letter-spacing:.04em;background:#E6F1FB;color:#0C447C;border-radius:20px;padding:2px 9px;">'+esc(code)+'</span>':'')+
+        '<span style="font-size:10px;font-weight:600;background:var(--wh2);color:var(--m2);border:1px solid var(--bo);border-radius:20px;padding:2px 9px;">'+esc(_regionCountry(region))+'</span>'+
+      '</div></div></div>'+
+    row('&#128179;','Bill to',billTo?esc(billTo):'')+
+    row('&#128203;','Rolling invoice',roll?'<span style="font-size:11px;font-weight:700;color:#fff;background:'+esc(rollCol)+';border-radius:20px;padding:2px 10px;">'+esc(roll)+'</span>':'')+
+    row('&#128205;','Region',esc(region))+
+    (links.length?'<div style="border-top:1px solid var(--bo);margin-top:4px;padding-top:10px;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--m2);margin-bottom:7px;">Family &amp; Links</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+links.map(function(l){return '<span onclick="openPatByName(\''+_jq(l.name)+'\')" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;background:var(--wh2);border:1px solid var(--bo);border-radius:20px;padding:4px 11px;font-size:12px;"><b style="color:var(--g);">'+esc(l.name)+'</b> <span style="color:var(--mu);font-size:10px;">\u00b7 '+esc(l.rel)+'</span></span>';}).join('')+'</div></div>':'')+
+    '</div>';
+  // Extra detail rows (notes, custom sections) shown in view mode only
+  if(p&&p.notes){
+    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-top:none;border-radius:0 0 var(--rl) var(--rl);padding:10px 15px;">'+
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:4px;">📝 Notes</div>'+
+      '<div style="font-size:12px;color:var(--mu);line-height:1.6;white-space:pre-wrap;">'+esc(p.notes)+'</div></div>';
+  }
+  var _secs=typeof getDefaultPatientSections==='function'?CFG.patientSections||getDefaultPatientSections():[];
+  _secs.filter(function(s){return !s.builtin&&s.visible!==false;}).forEach(function(sec){
+    var val=p.sectionData&&p.sectionData[sec.id];if(!val)return;
+    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-top:none;padding:10px 15px;">'+
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:4px;">'+esc(sec.icon||'📋')+' '+esc(sec.label)+'</div>'+
+      '<div style="font-size:12px;color:var(--mu);line-height:1.6;white-space:pre-wrap;">'+esc(val)+'</div></div>';
+  });
+  return h;
+}
 function renderPatForm(){
   var secs=typeof getDefaultPatientSections==='function'?(CFG.patientSections||getDefaultPatientSections()):[];
   var customSecs=secs.filter(function(s){return !s.builtin&&s.visible!==false;});
-  var base='<div class="fg"><label class="fl">Patient Name <span class="req">*</span></label>'+
+  var base=(curPat&&curPat.id?renderPatCard(curPat):'')+'<div class="fg"><label class="fl">Patient Name <span class="req">*</span></label>'+
     '<input class="fi" value="'+esc(curPat.name||'')+'" placeholder="Full name" oninput="curPat.name=this.value"></div>'+
     '<div class="fg"><label class="fl">Bill To</label>'+
     '<input class="fi" value="'+esc(curPat.billTo||'')+'" placeholder="Name, company or insurer" oninput="curPat.billTo=this.value"></div>'+
@@ -4826,11 +5118,49 @@ function renderPatForm(){
     '<select class="fi" onchange="curPat.region=this.value">'+['UAE','UK','Global'].map(function(r){return '<option'+((curPat.region||'UAE')===r?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'+
     '<p style="font-size:10px;color:var(--m2);margin:3px 0 0;">Sets the patient code prefix (UAE- / UK- / GL-). The code is assigned automatically and stays fixed.</p></div>'+
     '<div class="fg"><label class="fl">Rolling Invoice</label>'+
-    '<div style="display:flex;gap:8px;align-items:center;">'+
-    '<input class="fi" style="flex:1;" placeholder="e.g. M Monthly, Family, Sh Hamdan&#8230;" value="'+esc(curPat.rollingInvoice||'')+'" oninput="curPat.rollingInvoice=this.value">'+
-    '<input type="color" title="Invoice colour" value="'+(curPat.rollingColor||'#185FA5')+'" style="width:32px;height:32px;border:1px solid var(--bo);border-radius:6px;cursor:pointer;padding:2px;flex-shrink:0;" oninput="curPat.rollingColor=this.value" onchange="curPat.rollingColor=this.value">'+
-    '</div>'+
-    '<p style="font-size:10px;color:var(--m2);margin:3px 0 0;">Default rolling invoice — auto-fills when creating bills for this patient.</p>'+
+    (function(){
+      var _allRolls=[...new Set([].concat((CFG.rollingInvoices||[]).map(function(r){return r.name;}),patients.map(function(p){return p.rollingInvoice||'';})).filter(Boolean))].sort();
+      var _cur=curPat.rollingInvoice||'';
+      var _showText=!!_cur; // show text input if a value is set (existing or new)
+      // Colour: use curPat's own stored colour first, then fall back to the invoice's registered colour
+      var _col=curPat.rollingColor||'#185FA5';
+      if(!curPat.rollingColor&&_cur){
+        var _ri=(CFG.rollingInvoices||[]).find(function(r){return r.name===_cur;});
+        if(_ri&&_ri.color)_col=_ri.color;
+      }
+      return '<select class="fi" id="ri-sel" style="width:100%;margin-bottom:6px;" onchange="'+
+        '(function(v){'+
+          'var show=document.getElementById(\'ri-text-row\');'+
+          'var ti=document.getElementById(\'ri-text-inp\');'+
+          'var ci=document.getElementById(\'ri-col-inp\');'+
+          'if(v===\'__new\'){'+
+            'curPat.rollingInvoice=\'\';'+
+            'if(ti)ti.value=\'\';'+
+            'if(show)show.style.display=\'flex\';'+
+            'if(ti)ti.focus();'+
+          '}else if(v===\'\'){'+
+            'curPat.rollingInvoice=\'\';'+
+            'if(show)show.style.display=\'none\';'+
+          '}else{'+
+            'curPat.rollingInvoice=v;'+
+            'if(ti)ti.value=v;'+
+            'var ri=(CFG.rollingInvoices||[]).find(function(r){return r.name===v;});'+
+            'var col=ri&&ri.color?ri.color:(curPat.rollingColor||\'#185FA5\');'+
+            'curPat.rollingColor=col;'+
+            'if(ci)ci.value=col;'+
+            'if(show)show.style.display=\'flex\';'+
+          '}'+
+        '})(this.value)">'+
+        '<option value="">— None —</option>'+
+        _allRolls.map(function(n){return '<option value="'+esc(n)+'"'+(_cur===n?' selected':'')+'>'+esc(n)+'</option>';}).join('')+
+        '<option value="__new">＋ Add new…</option>'+
+        '</select>'+
+        '<div id="ri-text-row" style="display:'+(_showText?'flex':'none')+';gap:8px;align-items:center;margin-bottom:4px;">'+
+          '<input id="ri-text-inp" class="fi" style="flex:1;" placeholder="Invoice name…" value="'+esc(_cur)+'" oninput="curPat.rollingInvoice=this.value">'+
+          '<input id="ri-col-inp" type="color" title="Invoice colour" value="'+esc(_col)+'" style="width:32px;height:32px;border:1px solid var(--bo);border-radius:6px;cursor:pointer;padding:2px;flex-shrink:0;" oninput="curPat.rollingColor=this.value" onchange="curPat.rollingColor=this.value">'+
+        '</div>'+
+        '<p style="font-size:10px;color:var(--m2);margin:3px 0 0;">Select an existing invoice or add a new one. The colour appears on patient cards and bill filters.</p>';
+    })()+
     '</div>'+
     '<div class="fg"><label class="fl">Notes</label>'+
     '<textarea class="fta" placeholder="Medical notes, preferences, insurance, contacts&#8230;" oninput="curPat.notes=this.value">'+esc(curPat.notes||'')+'</textarea></div>';
@@ -4870,7 +5200,9 @@ async function savePat(){
     return;
   }
   var _oldP=patients.find(function(p){return p.id===curPat.id;});var _oldName=_oldP?_oldP.name:'';
-  var ok=await dbSavePat(curPat);if(ok){try{_pcfg3();var _nk=_pnorm(curPat.name),_ok2=_pnorm(_oldName);if(_ok2&&_ok2!==_nk&&CFG.patientMeta[_ok2]){CFG.patientMeta[_nk]=CFG.patientMeta[_ok2];delete CFG.patientMeta[_ok2];}assignPatCode(curPat.name,curPat.region||'UAE');saveCFG();}catch(e){}closeMod('pmod');toast('Patient saved','ok');popBillTo();renderPats();}
+  // Assign region/code BEFORE saving so dbSavePat picks up the correct region from patientMeta
+  try{_pcfg3();var _nk2=_pnorm(curPat.name),_ok3=_pnorm(_oldName);if(_ok3&&_ok3!==_nk2&&CFG.patientMeta[_ok3]){CFG.patientMeta[_nk2]=CFG.patientMeta[_ok3];delete CFG.patientMeta[_ok3];}assignPatCode(curPat.name,curPat.region||'UAE');}catch(e){}
+  var ok=await dbSavePat(curPat);if(ok){try{saveCFG();}catch(e){}closeMod('pmod');toast('Patient saved','ok');popBillTo();renderPats();}
 }
 async function delPat(id){
   if(!confirm('Remove this patient? Their bills will not be deleted.'))return;
@@ -4913,6 +5245,17 @@ function bulkDelPatients(){
 var settO={};var settOpen=null;
 function renderSettings(){
   var pg=document.getElementById('page-settings');
+  // ── One-time migration banner ──
+  var _migBanner='';
+  if(!CFG._regionMigDone){
+    _migBanner='<div style="background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--rl);padding:13px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'+
+      '<span style="font-size:20px;">⚠️</span>'+
+      '<div style="flex:1;min-width:200px;"><div style="font-weight:700;font-size:13px;color:#6D4C00;">Patient region migration needed</div>'+
+      '<div style="font-size:12px;color:#795510;margin-top:3px;">Upload your patient Excel (3 sheets: UAE, UK, Global) to fix all existing patients\' regions and codes in one go.</div></div>'+
+      '<button class="ab" onclick="runRegionMigration()" style="background:#F9A825;border-color:#F9A825;color:#fff;font-weight:700;white-space:nowrap;">📥 Fix all patient regions</button>'+
+      '<button onclick="CFG._regionMigDone=true;saveCFG();renderSettings();" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;" title="Dismiss">×</button>'+
+      '</div>';
+  }
   // Category headers
   function catHead(label,icon){return'<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--bo2);"><span style="font-size:15px;">'+icon+'</span><span style="font-family:var(--serif);font-size:15px;font-style:italic;color:var(--t);">'+label+'</span></div>';}
   var secs=[
@@ -4963,7 +5306,7 @@ function renderSettings(){
         '</div>';}).join(''):'<p style="font-style:italic;color:var(--m2);font-size:12px;padding:6px 2px;">No lab works for '+reg+' yet.</p>';
       return '<p style="font-size:12px;color:var(--m2);margin-bottom:10px;line-height:1.5;">Add, edit and delete lab works &amp; fees for each region. UK and Global lists appear in their billing forms; UAE entries are added on top of your built-in Internal Lab Tests. Edit inline, or use bulk Excel import / delete-all.</p>'+
         '<div class="sub-nav" style="margin-bottom:12px;">'+tabs+'</div>'+
-        '<div style="max-height:280px;overflow-y:auto;margin-bottom:10px;">'+rows+'</div>'+
+        '<div style="max-height:360px;overflow-y:auto;margin-bottom:10px;">'+rows+'</div>'+
         '<div class="add-row" style="gap:6px;"><input class="add-inp" id="lw_name" placeholder="Lab work name\u2026" style="flex:2;"><input class="add-inp" id="lw_fee" type="number" min="0" step="0.01" placeholder="Fee ('+cur+')" style="flex:1;min-width:90px;"><button class="add-btn" onclick="lwAdd()">Add</button></div>'+
         '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button class="ab" onclick="lwBulkExcel()">&#8595; Bulk Import (Excel)</button><button class="ab" onclick="lwExportExcel()">Export Excel</button><button class="ab" style="border-color:rgba(150,48,48,.22);color:var(--re);" onclick="lwClear(\''+reg+'\')">Delete All ('+reg+')</button></div>';
     }},
@@ -5003,12 +5346,14 @@ function renderSettings(){
       entries.forEach(function(r){
         var patNames=r.pats.map(function(p){return p.name;}).join(', ');
         var billCount=r.bills.length;
+        var rEsc=esc(r.name).replace(/'/g,"\\'");
         html+='<div style="background:var(--wh2);border:1px solid var(--bo);border-radius:var(--rl);padding:12px 14px;">'+
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'+
-          '<input type="color" value="'+r.color+'" style="width:30px;height:30px;border:none;border-radius:5px;cursor:pointer;padding:2px;flex-shrink:0;" onchange="updateRollingColor(\''+esc(r.name)+'\',this.value)" title="Change colour">'+
-          '<input style="flex:1;padding:6px 9px;font-size:13px;font-weight:600;border:1px solid var(--bo);border-radius:5px;background:var(--wh);font-family:var(--sans);" value="'+esc(r.name)+'" onblur="updateRollingName(\''+esc(r.name)+'\',this.value)" onchange="updateRollingName(\''+esc(r.name)+'\',this.value)">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:'+(patNames?'8':'0')+'px;">'+
+          '<input type="color" value="'+r.color+'" style="width:30px;height:30px;border:none;border-radius:5px;cursor:pointer;padding:2px;flex-shrink:0;" onchange="updateRollingColor(\''+rEsc+'\',this.value)" title="Change colour">'+
+          '<input style="flex:1;padding:6px 9px;font-size:13px;font-weight:600;border:1px solid var(--bo);border-radius:5px;background:var(--wh);font-family:var(--sans);" value="'+esc(r.name)+'" onblur="updateRollingName(\''+rEsc+'\',this.value)" onchange="updateRollingName(\''+rEsc+'\',this.value)">'+
           '<span style="font-size:11px;color:var(--m2);white-space:nowrap;">'+billCount+' bill'+(billCount!==1?'s':'')+'</span>'+
-          '<button onclick="showPage(\'bills\');var fRoll=document.getElementById(\'fRoll\');if(fRoll){fRoll.value=\''+esc(r.name)+'\'};render();settOpen=null;" style="font-size:11px;padding:3px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);cursor:pointer;">View bills</button>'+
+          (billCount?'<button onclick="showPage(\'bills\');var fRoll=document.getElementById(\'fRoll\');if(fRoll){fRoll.value=\''+rEsc+'\'};render();settOpen=null;" style="font-size:11px;padding:3px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);cursor:pointer;">View</button>':'')+
+          '<button onclick="delRollingInvoice(\''+rEsc+'\')" style="font-size:16px;color:var(--re);background:none;border:none;cursor:pointer;padding:0 4px;" title="Delete">&#215;</button>'+
           '</div>'+
           (patNames?'<div style="font-size:11px;color:var(--m2);">Patients: '+esc(patNames)+'</div>':'')+
           '</div>';
@@ -5245,43 +5590,118 @@ function renderSettings(){
       i++;
     }
   }
-  pg.innerHTML=h;
+  pg.innerHTML=_migBanner+h;
 }
-function togSett(id){settOpen=id;renderSettings();}
+
+// ── Region migration: bulk-fix all patient regions from Excel upload ──
+function runRegionMigration(){
+  _loadXLSX(function(){
+    var inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
+    inp.onchange=async function(){
+      var f=inp.files&&inp.files[0];if(!f)return;
+      var rd=new FileReader();
+      rd.onload=async function(ev){
+        try{
+          var wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+          // Build name→region+billTo+rolling map from all sheets
+          var xlMap={};
+          wb.SheetNames.forEach(function(sn){
+            var su=String(sn).trim().toUpperCase();
+            var region=(su.indexOf('UK')>=0||su.indexOf('KINGDOM')>=0)?'UK':(su.indexOf('GLOB')>=0?'Global':'UAE');
+            XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:''}).forEach(function(r){
+              var name=String(r['Patient name']||r['Patient Name']||r.Name||r.name||'').trim();
+              if(!name)return;
+              var billTo=String(r['Whom to bill']||r['Bill To']||r['Bill to']||r.billTo||'').trim();
+              var rolling=String(r['Rolling invoice']||r['Rolling Invoice']||r.Rolling||'').trim();
+              xlMap[_pnorm(name)]={region:region,name:name,billTo:billTo,rolling:rolling};
+            });
+          });
+          var total=Object.keys(xlMap).length;
+          toast('Processing '+total+' patients from Excel…','in');
+          var fixed=0,notfound=[];
+          // Reset patientMeta codes for proper re-numbering
+          // First pass: assign codes per region in order
+          _pcfg3();
+          var pending=[];
+          patients.forEach(function(p){
+            var k=_pnorm(p.name);
+            var xl=xlMap[k];
+            if(!xl){notfound.push(p.name);return;}
+            pending.push({p:p,xl:xl});
+          });
+          // Sort by region so codes are assigned in region groups
+          pending.sort(function(a,b){return a.xl.region.localeCompare(b.xl.region)||a.xl.name.localeCompare(b.xl.name);});
+          // Clear existing codes for patients in the list so they get re-numbered
+          pending.forEach(function(item){var k=_pnorm(item.p.name);if(CFG.patientMeta[k])delete CFG.patientMeta[k];});
+          // Assign fresh codes in order
+          pending.forEach(function(item){assignPatCode(item.xl.name,item.xl.region);});
+          // Second pass: DB update
+          for(var i=0;i<pending.length;i++){
+            var item=pending[i];
+            var p=item.p,xl=item.xl;
+            var k=_pnorm(p.name);
+            var meta=CFG.patientMeta[k]||{};
+            var updatedP=Object.assign({},p,{
+              region:xl.region,
+              billTo:xl.billTo||p.billTo,
+              rollingInvoice:xl.rolling||p.rollingInvoice,
+              code:meta.code||''
+            });
+            // Update in-memory patient
+            patients=patients.map(function(x){return x.id===p.id?Object.assign({},x,updatedP):x;});
+            var ok=await dbSavePat(updatedP);
+            if(ok)fixed++;
+          }
+          // Relink bills: update patient_name match → branch reflects patient region now
+          // Bills already reference patientName — no change needed since pRegion now reads DB
+          // Save updated meta
+          saveCFG();
+          // Mark migration done
+          CFG._regionMigDone=true;saveCFG();
+          var msg='✅ Fixed '+fixed+' patient'+(fixed!==1?'s':'')+' regions & codes.';
+          if(notfound.length)msg+=' '+notfound.length+' in app not matched in Excel (no change).';
+          toast(msg,'ok');
+          renderPats();renderSettings();
+        }catch(err){toast('Migration failed: '+err.message,'er');}
+      };
+      rd.readAsArrayBuffer(f);
+    };
+    inp.click();
+  });
+}
+
 function updateRollingColor(oldName,newColor){
-  // Update all bills with this rolling invoice name
+  // Persist in CFG list
+  if(!CFG.rollingInvoices)CFG.rollingInvoices=[];
+  var ri=CFG.rollingInvoices.find(function(r){return r.name===oldName;});
+  if(ri){ri.color=newColor;}else{CFG.rollingInvoices.push({name:oldName,color:newColor});}
+  // Update all bills
   bills.forEach(function(b){
-    var ri=b.rollingInvoice||(b.billingData&&b.billingData._rollingInvoice)||'';
-    if(ri===oldName){
-      b.rollingColor=newColor;
-      if(b.billingData){b.billingData._rollingColor=newColor;}
-      dbSave(b);
-    }
+    var bri=b.rollingInvoice||(b.billingData&&b.billingData._rollingInvoice)||'';
+    if(bri===oldName){b.rollingColor=newColor;if(b.billingData)b.billingData._rollingColor=newColor;dbSave(b);}
   });
-  // Update patients too
-  patients.forEach(function(p){
-    if(p.rollingInvoice===oldName){p.rollingColor=newColor;dbSavePat(p);}
-  });
+  // Update all patients
+  patients.forEach(function(p){if(p.rollingInvoice===oldName){p.rollingColor=newColor;dbSavePat(p);}});
+  saveCFG();
   render();
-  toast('Colour updated for '+oldName,'ok');
+  toast('Colour updated','ok');
   var bmod=document.getElementById('bmod');if(bmod&&!bmod.classList.contains('h'))renderBForm();
 }
 function updateRollingName(oldName,newName){
   newName=(newName||'').trim();
   if(!newName||newName===oldName)return;
+  // Rename in CFG list
+  if(!CFG.rollingInvoices)CFG.rollingInvoices=[];
+  var ri=CFG.rollingInvoices.find(function(r){return r.name===oldName;});
+  if(ri){ri.name=newName;}else{CFG.rollingInvoices.push({name:newName,color:'#185FA5'});}
   // Rename all bills
   bills.forEach(function(b){
-    var ri=b.rollingInvoice||(b.billingData&&b.billingData._rollingInvoice)||'';
-    if(ri===oldName){
-      b.rollingInvoice=newName;
-      if(b.billingData){b.billingData._rollingInvoice=newName;}
-      dbSave(b);
-    }
+    var bri=b.rollingInvoice||(b.billingData&&b.billingData._rollingInvoice)||'';
+    if(bri===oldName){b.rollingInvoice=newName;if(b.billingData)b.billingData._rollingInvoice=newName;dbSave(b);}
   });
   // Rename patients
-  patients.forEach(function(p){
-    if(p.rollingInvoice===oldName){p.rollingInvoice=newName;dbSavePat(p);}
-  });
+  patients.forEach(function(p){if(p.rollingInvoice===oldName){p.rollingInvoice=newName;dbSavePat(p);}});
+  saveCFG();
   render();
   toast('Renamed to '+newName,'ok');
   settOpen='rollinginv';renderSettings();
@@ -5296,10 +5716,19 @@ function addRollingInvoice(){
   if(CFG.rollingInvoices.find(function(r){return r.name===name;})){toast('Already exists','er');return;}
   CFG.rollingInvoices.push({name:name,color:color});
   saveCFG();
-  toast('Rolling invoice added: '+name,'ok');
-  // Clear the inputs without re-rendering the whole settings page
+  toast('Added: '+name,'ok');
   if(nameEl)nameEl.value='';
-  // Re-render just the settings detail to show new entry
+  settOpen='rollinginv';renderSettings();
+}
+function delRollingInvoice(name){
+  if(!name)return;
+  var inUse=(bills.some(function(b){return (b.rollingInvoice||(b.billingData&&b.billingData._rollingInvoice)||'')=== name;}))||
+            (patients.some(function(p){return p.rollingInvoice===name;}));
+  if(inUse&&!confirm('"'+name+'" is assigned to bills or patients. Delete it from the list? (Existing records keep the name but it will no longer appear in dropdowns.)'))return;
+  // Remove from CFG list
+  if(CFG.rollingInvoices)CFG.rollingInvoices=CFG.rollingInvoices.filter(function(r){return r.name!==name;});
+  saveCFG();
+  toast('Removed from list: '+name,'ok');
   settOpen='rollinginv';renderSettings();
 }
 function togRptSec(btn){
@@ -5556,6 +5985,7 @@ function renderBillItemLabels(){
 var _cfgSaveTimer=null;
 var _feesSaveTimer=null;
 var _settingsSyncing=false;
+var _settingsDirty=false;
 var _cloudSettingsLoaded=false;
 
 function saveCFG(){
@@ -5636,7 +6066,7 @@ function saveFEES(){
 // ── Core cloud settings save/load ──
 async function dbSaveSettings(){
   var d=gDB();if(!d)return;
-  if(_settingsSyncing)return; // prevent concurrent writes
+  if(_settingsSyncing){_settingsDirty=true;return;} // a save is in flight — mark dirty, re-push after
   _settingsSyncing=true;
   // Build full settings payload
   var payload={
@@ -5663,6 +6093,7 @@ async function dbSaveSettings(){
     setCloudStatus('error');
   }finally{
     _settingsSyncing=false;
+    if(_settingsDirty){_settingsDirty=false;setTimeout(function(){dbSaveSettings();},0);}
   }
 }
 
@@ -5691,7 +6122,19 @@ async function dbLoadSettings(){
       if(stored.team)CFG.team=stored.team;
       if(stored.doctors)CFG.doctors=stored.doctors;
       if(stored.partners)CFG.partners=stored.partners;
-      if(stored.labWorks)CFG.labWorks=stored.labWorks;
+      // Lab works: UNION-merge (cloud + local) so a stale cloud copy can never
+      // drop labs added locally. Cloud values win on name conflicts.
+      (function(){
+        _lwEnsure();
+        var cloudLW=stored.labWorks||{},localLW=CFG.labWorks||{},merged={};
+        ['UAE','UK','Global'].forEach(function(rg){
+          var byName={};
+          (localLW[rg]||[]).forEach(function(x){if(x&&x.name)byName[String(x.name).toLowerCase()]={name:x.name,fee:Number(x.fee)||0};});
+          (cloudLW[rg]||[]).forEach(function(x){if(x&&x.name)byName[String(x.name).toLowerCase()]={name:x.name,fee:Number(x.fee)||0};});
+          merged[rg]=Object.keys(byName).map(function(k){return byName[k];});
+        });
+        CFG.labWorks=merged; stored.labWorks=merged; // persist the union, not the stale cloud copy
+      })();
       if(stored.patientLinks)CFG.patientLinks=stored.patientLinks;
       if(stored.protPins)CFG.protPins=stored.protPins;
       if(stored.auditLog)CFG.auditLog=stored.auditLog;
@@ -5703,6 +6146,8 @@ async function dbLoadSettings(){
       if(stored.statuses&&stored.statuses.length)CFG.statuses=stored.statuses;
       if(stored.extLabs)CFG.extLabs=stored.extLabs;
       if(stored.rollingInvoices)CFG.rollingInvoices=stored.rollingInvoices;
+      // Safety net: union any rolling invoice names found in bills/patients that aren't in the list yet
+      (function(){if(!CFG.rollingInvoices)CFG.rollingInvoices=[];var have={};CFG.rollingInvoices.forEach(function(r){if(r.name)have[r.name.toLowerCase()]=true;});bills.forEach(function(b){var ri=b.rollingInvoice||(b.billingData&&b.billingData._rollingInvoice)||'';if(ri&&!have[ri.toLowerCase()]){have[ri.toLowerCase()]=true;CFG.rollingInvoices.push({name:ri,color:'#185FA5'});}});patients.forEach(function(p){var ri=p.rollingInvoice||'';if(ri&&!have[ri.toLowerCase()]){have[ri.toLowerCase()]=true;CFG.rollingInvoices.push({name:ri,color:p.rollingColor||'#185FA5'});}});})();
       if(stored.billLabels)CFG.billLabels=stored.billLabels;
       if(stored.displaySettings)CFG.displaySettings=stored.displaySettings;
       if(stored.feeMapping)CFG.feeMapping=stored.feeMapping;
@@ -5713,6 +6158,8 @@ async function dbLoadSettings(){
         CFG.labs=BUILTIN_LABS.concat(extra);
       }
       // Write merged to localStorage so next load is fast even offline
+      ensureCoreLists();
+      try{popTeam();}catch(e){}
       localStorage.setItem('amara_cfg4',JSON.stringify(stored));
     }
     if(data.fees){
@@ -6102,7 +6549,9 @@ function adminSaveItems(){
   Object.keys(ADMIN.billItems).forEach(function(k){
     if(ADMIN.billItems[k].displayName)CFG.billLabels[k]=ADMIN.billItems[k].displayName;
   });
-  saveCFG(); // triggers cloud sync
+  saveCFG(); // triggers cloud sync (debounced)
+  // Also push immediately so another user sees the new item without waiting
+  if(typeof dbSaveSettings==='function')setTimeout(function(){dbSaveSettings();},350);
 }
 function adminLog(action,detail){
   if(!ADMIN.auditLog)ADMIN.auditLog=[];
@@ -6136,8 +6585,7 @@ function renderAdminHome(){
     {id:'fees',icon:'💰',title:'Fee Schedule',sub:'Add, edit, delete and reorder all fee rates across UAE, UK and Global regions',badge:adminFeeCount()+' fees'},
     {id:'labs',icon:'🔬',title:'Lab Test Prices',sub:'Full CRUD for all lab test prices — search, bulk edit, add custom tests',badge:Object.keys(FEES.labs||{}).length+' tests'},
     {id:'items',icon:'🏷️',title:'Billing Item Labels',sub:'Customise every display name and description shown on patient bills and invoices',badge:''},
-    {id:'display',icon:'📋',title:'Bill Display Settings',sub:'Control section headings, invoice labels, receipt terminology and customer-facing text',badge:''},
-    {id:'mapping',icon:'🔗',title:'Fee-to-Item Mapping',sub:'Configure which fees apply to which billing items — one-to-many and many-to-one',badge:''},
+    {id:'mapping',icon:'🔗',title:'Billing Structure Editor',sub:'Organise billing items by section and region. Empty by default — the app seeds items automatically from code.',badge:''},
     {id:'audit',icon:'📜',title:'Audit Log',sub:'Full history of all admin changes with timestamps and user attribution',badge:(ADMIN.auditLog&&ADMIN.auditLog.length||0)+' entries'},
     {id:'appearance',icon:'🎨',title:'Appearance & Branding',sub:'Colours, fonts, brand name, logo text and UI customisation',badge:''}
   ];
@@ -7985,6 +8433,82 @@ function richCur(sKey,item){
 
 // Build the three editable items (nurse / medication / doctor) for a region.
 // pr = price multiplier base (UK gets starter GBP values, Global starts at 0 = custom)
+function richInternalUKItems(){
+  return [
+    { id:'doctor_uki', name:"Doctor's Consultation", displayName:"Doctor's Consultation",
+      description:'UK physician consultation (GBP)', category:'Doctor', color:'#185FA5', bg:'#F0F5FB', required:false, active:true, custom:true,
+      fields:[
+        {id:'cn',l:'Doctor name',t:'doctorsel'},
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours','Bank Holiday']},
+        {id:'ctype',l:'Consultation type',t:'sel',byWhen:true,o:['Up to 30 minutes','Brief / correspondence','Extended (up to 1 hr)']},
+        {id:'mode',l:'Consultation mode',t:'sel',o:['In clinic','Home visit','Telephone','Video consultation']},
+        {id:'inc',l:'Additional half-hour increments',t:'unit'},
+        {id:'intl',l:'International travel (per day)',t:'tog'},
+        {id:'rf',l:'GP referral',t:'ihooh'},
+        {id:'ph',l:'Phlebotomy fee',t:'tog'},
+        {id:'lw',l:'Lab work',t:'lab'},
+        {id:'co',l:'Courier',t:'sel',o:['Standard','Custom']},
+        {id:'pfee',l:'Prescription fee',t:'ihooh'},
+        {id:'meds',l:'Medications arranged',t:'mta'},
+        {id:'docnotes',l:'Consultation notes',t:'mta'}
+      ],
+      prices:{ ctype:{
+        'Up to 30 minutes|In Hours':295,'Up to 30 minutes|Out of Hours':375,'Up to 30 minutes|Bank Holiday':1190,
+        'Brief / correspondence|In Hours':275,'Brief / correspondence|Out of Hours':345,'Brief / correspondence|Bank Holiday':1190,
+        'Extended (up to 1 hr)|In Hours':595,'Extended (up to 1 hr)|Out of Hours':795,'Extended (up to 1 hr)|Bank Holiday':1490
+      }, intl:{'__on':6950}, rf:{'In Hours':75,'Out of Hours':95,'Bank Holiday':95}, ph:{'__on':55}, co:{'Standard':35}, pfee:{'In Hours':75,'Out of Hours':95,'Bank Holiday':95} },
+      rates:{ inc:{ih:295,ooh:375} }
+    },
+    { id:'rx_uki', name:'Medications', displayName:'Medications', description:'UK prescription / medication fee (GBP)', category:'Prescription', color:'#534AB7', bg:'#F2F1FD', required:false, active:true, custom:true,
+      fields:[
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours','Bank Holiday']},
+        {id:'pfee',l:'Prescription fee',t:'ihooh'},
+        {id:'meds',l:'Medications arranged',t:'mta'}
+      ],
+      prices:{ pfee:{'In Hours':75,'Out of Hours':95,'Bank Holiday':95} }
+    },
+    { id:'nurse_uki', name:'Nurse Visit', displayName:'Nurse Visit', description:'UK nurse visit \u2014 per hour (GBP)', category:'Nurse', color:'#0F6E56', bg:'#F0F7F4', required:false, active:true, custom:true,
+      fields:[
+        {id:'nu',l:'Nurse name',t:'txt'},
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours','Bank Holiday']},
+        {id:'dur',l:'Time spent',t:'unit'},
+        {id:'mon8',l:'8-hour monitoring',t:'tog'},
+        {id:'ph',l:'Phlebotomy fee',t:'tog'},
+        {id:'lw',l:'Lab work',t:'lab'},
+        {id:'co',l:'Courier',t:'sel',o:['Standard','Custom']},
+        {id:'nnotes',l:'Notes',t:'mta'}
+      ],
+      rates:{ dur:{ih:137.5,ooh:197.5,bh:296.25} },
+      prices:{ mon8:{'__on':750}, ph:{'__on':55}, co:{'Standard':35} }
+    },
+    { id:'admin_uki', name:'Concierge Admin Time', displayName:'Medical Operations Admin', description:'Admin per 30-min unit (GBP)', category:'Admin', color:'#6B5B8A', bg:'#F3F1F7', required:false, active:true, custom:true,
+      fields:[
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
+        {id:'dur',l:'Admin time',t:'unit'},
+        {id:'adesc',l:'Description of work',t:'mta'}
+      ],
+      rates:{ dur:{ih:45,ooh:75} }
+    }
+  ];
+}
+
+function _ukIntCurrent(a){
+  if(!a||!a.length)return false;
+  var d=a.filter(function(x){return x.id==='doctor_uki';})[0];
+  if(!d||!d.fields)return false;
+  // New shape detectors: doctor uses dropdown (doctorsel), and has GP referral + Laboratory folded in
+  var hasDocSel=d.fields.some(function(f){return f.id==='cn'&&f.t==='doctorsel';});
+  var hasRef=d.fields.some(function(f){return f.id==='rf';});
+  var hasLab=d.fields.some(function(f){return (f.id==='lw'&&f.t==='lab');});
+  var hasMeds=d.fields.some(function(f){return f.id==='meds';});
+  return hasDocSel&&hasRef&&hasLab&&hasMeds;
+}
+function _seedUKInt(){
+  if(!CFG.billingStructure)CFG.billingStructure=getDefaultBillingStructure();
+  var a=CFG.billingStructure.internal_uk;
+  if(!_ukIntCurrent(a))CFG.billingStructure.internal_uk=richInternalUKItems();
+  return CFG.billingStructure.internal_uk;
+}
 function richRegionItems(reg){
   var uk = reg==='uk';
   var nursePrice = uk?{'In Hours':250,'Out of Hours':375}:{'In Hours':0,'Out of Hours':0};
@@ -8045,6 +8569,7 @@ function richRegionItems(reg){
 // One-time seed of UK / Global rich items into the saved structure
 function ensureRichRegions(){
   if(!CFG.billingStructure)CFG.billingStructure=getDefaultBillingStructure();
+  if(!CFG.billingStructure.internal_uk||!CFG.billingStructure.internal_uk.some(function(x){return x.id==='doctor_uki';}))CFG.billingStructure.internal_uk=richInternalUKItems();
   if(CFG.__richSeededV1)return;
   var map={external_uk:'uk', external_global:'global'};
   Object.keys(map).forEach(function(sKey){
@@ -8423,7 +8948,17 @@ function ukExternalItems(){
       ],
       prices:{presc:{'In Hours':75,'Out of Hours':95}, courier:COURIER},
       rates:{adh:{ih:45,ooh:75,unit:'unit30'}},
-      markup:{med:1.05} }
+      markup:{med:1.05} },
+
+    { id:'uk_admin', name:'Admin Concierge Time', displayName:'Admin Concierge Time', cur:'GBP',
+      description:'Concierge admin time \u2014 per 30-min unit (GBP)', category:'Admin',
+      color:'#6B5B8A', bg:'#F3F1F7', required:false, active:true, custom:true,
+      fields:[
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
+        {id:'dur',l:'Admin concierge time',t:'unit'},
+        {id:'adesc',l:'Description of work',t:'mta'}
+      ],
+      rates:{dur:{ih:45,ooh:75,unit:'unit30'}} }
   ];
 }
 
@@ -8729,17 +9264,20 @@ function ukItemLines(item,idata){
       var mins=v?((parseInt(v.h)||0)*60+(parseInt(v.m)||0)):0;
       if(mins>0){
         var units=Math.ceil(mins/30);
-        var rate=((R[f.id]&&(when==='Out of Hours'?R[f.id].ooh:R[f.id].ih))||0);
+        var rate=((R[f.id]&&(when==='Bank Holiday'?(R[f.id].bh!=null?R[f.id].bh:R[f.id].ooh):(when==='Out of Hours'?R[f.id].ooh:R[f.id].ih)))||0);
         var a=units*rate;
         if(a>0)lines.push({label:f.l+' ('+units+' \u00d7 30 min, '+when+')',amount:a});
       }
     } else if(f.t==='sel'){
       if(v){
         var amt3=0;
-        if(v==='Custom')amt3=parseFloat(idata[f.id+'_custom'])||0;
-        else amt3=(P[f.id]&&P[f.id][v])||0;
-        if(amt3>0)lines.push({label:f.l+' ('+v+')',amount:amt3});
+        if(v==='Custom'||(f.feeFor&&f.feeFor.indexOf(v)>=0))amt3=parseFloat(idata[f.id+'_custom'])||0;
+        else amt3=(P[f.id]&&(f.byWhen?P[f.id][v+'|'+when]:P[f.id][v]))||0;
+        if(amt3>0)lines.push({label:f.l+' ('+v+(f.byWhen?', '+when:'')+')',amount:amt3});
       }
+    } else if(f.t==='lab'){
+      var labs=Array.isArray(v)?v:[];
+      if(labs.length){var lt=_labTotalFor(labs,'UK');lines.push({label:'Lab work \u2014 '+labs.join(', '),amount:lt});}
     }
   });
   var total=lines.reduce(function(s,l){return s+l.amount;},0);
@@ -8748,7 +9286,7 @@ function ukItemLines(item,idata){
 
 // All UK GBP lines for a bill (used by the summary footer).
 function computeUKLines(b){
-  ensureRichRegions();
+  ensureRichRegions(); _seedUKInt();
   var out=[];
   var items=(CFG.billingStructure&&CFG.billingStructure.external_uk)||[];
   var sdata=(b.billingData&&b.billingData.extUK)||{};
@@ -8757,6 +9295,11 @@ function computeUKLines(b){
     var r=ukItemLines(item,idata);
     r.lines.forEach(function(l){out.push({label:(item.displayName||item.name)+' \u2014 '+l.label,amount:l.amount,cur:'GBP',external:true});});
   });
+  var _iitems=_seedUKInt()||[];
+  var _isd=(b.billingData&&b.billingData.intUK)||{};
+  _iitems.forEach(function(item){var idata=_isd[item.id];if(!idata)return;var r=ukItemLines(item,idata);r.lines.forEach(function(l){out.push({label:(item.displayName||item.name)+' \u2014 '+l.label,amount:l.amount,cur:'GBP',external:false});});});
+  var _iLW=(_isd._labworks&&_isd._labworks.lw)||[];
+  if(_iLW.length){var _iLWt=_labTotalFor(_iLW,'UK');if(_iLWt>0)out.push({label:'Lab Works \u2014 '+_iLW.join(', '),amount:_iLWt,cur:'GBP',external:false});}
   var _ukLW=(sdata._labworks&&sdata._labworks.lw)||[];
   if(_ukLW.length){var _ukLWt=_labTotalFor(_ukLW,'UK');if(_ukLWt>0)out.push({label:'Lab Works \u2014 '+_ukLW.join(', '),amount:_ukLWt,cur:'GBP',external:true});}
 
@@ -8764,28 +9307,29 @@ function computeUKLines(b){
 }
 
 // ── Field savers (extUK) ──
-function setUKPass(itemId,fId,val){
-  if(!curBill.billingData.extUK)curBill.billingData.extUK={};
-  if(!curBill.billingData.extUK[itemId])curBill.billingData.extUK[itemId]={};
-  curBill.billingData.extUK[itemId][fId]={amount:val};
+function setUKPass(itemId,fId,val,sk){sk=sk||'extUK';
+  if(!curBill.billingData[sk])curBill.billingData[sk]={};
+  if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
+  curBill.billingData[sk][itemId][fId]={amount:val};
   renderBForm();
 }
-function setUKNum(itemId,fId,val){
-  if(!curBill.billingData.extUK)curBill.billingData.extUK={};
-  if(!curBill.billingData.extUK[itemId])curBill.billingData.extUK[itemId]={};
-  curBill.billingData.extUK[itemId][fId]=val;
+function setUKNum(itemId,fId,val,sk){sk=sk||'extUK';
+  if(!curBill.billingData[sk])curBill.billingData[sk]={};
+  if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
+  curBill.billingData[sk][itemId][fId]=val;
   renderBForm();
 }
-function setUKHours(itemId,fId,part,val){
-  if(!curBill.billingData.extUK)curBill.billingData.extUK={};
-  if(!curBill.billingData.extUK[itemId])curBill.billingData.extUK[itemId]={};
-  var c=curBill.billingData.extUK[itemId][fId]||{h:'',m:''};c[part]=val;
-  curBill.billingData.extUK[itemId][fId]=c;
+function setUKHours(itemId,fId,part,val,sk){sk=sk||'extUK';
+  if(!curBill.billingData[sk])curBill.billingData[sk]={};
+  if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
+  var c=curBill.billingData[sk][itemId][fId]||{h:'',m:''};c[part]=val;
+  curBill.billingData[sk][itemId][fId]=c;
   renderBForm();
 }
 
 // ── Editor: one configured UK field ──
-function renderUKField(item,idata,f){
+function renderUKField(item,idata,f,sk){
+  sk=sk||'extUK';
   var id=item.id, fid=f.id;
   var P=item.prices||{}, R=item.rates||{}, M=item.markup||{};
   var when=idata.when||'In Hours';
@@ -8795,21 +9339,21 @@ function renderUKField(item,idata,f){
   if(f.t==='when'){
     var opts=f.o||['In Hours','Out of Hours'];
     return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><div class="chips">'+opts.map(function(o){
-      return '<button type="button" class="chip'+(idata.when===o?' on':'')+'" onclick="sBF(\'extUK\',\''+id+'\',\'when\',\''+(idata.when===o?'':esc(o))+'\')">'+esc(o)+'</button>';
+      return '<button type="button" class="chip'+(idata.when===o?' on':'')+'" onclick="sBF(\''+sk+'\',\''+id+'\',\'when\',\''+(idata.when===o?'':esc(o))+'\')">'+esc(o)+'</button>';
     }).join('')+'</div></div>';
   }
   if(f.t==='ihooh'){
     var on=idata[fid]===true||idata[fid]==='true';
     var amt=(P[fid]&&(P[fid][when]!=null?P[fid][when]:P[fid]['In Hours']))||0;
     return '<div class="dr"><div class="tog-row">'+
-      '<button type="button" class="tog-btn" style="background:'+(on?'var(--t)':'#C5BAB0')+'" onclick="sBF(\'extUK\',\''+id+'\',\''+fid+'\','+(on?'false':'true')+')"><div class="tog-thumb" style="left:'+(on?'19px':'3px')+'"></div></button>'+
+      '<button type="button" class="tog-btn" style="background:'+(on?'var(--t)':'#C5BAB0')+'" onclick="sBF(\''+sk+'\',\''+id+'\',\''+fid+'\','+(on?'false':'true')+')"><div class="tog-thumb" style="left:'+(on?'19px':'3px')+'"></div></button>'+
       '<div><div style="font-size:13px;font-weight:500;">'+esc(lbl)+badge('GBP '+amt.toLocaleString('en-GB')+' \u00b7 '+when)+'</div></div></div></div>';
   }
   if(f.t==='tog'){
     var on2=idata[fid]===true||idata[fid]==='true';
     var amt2=(P[fid]&&P[fid]['__on'])||0;
     return '<div class="dr"><div class="tog-row">'+
-      '<button type="button" class="tog-btn" style="background:'+(on2?'var(--t)':'#C5BAB0')+'" onclick="sBF(\'extUK\',\''+id+'\',\''+fid+'\','+(on2?'false':'true')+')"><div class="tog-thumb" style="left:'+(on2?'19px':'3px')+'"></div></button>'+
+      '<button type="button" class="tog-btn" style="background:'+(on2?'var(--t)':'#C5BAB0')+'" onclick="sBF(\''+sk+'\',\''+id+'\',\''+fid+'\','+(on2?'false':'true')+')"><div class="tog-thumb" style="left:'+(on2?'19px':'3px')+'"></div></button>'+
       '<div><div style="font-size:13px;font-weight:500;">'+esc(lbl)+badge('GBP '+amt2.toLocaleString('en-GB'))+'</div></div></div></div>';
   }
   if(f.t==='pass'){
@@ -8817,7 +9361,7 @@ function renderUKField(item,idata,f){
     var bill=Math.round(fee*mult*100)/100;
     return '<div class="dr"><div class="dl">'+esc(lbl)+' <span style="font-weight:400;color:var(--m2);font-style:italic;">\u2014 fee paid \u00d7 '+mult+'</span></div>'+
       '<div class="fee-w"><span style="font-size:12px;color:var(--m2);padding:0 6px;">GBP</span>'+
-      '<input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc((idata[fid]&&idata[fid].amount)||'')+'" onchange="setUKPass(\''+id+'\',\''+fid+'\',this.value)"></div>'+
+      '<input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc((idata[fid]&&idata[fid].amount)||'')+'" onchange="setUKPass(\''+id+'\',\''+fid+'\',this.value,\''+sk+'\')"></div>'+
       (fee>0?'<div style="font-size:11px;color:#0C447C;font-weight:700;margin-top:4px;">Bill: GBP '+bill.toLocaleString('en-GB',{minimumFractionDigits:2})+'</div>':'')+
       '</div>';
   }
@@ -8827,8 +9371,8 @@ function renderUKField(item,idata,f){
     var units=Math.ceil(mins/30);var a=units*rate;
     return '<div class="dr"><div class="dl">'+esc(lbl)+' <span style="font-weight:400;color:var(--m2);font-style:italic;">\u2014 GBP '+rate.toLocaleString('en-GB')+' / 30 min ('+when+')</span></div>'+
       '<div class="hrs-w">'+
-      '<input class="hrs-n" type="number" min="0" max="23" placeholder="0" value="'+esc(v.h||'')+'" onchange="setUKHours(\''+id+'\',\''+fid+'\',\'h\',this.value)"><span class="hrs-l">hrs</span>'+
-      '<input class="hrs-n" type="number" min="0" max="59" placeholder="0" value="'+esc(v.m||'')+'" onchange="setUKHours(\''+id+'\',\''+fid+'\',\'m\',this.value)"><span class="hrs-l">min</span>'+
+      '<input class="hrs-n" type="number" min="0" max="23" placeholder="0" value="'+esc(v.h||'')+'" onchange="setUKHours(\''+id+'\',\''+fid+'\',\'h\',this.value,\''+sk+'\')"><span class="hrs-l">hrs</span>'+
+      '<input class="hrs-n" type="number" min="0" max="59" placeholder="0" value="'+esc(v.m||'')+'" onchange="setUKHours(\''+id+'\',\''+fid+'\',\'m\',this.value,\''+sk+'\')"><span class="hrs-l">min</span>'+
       '</div>'+(mins>0?'<div style="font-size:11px;color:#0C447C;font-weight:700;margin-top:4px;">'+units+' \u00d7 30 min = GBP '+a.toLocaleString('en-GB',{minimumFractionDigits:2})+'</div>':'')+
       '</div>';
   }
@@ -8836,42 +9380,68 @@ function renderUKField(item,idata,f){
     var sv=idata[fid]||'';var opts2=f.o||[];
     var h='<div class="dr"><div class="dl">'+esc(lbl)+'</div><div class="chips">'+opts2.map(function(o){
       var pr=(P[fid]&&P[fid][o])||0;
-      return '<button type="button" class="chip'+(sv===o?' on':'')+'" onclick="sBF(\'extUK\',\''+id+'\',\''+fid+'\',\''+(sv===o?'':esc(o))+'\')">'+esc(o)+(pr>0?' (GBP '+pr+')':'')+'</button>';
+      return '<button type="button" class="chip'+(sv===o?' on':'')+'" onclick="sBF(\''+sk+'\',\''+id+'\',\''+fid+'\',\''+(sv===o?'':esc(o))+'\')">'+esc(o)+(pr>0?' (GBP '+pr+')':'')+'</button>';
     }).join('')+'</div>';
-    if(sv==='Custom')h+='<div class="fee-w" style="margin-top:6px;"><span style="font-size:12px;color:var(--m2);padding:0 6px;">GBP</span><input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc(idata[fid+'_custom']||'')+'" onchange="setUKNum(\''+id+'\',\''+fid+'_custom\',this.value)"></div>';
+    if(sv==='Custom'||(f.feeFor&&f.feeFor.indexOf(sv)>=0))h+='<div class="fee-w" style="margin-top:6px;"><span style="font-size:12px;color:var(--m2);padding:0 6px;">GBP</span><input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc(idata[fid+'_custom']||'')+'" onchange="setUKNum(\''+id+'\',\''+fid+'_custom\',this.value,\''+sk+'\')"></div>';
     h+='</div>';return h;
   }
+  if(f.t==='doctorsel'){
+    var curDn=idata[fid]||'';
+    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div>'+
+      '<div class="chips" style="margin-bottom:5px;">'+
+      (CFG.doctors||[]).map(function(d){return '<button type="button" class="chip'+(curDn===d?' on':'')+'" onclick="sBF(\''+sk+'\',\''+id+'\',\''+fid+'\',\''+(curDn===d?'':esc(d))+'\')" style="font-size:12px;">'+esc(d)+'</button>';}).join('')+
+      '</div>'+
+      '<input class="dfi" style="margin-top:5px;" value="'+esc(curDn)+'" placeholder="Or type doctor name\u2026" data-save-key="'+sk+'|'+id+'|'+fid+'"></div>';
+  }
+  if(f.t==='lab'){
+    var _lsel=Array.isArray(idata[fid])?idata[fid]:[];
+    var _lddO=!!openItems['lab_'+sk+'_'+id];
+    var _llist=_labListFor('UK');
+    var _ltot=_labTotalFor(_lsel,'UK');
+    return '<div class="dr"><div class="dl">'+esc(lbl)+(_ltot>0?' <span style="font-weight:400;color:#0C447C;">\u2014 GBP '+_ltot.toLocaleString('en-GB')+'</span>':'')+'</div>'+
+      '<div class="lab-dd"><div class="lab-hd" onclick="togLabDD(\''+sk+'\',\''+id+'\')">'+
+      (_lsel.length?_lsel.length+' lab'+(_lsel.length>1?'s':'')+' selected':'Select lab works\u2026')+
+      ' <span style="opacity:.38;">\u25be</span></div>'+
+      '<div class="lab-bd'+(_lddO?' op':'')+'">'+
+      (_lsel.length?'<div class="lab-sel" style="margin:0 0 7px;">'+_lsel.map(function(l){return '<span class="lab-tag">'+esc(l)+' <span class="lab-tx" onclick="togLab(\''+sk+'\',\''+id+'\',\''+fid+'\',\''+esc(l)+'\')">&#215;</span></span>';}).join('')+'</div>':'')+
+      '<input class="lab-srch" placeholder="Search labs\u2026" id="lsrch_'+sk+'_'+id+'" oninput="filterLabGrid(this,\'lbgrid_'+sk+'_'+id+'\')">'+
+      '<div class="lab-grid" id="lbgrid_'+sk+'_'+id+'">'+
+      (_llist.length?_llist.map(function(o){var l=o.name;var lp=o.fee?('  GBP '+(Number(o.fee)||0).toLocaleString()):'';return '<button type="button" class="lab-c'+(_lsel.indexOf(l)>=0?' on':'')+' lab-opt" data-lbl="'+esc(l.toLowerCase())+'" onclick="togLab(\''+sk+'\',\''+id+'\',\''+fid+'\',\''+esc(l)+'\')" style="display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;border-radius:4px;padding:5px 8px;"><span>'+esc(l)+'</span>'+(lp?'<span style="opacity:.55;font-size:10px;white-space:nowrap;margin-left:8px;">'+lp.trim()+'</span>':'')+'</button>';}).join(''):'<div style="font-size:11px;color:var(--m2);padding:8px;font-style:italic;">No UK lab works yet \u2014 add them in Settings \u2192 Lab Works.</div>')+'</div>'+
+      '<input class="lab-srch" style="margin-top:6px;margin-bottom:0;" placeholder="Add custom lab \u2014 press Enter" onkeydown="if(event.key===\'Enter\'&&this.value.trim()){togLab(\''+sk+'\',\''+id+'\',\''+fid+'\',this.value.trim());this.value=\'\'}">'+
+      '</div></div></div>';
+  }
   if(f.t==='txt'){
-    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><input class="dfi" value="'+esc(idata[fid]||'')+'" placeholder="Enter details\u2026" data-save-key="extUK|'+id+'|'+fid+'"></div>';
+    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><input class="dfi" value="'+esc(idata[fid]||'')+'" placeholder="Enter details\u2026" data-save-key="'+sk+'|'+id+'|'+fid+'"></div>';
   }
   if(f.t==='mta'){
-    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><textarea class="dfta" placeholder="Notes\u2026" data-save-key="extUK|'+id+'|'+fid+'">'+esc(idata[fid]||'')+'</textarea></div>';
+    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><textarea class="dfta" placeholder="Notes\u2026" data-save-key="'+sk+'|'+id+'|'+fid+'">'+esc(idata[fid]||'')+'</textarea></div>';
   }
   if(f.t==='multi'){
     var _uma=Array.isArray(idata[fid])?idata[fid]:[];
-    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><div class="chips">'+(f.o||[]).map(function(o){var on=_uma.indexOf(o)>=0;return'<button type="button" class="chip'+(on?' on':'')+'" onclick="toggleMulti(\'extUK\',\''+id+'\',\''+fid+'\',\''+esc(o)+'\')">'+(on?'&#10003; ':'')+esc(o)+'</button>';}).join('')+'</div></div>';
+    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><div class="chips">'+(f.o||[]).map(function(o){var on=_uma.indexOf(o)>=0;return'<button type="button" class="chip'+(on?' on':'')+'" onclick="toggleMulti(\''+sk+'\',\''+id+'\',\''+fid+'\',\''+esc(o)+'\')">'+(on?'&#10003; ':'')+esc(o)+'</button>';}).join('')+'</div></div>';
   }
   if(f.t==='admintmpl'){
     var _ucur=(idata[fid]!=null&&String(idata[fid]).trim()!=='')?idata[fid]:(typeof ukAdminDesc==='function'?ukAdminDesc(item,idata,curBill&&curBill.createdAt):'');
-    return '<div class="dr"><div class="dl">'+esc(lbl)+' <span style="font-weight:400;color:var(--m2);font-style:italic;">\u2014 auto-generated, editable</span></div><textarea class="dfta" placeholder="Admin description\u2026" data-save-key="extUK|'+id+'|'+fid+'">'+esc(_ucur)+'</textarea></div>';
+    return '<div class="dr"><div class="dl">'+esc(lbl)+' <span style="font-weight:400;color:var(--m2);font-style:italic;">\u2014 auto-generated, editable</span></div><textarea class="dfta" placeholder="Admin description\u2026" data-save-key="'+sk+'|'+id+'|'+fid+'">'+esc(_ucur)+'</textarea></div>';
   }
   return '';
 }
 
 // ── Editor: the UK section (configured items) ──
-function renderUKSec(){
+function renderUKSec(sk,structKey){
+  sk=sk||'extUK'; structKey=structKey||'external_uk'; var _isInt=(sk!=='extUK');
   ensureRichRegions();
-  var items=(CFG.billingStructure&&CFG.billingStructure.external_uk)||[];
-  var sdata=curBill.billingData.extUK||{};
-  var h='<div style="font-size:11px;padding:8px 11px;border-radius:var(--r);margin-bottom:12px;background:#E6F1FB;color:#0C447C;font-weight:600;letter-spacing:.02em;">UK Arrangements <span style="font-weight:400;opacity:.7;">\u2014 GBP rates</span></div>';
+  var items=_isInt?_seedUKInt():((CFG.billingStructure&&CFG.billingStructure[structKey])||[]);
+  var sdata=curBill.billingData[sk]||{};
+  var h='<div style="font-size:11px;padding:8px 11px;border-radius:var(--r);margin-bottom:12px;background:#E6F1FB;color:#0C447C;font-weight:600;letter-spacing:.02em;">'+(_isInt?'UK Internal Arrangements':'UK Arrangements')+' <span style="font-weight:400;opacity:.7;">\u2014 GBP rates</span></div>';
   h+='<div class="sec-wrap">';
   items.forEach(function(item){
     if(item.active===false)return;
     var idata=sdata[item.id]||{};
     var r=ukItemLines(item,idata);
     var checked=r.lines.length>0;
-    var isOpen=!!openItems['extUK_'+item.id];
-    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\'extUK\',\''+item.id+'\')" ondblclick="clearBI(\'extUK\',\''+item.id+'\')">'+
+    var isOpen=!!openItems[sk+'_'+item.id];
+    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\')" ondblclick="clearBI(\''+sk+'\',\''+item.id+'\')">'+
       '<div class="bl-cb'+(checked?' on':'')+'">'+(checked?'&#10003;':'')+'</div>'+
       '<div class="bl-lbl"><div class="bl-lt">'+esc(item.displayName||item.name)+(r.total>0?' <span style="font-size:11px;color:#0C447C;font-weight:700;">\u00b7 GBP '+r.total.toLocaleString('en-GB')+'</span>':'')+'</div>'+(item.description?'<div class="bl-ls">'+esc(item.description)+'</div>':'')+'</div>'+
       '<span class="bl-cv'+(isOpen?' op':'')+'">&#9662;</span></div>';
@@ -8881,30 +9451,31 @@ function renderUKSec(){
         var ov=(item.fieldOverrides&&item.fieldOverrides[f.id])||{};
         if(ov.active===false)return;
         if(f.cond&&typeof _condOK==='function'&&!_condOK(f,idata))return;
-        h+=renderUKField(item,idata,f);
+        h+=renderUKField(item,idata,f,sk);
       });
       h+='</div>';
     }
     h+='</div>';
   });
-  // UK lab works picker (region-specific, GBP — fees from Settings → Lab Works)
+  // UK lab works picker (external UK only — internal UK labs live inside Doctor / Nurse items)
+  if(!_isInt){
   _lwEnsure();
-  var _ukLW=(curBill.billingData.extUK&&curBill.billingData.extUK._labworks&&curBill.billingData.extUK._labworks.lw)||[];
+  var _ukLW=(curBill.billingData[sk]&&curBill.billingData[sk]._labworks&&curBill.billingData[sk]._labworks.lw)||[];
   var _ukLWt=_labTotalFor(_ukLW,'UK');
-  var _ukLWo=!!openItems['lab_extUK__labworks'];
+  var _ukLWo=!!openItems['lab_'+sk+'__labworks'];
   var _ukList=_labListFor('UK');
   h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);">'+
-    '<div class="bl-row" onclick="togLabDD(\'extUK\',\'_labworks\')">'+
+    '<div class="bl-row" onclick="togLabDD(\''+sk+'\',\'_labworks\')">'+
     '<div class="bl-cb'+(_ukLW.length?' on':'')+'">'+(_ukLW.length?'&#10003;':'')+'</div>'+
     '<div class="bl-lbl"><div class="bl-lt">Lab Works (UK)'+(_ukLWt>0?' <span style="font-size:11px;color:#0C447C;font-weight:700;">\u00b7 GBP '+_ukLWt.toLocaleString('en-GB')+'</span>':'')+'</div><div class="bl-ls">Select UK lab works \u2014 fees from Settings</div></div>'+
     '<span class="bl-cv'+(_ukLWo?' op':'')+'">&#9662;</span></div>';
   if(_ukLWo){
     h+='<div class="bl-det">';
-    if(_ukLW.length)h+='<div class="lab-sel" style="margin:0 0 8px;">'+_ukLW.map(function(l){return '<span class="lab-tag">'+esc(l)+' <span class="lab-tx" onclick="togLab(\'extUK\',\'_labworks\',\'lw\',\''+esc(l)+'\')">&#215;</span></span>';}).join('')+'</div>';
-    h+='<div class="lab-grid">'+(_ukList.length?_ukList.map(function(o){var l=o.name;var lp=o.fee?('  GBP '+(Number(o.fee)||0).toLocaleString()):'';return '<button type="button" class="lab-c'+(_ukLW.indexOf(l)>=0?' on':'')+'" onclick="togLab(\'extUK\',\'_labworks\',\'lw\',\''+esc(l)+'\')" style="display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;border-radius:4px;padding:5px 8px;"><span>'+esc(l)+'</span>'+(lp?'<span style="opacity:.55;font-size:10px;white-space:nowrap;margin-left:8px;">'+lp.trim()+'</span>':'')+'</button>';}).join(''):'<div style="font-size:11px;color:var(--m2);padding:8px;font-style:italic;">No UK lab works yet \u2014 add them in Settings \u2192 Lab Works.</div>')+'</div>';
+    if(_ukLW.length)h+='<div class="lab-sel" style="margin:0 0 8px;">'+_ukLW.map(function(l){return '<span class="lab-tag">'+esc(l)+' <span class="lab-tx" onclick="togLab(\''+sk+'\',\'_labworks\',\'lw\',\''+esc(l)+'\')">&#215;</span></span>';}).join('')+'</div>';
+    h+='<div class="lab-grid">'+(_ukList.length?_ukList.map(function(o){var l=o.name;var lp=o.fee?('  GBP '+(Number(o.fee)||0).toLocaleString()):'';return '<button type="button" class="lab-c'+(_ukLW.indexOf(l)>=0?' on':'')+'" onclick="togLab(\''+sk+'\',\'_labworks\',\'lw\',\''+esc(l)+'\')" style="display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;border-radius:4px;padding:5px 8px;"><span>'+esc(l)+'</span>'+(lp?'<span style="opacity:.55;font-size:10px;white-space:nowrap;margin-left:8px;">'+lp.trim()+'</span>':'')+'</button>';}).join(''):'<div style="font-size:11px;color:var(--m2);padding:8px;font-style:italic;">No UK lab works yet \u2014 add them in Settings \u2192 Lab Works.</div>')+'</div>';
     h+='</div>';
   }
-
+  }
   h+='</div>';
   return h;
 }
@@ -8914,7 +9485,7 @@ function buildUKCard(item,idata){
   var r=ukItemLines(item,idata);
   var info=[];
   (item.fields||[]).forEach(function(f){
-    if((f.t==='txt'||f.t==='mta')&&idata[f.id]&&String(idata[f.id]).trim())info.push({l:f.l,v:String(idata[f.id]).trim()});
+    if((f.t==='txt'||f.t==='mta'||f.t==='doctorsel')&&idata[f.id]&&String(idata[f.id]).trim())info.push({l:f.l,v:String(idata[f.id]).trim()});
   });
   if(!r.lines.length&&!info.length)return '';
   var h='<div style="background:var(--wh);border:1px solid var(--bo);border-left:3px solid '+(item.color||'#185FA5')+';border-radius:var(--rl);margin-bottom:10px;padding:11px 13px;">';
@@ -8961,6 +9532,11 @@ ensureRichRegions=function(){
     }
     CFG.billingStructure.external_uk=_ukArr;
     CFG.__ukNurseCombinedV1=true;
+  }
+  // Additive item merge — append the standalone Admin Concierge Time item if missing.
+  if(CFG.billingStructure.external_uk&&!CFG.billingStructure.external_uk.some(function(x){return x.id==='uk_admin';})){
+    var _adm=ukExternalItems().filter(function(x){return x.id==='uk_admin';})[0];
+    if(_adm)CFG.billingStructure.external_uk.push(_adm);
   }
   // Additive field merge — insert expected fields if a saved structure is missing them.
   var EXTRA={uk_med:[{id:'prx_dest',l:'Pharmacy / sent to',t:'txt',after:'meds'},{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_doctor:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_scan:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_nurse:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}]};
@@ -9474,27 +10050,66 @@ function pDel(cat,id){_pcfg();CFG.partners[cat]=CFG.partners[cat].filter(functio
 
 function _ledger(){
   _pcfg();var L=CFG.referralLedger||[];
+  // Filter / sort state
+  if(!window._ledRegion)window._ledRegion='';
+  if(!window._ledType)window._ledType='';
+  if(!window._ledSort)window._ledSort='date';
+  if(!window._ledFilterOpen)window._ledFilterOpen=false;
   var pend=L.filter(function(e){return e.status!=='paid';}),paid=L.filter(function(e){return e.status==='paid';});
   function sum(a){return a.reduce(function(t,e){return t+(parseFloat(e.amount)||0);},0);}
   var cashDue={};L.forEach(function(e){if(e.type==='cashback'&&e.status!=='paid'){cashDue[e.partner]=(cashDue[e.partner]||0)+(parseFloat(e.amount)||0);}});
-  var h='<div class="pa-card"><h3>\uD83D\uDCB7 Referrals &amp; Payments Ledger</h3><div class="pa-ct">Referral fees, partner payments and pharmacy cash-back. Tap a status to toggle paid / pending.</div>';
+  var h='<div class="pa-card"><h3>💷 Referrals &amp; Payments Ledger</h3><div class="pa-ct">Referral fees, partner payments and pharmacy cash-back. Tap a status to toggle paid / pending.</div>';
   h+='<div class="pa-stat"><div class="s"><div class="v">AED '+sum(pend).toLocaleString()+'</div><div class="l">Outstanding</div></div><div class="s"><div class="v">AED '+sum(paid).toLocaleString()+'</div><div class="l">Settled</div></div><div class="s"><div class="v">'+L.length+'</div><div class="l">Entries</div></div></div>';
   var cashKeys=Object.keys(cashDue);
-  if(cashKeys.length)h+='<div style="font-size:11.5px;color:var(--m2);margin-bottom:12px;">Cash-back due to team: '+cashKeys.map(function(k){return '<b style="color:var(--t)">'+esc(k)+'</b> AED '+cashDue[k].toLocaleString();}).join(' \u00B7 ')+'</div>';
-  h+='<div style="overflow-x:auto;"><table class="pa-led"><thead><tr><th>Date</th><th>Partner</th><th>Patient</th><th>Type</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>';
-  if(!L.length)h+='<tr><td colspan="7" class="pa-empty">No entries yet. Add referrals, payments or cash-back below.</td></tr>';
-  L.slice().reverse().forEach(function(e){
+  if(cashKeys.length)h+='<div style="font-size:11.5px;color:var(--m2);margin-bottom:12px;">Cash-back due to team: '+cashKeys.map(function(k){return '<b style="color:var(--t)">'+esc(k)+'</b> AED '+cashDue[k].toLocaleString();}).join(' · ')+'</div>';
+  // Filter + sort bar
+  var activeF=(_ledRegion?1:0)+(_ledType?1:0);
+  h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'+
+    '<button onclick="window._ledFilterOpen=!window._ledFilterOpen;renderPartners();" style="display:flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid var(--bo);border-radius:var(--rl);background:'+(window._ledFilterOpen||activeF?'var(--g)':'var(--wh)')+';color:'+(window._ledFilterOpen||activeF?'#FBF7EC':'var(--m2)')+';font-size:12px;font-weight:600;cursor:pointer;">▾ Filter / Sort'+(activeF?' · '+activeF:'')+'</button>'+
+    (activeF?'<button onclick="window._ledRegion=\'\';window._ledType=\'\';renderPartners();" style="font-size:11px;color:var(--m2);background:none;border:none;cursor:pointer;">Clear</button>':'')+
+    '</div>';
+  if(window._ledFilterOpen){
+    h+='<div style="background:var(--wh2);border:1px solid var(--bo);border-radius:var(--rl);padding:11px 13px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:10px;">'+
+      '<div style="display:flex;flex-direction:column;gap:3px;min-width:120px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m2);">Region</label><select class="pa-in" onchange="window._ledRegion=this.value;renderPartners();" style="margin:0;"><option value="">All</option>'+['UAE','UK','Global'].map(function(r){return '<option'+(r===window._ledRegion?' selected':'')+'>'+r+'</option>';}).join('')+'</select></div>'+
+      '<div style="display:flex;flex-direction:column;gap:3px;min-width:140px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m2);">Type</label><select class="pa-in" onchange="window._ledType=this.value;renderPartners();" style="margin:0;"><option value="">All types</option><option value="referral"'+(window._ledType==='referral'?' selected':'')+'>Referral</option><option value="payment"'+(window._ledType==='payment'?' selected':'')+'>Payment</option><option value="cashback"'+(window._ledType==='cashback'?' selected':'')+'>Cash-back</option></select></div>'+
+      '<div style="display:flex;flex-direction:column;gap:3px;min-width:140px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m2);">Sort</label><select class="pa-in" onchange="window._ledSort=this.value;renderPartners();" style="margin:0;"><option value="date"'+(window._ledSort==='date'?' selected':'')+'>Newest first</option><option value="amount"'+(window._ledSort==='amount'?' selected':'')+'>Highest amount</option><option value="partner"'+(window._ledSort==='partner'?' selected':'')+'>Partner A→Z</option><option value="pending"'+(window._ledSort==='pending'?' selected':'')+'>Pending first</option></select></div>'+
+      '</div>';
+  }
+  // Filter + sort the entries
+  var display=L.filter(function(e){
+    if(window._ledRegion&&e.region!==window._ledRegion)return false;
+    if(window._ledType&&e.type!==window._ledType)return false;
+    return true;
+  }).slice().sort(function(a,b){
+    if(window._ledSort==='amount')return (parseFloat(b.amount)||0)-(parseFloat(a.amount)||0);
+    if(window._ledSort==='partner')return (a.partner||'').localeCompare(b.partner||'');
+    if(window._ledSort==='pending'){var ap=a.status==='paid'?1:0,bp=b.status==='paid'?1:0;if(ap!==bp)return ap-bp;}
+    return (b.date||'').localeCompare(a.date||'');
+  });
+  h+='<div style="overflow-x:auto;"><table class="pa-led"><thead><tr><th>Date</th><th>Partner</th><th>Patient</th><th class="led-region-col">Region</th><th>Type</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>';
+  if(!display.length)h+='<tr><td colspan="8" class="pa-empty">'+(L.length&&activeF?'No entries match the current filter.':'No entries yet. Add referrals, payments or cash-back below.')+'</td></tr>';
+  display.forEach(function(e){
     var ty=e.type==='payment'?'Payment':e.type==='cashback'?'Cash-back':'Referral';
-    h+='<tr><td>'+esc(e.date||'')+'</td><td>'+esc(e.partner||'')+'</td><td>'+esc(e.patient||'')+'</td><td>'+ty+'</td><td>AED '+(parseFloat(e.amount)||0).toLocaleString()+'</td><td><span class="pa-badge '+(e.status==='paid'?'paid':'pend')+'" onclick="ledPaid(\''+e.id+'\')">'+(e.status==='paid'?'Paid':'Pending')+'</span></td><td><span class="pa-x" onclick="ledDel(\''+e.id+'\')">\u00D7</span></td></tr>';
+    var regBadge=e.region?'<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--wh2);color:var(--m2);border:1px solid var(--bo);">'+esc(e.region)+'</span>':'—';
+    h+='<tr><td>'+esc(e.date||'')+'</td><td>'+esc(e.partner||'')+'</td><td>'+esc(e.patient||'')+'</td><td class="led-region-col">'+regBadge+'</td><td>'+ty+'</td><td>AED '+(parseFloat(e.amount)||0).toLocaleString()+'</td><td><span class="pa-badge '+(e.status==='paid'?'paid':'pend')+'" onclick="ledPaid(\''+e.id+'\')">'+(e.status==='paid'?'Paid':'Pending')+'</span></td><td><span class="pa-x" onclick="ledDel(\''+e.id+'\')">×</span></td></tr>';
   });
   h+='</tbody></table></div>';
   var partnerOpts=[].concat((CFG.partners.hospitals||[]),(CFG.partners.clinicians||[]),(CFG.partners.pharmacies||[])).map(function(p){return '<option>'+esc(p.name)+'</option>';}).join('');
-  h+='<div class="pa-addrow" style="margin-top:14px;"><input class="pa-in" id="led_date" type="date" style="max-width:150px;"><input class="pa-in" id="led_partner" list="led_partners" placeholder="Partner"><datalist id="led_partners">'+partnerOpts+'</datalist><input class="pa-in" id="led_patient" placeholder="Patient (optional)"><select class="pa-in" id="led_type"><option value="referral">Referral fee</option><option value="payment">Payment to partner</option><option value="cashback">Pharmacy cash-back</option></select><input class="pa-in" id="led_amount" placeholder="Amount (AED)" style="max-width:140px;"><button class="pa-btn" onclick="ledAdd()">Add entry</button><button class="pa-link" onclick="document.getElementById(\'pbulk_led\').classList.toggle(\'open\')">Bulk add</button></div>';
-  h+='<div class="pa-bulk" id="pbulk_led"><div class="hint">One per line: <b>date | partner | patient | type | amount | status</b> &nbsp;(type = referral / payment / cashback &middot; status = paid / pending)</div><textarea id="pbulk_led_t" placeholder="2026-06-01 | Acme Hospital | R. Khan | referral | 220 | pending"></textarea><div style="margin-top:8px;"><button class="pa-btn sm" onclick="ledBulk()">Import lines</button></div></div></div>';
+  h+='<div class="pa-addrow" style="margin-top:14px;">'+
+    '<input class="pa-in" id="led_date" type="date" style="max-width:150px;">'+
+    '<input class="pa-in" id="led_partner" list="led_partners" placeholder="Partner"><datalist id="led_partners">'+partnerOpts+'</datalist>'+
+    '<input class="pa-in" id="led_patient" placeholder="Patient (optional)">'+
+    '<select class="pa-in" id="led_region"><option value="">Region</option><option value="UAE">UAE</option><option value="UK">UK</option><option value="Global">Global</option></select>'+
+    '<select class="pa-in" id="led_type"><option value="referral">Referral fee</option><option value="payment">Payment to partner</option><option value="cashback">Pharmacy cash-back</option></select>'+
+    '<input class="pa-in" id="led_amount" placeholder="Amount (AED)" style="max-width:140px;">'+
+    '<button class="pa-btn" onclick="ledAdd()">Add entry</button>'+
+    '<button class="pa-link" onclick="document.getElementById(\'pbulk_led\').classList.toggle(\'open\')">Bulk add</button>'+
+    '</div>';
+  h+='<div class="pa-bulk" id="pbulk_led"><div class="hint">One per line: <b>date | partner | patient | region | type | amount | status</b></div><textarea id="pbulk_led_t" placeholder="2026-06-01 | Acme Hospital | R. Khan | UAE | referral | 220 | pending"></textarea><div style="margin-top:8px;"><button class="pa-btn sm" onclick="ledBulk()">Import lines</button></div></div></div>';
   return h;
 }
-function ledAdd(){_pcfg();var amt=_v('led_amount');var partner=_v('led_partner');if(!partner&&!amt){toast('Enter a partner and amount','error');return;}CFG.referralLedger.push({id:_uid(),date:_v('led_date')||_today(),partner:partner,patient:_v('led_patient'),type:(document.getElementById('led_type')||{}).value||'referral',amount:parseFloat(amt)||0,status:'pending'});saveCFG();renderPartners();toast('Entry added','success');}
-function ledBulk(){_pcfg();var raw=_v('pbulk_led_t');if(!raw)return;var n=0;raw.split('\n').forEach(function(line){line=line.trim();if(!line)return;var p=line.split('|').map(function(x){return x.trim();});CFG.referralLedger.push({id:_uid(),date:p[0]||_today(),partner:p[1]||'',patient:p[2]||'',type:p[3]||'referral',amount:parseFloat(p[4])||0,status:(p[5]==='paid'?'paid':'pending')});n++;});saveCFG();renderPartners();toast(n+' imported','success');}
+function ledAdd(){_pcfg();var amt=_v('led_amount');var partner=_v('led_partner');if(!partner&&!amt){toast('Enter a partner and amount','error');return;}CFG.referralLedger.push({id:_uid(),date:_v('led_date')||_today(),partner:partner,patient:_v('led_patient'),region:_v('led_region')||'UAE',type:(document.getElementById('led_type')||{}).value||'referral',amount:parseFloat(amt)||0,status:'pending'});saveCFG();renderPartners();toast('Entry added','success');}
+function ledBulk(){_pcfg();var raw=_v('pbulk_led_t');if(!raw)return;var n=0;raw.split('\n').forEach(function(line){line=line.trim();if(!line)return;var p=line.split('|').map(function(x){return x.trim();});CFG.referralLedger.push({id:_uid(),date:p[0]||_today(),partner:p[1]||'',patient:p[2]||'',region:(['UAE','UK','Global'].indexOf(p[3])>=0?p[3]:'UAE'),type:(['referral','payment','cashback'].indexOf(p[4])>=0?p[4]:'referral'),amount:parseFloat(p[5])||0,status:(p[6]==='paid'?'paid':'pending')});n++;});saveCFG();renderPartners();toast(n+' imported','success');}
 function ledPaid(id){_pcfg();CFG.referralLedger=CFG.referralLedger.map(function(e){return e.id===id?Object.assign({},e,{status:e.status==='paid'?'pending':'paid'}):e;});saveCFG();renderPartners();}
 function ledDel(id){_pcfg();CFG.referralLedger=CFG.referralLedger.filter(function(e){return e.id!==id;});saveCFG();renderPartners();}
 
@@ -9503,24 +10118,113 @@ function renderPartners(){_pcfg();var pg=document.getElementById('page-fees');if
 /* ──────── ACCOUNTS · invoice collection tracking ──────── */
 function _colData(id){_pcfg();if(!CFG.collections[id])CFG.collections[id]={paid:false,log:[]};if(!Array.isArray(CFG.collections[id].log))CFG.collections[id].log=[];return CFG.collections[id];}
 function _billAmt(b){try{if(typeof calcBillGrandTotal==='function'){var t=calcBillGrandTotal(b);if(typeof t==='number'&&isFinite(t))return t;if(t&&typeof t.total==='number')return t.total;}}catch(e){}return null;}
+function _accInvoiceLines(b){
+  var lines=[];
+  try{if(typeof getBillLines==='function'){var gl=getBillLines(b);(gl.lines||[]).forEach(function(l){lines.push({label:l.label||l.item||'',amount:l.amount||0,cur:l.cur||'AED'});});}}catch(e){}
+  try{if(typeof computeUKLines==='function'){computeUKLines(b).forEach(function(l){lines.push({label:l.label,amount:l.amount||0,cur:'GBP'});});}}catch(e){}
+  return lines;
+}
 function renderAccounts(){
   _pcfg();var pg=document.getElementById('page-reports');if(!pg)return;
   var inv=(typeof bills!=='undefined'?bills:[]).filter(function(b){return b.invoiceNo&&String(b.invoiceNo).trim();});
   inv.sort(function(a,b){return new Date(b.updatedAt||b.createdAt||0)-new Date(a.updatedAt||a.createdAt||0);});
   var paidN=inv.filter(function(b){return _colData(b.id).paid;}).length;
-  var h='<div class="pa-wrap"><div class="pa-head">Accounts</div><div class="pa-sub">Invoices issued to patients. Log every time you reach out, and track follow-ups through to payment.</div>';
-  h+='<div class="pa-stat"><div class="s"><div class="v">'+inv.length+'</div><div class="l">Invoices issued</div></div><div class="s"><div class="v">'+paidN+'</div><div class="l">Paid</div></div><div class="s"><div class="v">'+(inv.length-paidN)+'</div><div class="l">Awaiting payment</div></div></div>';
-  if(!inv.length)h+='<div class="pa-card"><div class="pa-empty">No invoices issued yet. When a bill is given an invoice number it will appear here for collection tracking.</div></div>';
+  var outN=inv.length-paidN;
+  var h='<div class="pa-wrap">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">'+
+    '<div><div class="pa-head">Accounts</div><div class="pa-sub">Invoices issued. Log every time you reach out, and track follow-ups through to payment.</div></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+    '<button class="ab" onclick="accDownloadExcel()">&#8595; Excel</button>'+
+    '<button class="ab" onclick="accDownloadPDF()">&#8595; PDF (selected)</button>'+
+    '</div></div>';
+  h+='<div class="pa-stat"><div class="s"><div class="v">'+inv.length+'</div><div class="l">Invoices issued</div></div><div class="s"><div class="v">'+paidN+'</div><div class="l">Paid</div></div><div class="s"><div class="v">'+outN+'</div><div class="l">Awaiting payment</div></div></div>';
+  if(!inv.length){h+='<div class="pa-card"><div class="pa-empty">No invoices issued yet. When a bill is given an invoice number it will appear here for collection tracking.</div></div>';}
   inv.forEach(function(b){
     var c=_colData(b.id);var amt=_billAmt(b);
-    h+='<div class="pa-acc" id="acc_'+b.id+'"><div class="pa-acc-h" onclick="document.getElementById(\'acc_'+b.id+'\').classList.toggle(\'open\')"><span class="nm">'+esc(pLabel(b.patientName)||'Unnamed')+'</span><span class="inv">'+esc(b.invoiceNo)+'</span>'+(amt!=null?'<span class="meta">AED '+amt.toLocaleString()+'</span>':'')+'<span class="sp" style="flex:1;"></span><span class="meta">'+(c.log.length?c.log.length+' contact'+(c.log.length>1?'s':''):'no contact yet')+'</span><span class="pa-badge '+(c.paid?'paid':'pend')+'" onclick="event.stopPropagation();colPaid(\''+b.id+'\')">'+(c.paid?'Paid':'Outstanding')+'</span></div><div class="pa-acc-b">';
-    h+='<ul class="pa-log">';
-    if(!c.log.length)h+='<li style="border-left-color:var(--bo);"><span class="d">\u2014</span> No outreach logged yet.</li>';
-    c.log.slice().reverse().forEach(function(e){h+='<li><span class="d">'+esc(e.date||'')+'</span><span><span class="by">'+esc(e.by||'Team')+'</span> \u2014 '+esc(e.note||'')+(e.next?' <span class="d">(follow-up: '+esc(e.next)+')</span>':'')+'</span><span class="sp" style="flex:1;"></span><span class="pa-x" onclick="colDel(\''+b.id+'\',\''+e.id+'\')">\u00D7</span></li>';});
-    h+='</ul>';
-    h+='<div class="pa-addrow"><input class="pa-in" id="col_by_'+b.id+'" placeholder="Contacted by" style="max-width:140px;"><input class="pa-in" id="col_note_'+b.id+'" placeholder="What happened (e.g. emailed invoice, called)" style="flex:2;min-width:160px;"><input class="pa-in" id="col_next_'+b.id+'" type="date" title="Next follow-up" style="max-width:150px;"><button class="pa-btn sm" onclick="colAdd(\''+b.id+'\')">Log contact</button></div></div></div>';
+    var lines=_accInvoiceLines(b);
+    var aedLines=lines.filter(function(l){return (l.cur||'AED')==='AED'&&l.amount>0;});
+    var gbpLines=lines.filter(function(l){return l.cur==='GBP'&&l.amount>0;});
+    function fAmt(n){return(Math.round((n||0)*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2});}
+    h+='<div class="pa-acc" id="acc_'+b.id+'">'+
+      '<div class="pa-acc-h" onclick="document.getElementById(\'acc_'+b.id+'\').classList.toggle(\'open\')">' +
+      '<input type="checkbox" class="acc-chk" id="achk_'+b.id+'" onclick="event.stopPropagation()" style="margin-right:8px;accent-color:var(--g);">'+
+      '<span class="nm">'+esc(pLabel(b.patientName)||'Unnamed')+'</span>'+
+      '<span class="inv" style="font-family:var(--sans);font-size:11px;font-weight:700;color:var(--m2);margin:0 8px;">'+esc(b.invoiceNo)+'</span>'+
+      (amt!=null?'<span class="meta" style="font-weight:600;color:var(--tx);">AED '+fAmt(amt)+'</span>':'')+
+      '<span style="flex:1;"></span>'+
+      '<span class="meta" style="color:var(--m2);font-size:11px;">'+(c.log.length?c.log.length+' contact'+(c.log.length>1?'s':''):'no contact')+'</span>'+
+      '<span class="pa-badge '+(c.paid?'paid':'pend')+'" onclick="event.stopPropagation();colPaid(\''+b.id+'\')">'+(c.paid?'Paid':'Outstanding')+'</span>'+
+      '</div>'+
+      '<div class="pa-acc-b">'+
+      (lines.length?
+        '<div style="background:var(--wh2);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;">'+
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:7px;">Invoice breakdown</div>'+
+        aedLines.map(function(l){return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--bo);"><span style="color:var(--m2);">'+esc(l.label)+'</span><span style="font-weight:600;">AED '+fAmt(l.amount)+'</span></div>';}).join('')+
+        gbpLines.map(function(l){return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--bo);"><span style="color:var(--m2);">'+esc(l.label)+'</span><span style="font-weight:600;color:var(--b);">GBP '+fAmt(l.amount)+'</span></div>';}).join('')+
+        (amt!=null?'<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0 0;font-weight:700;"><span>Total</span><span style="color:var(--oc);">AED '+fAmt(amt)+'</span></div>':'')+
+        '<div style="margin-top:8px;"><button class="pa-btn sm" onclick="viewBill(\''+b.id+'\')">↗ View full bill</button></div></div>'
+      :'')+
+      '<ul class="pa-log">';
+    if(!c.log.length)h+='<li style="border-left-color:var(--bo);"><span class="d">—</span> No outreach logged yet.</li>';
+    c.log.slice().reverse().forEach(function(e){
+      h+='<li><span class="d">'+esc(e.date||'')+'</span><span><span class="by">'+esc(e.by||'Team')+'</span> — '+esc(e.note||'')+(e.next?' <span class="d">(follow-up: '+esc(e.next)+')</span>':'')+'</span><span style="flex:1;"></span><span class="pa-x" onclick="colDel(\''+b.id+'\',\''+e.id+'\')">×</span></li>';
+    });
+    h+='</ul>'+
+      '<div class="pa-addrow">'+
+      '<input class="pa-in" id="col_by_'+b.id+'" placeholder="Contacted by" style="max-width:140px;">'+
+      '<input class="pa-in" id="col_note_'+b.id+'" placeholder="What happened (e.g. emailed invoice, called)" style="flex:2;min-width:160px;">'+
+      '<input class="pa-in" id="col_next_'+b.id+'" type="date" title="Next follow-up" style="max-width:150px;">'+
+      '<button class="pa-btn sm" onclick="colAdd(\''+b.id+'\')">✓ Log contact</button>'+
+      '</div></div></div>';
   });
   h+='</div>';pg.innerHTML=h;
+}
+function accDownloadExcel(){
+  var inv=(bills||[]).filter(function(b){return b.invoiceNo&&String(b.invoiceNo).trim();});
+  _loadXLSX(function(){
+    var rows=[['Invoice No','Patient','Status','Branch','Billed By','AED Total','Date','Paid','Last Contact','Items']];
+    inv.forEach(function(b){
+      var c=_colData(b.id);var amt=_billAmt(b)||0;
+      var lines=_accInvoiceLines(b).map(function(l){return l.label+(l.amount?(' '+l.cur+' '+l.amount):'');}).join('; ');
+      var lastLog=c.log.length?c.log[c.log.length-1].date:'';
+      rows.push([b.invoiceNo,b.patientName,b.status,b.branch,b.billedBy||'',Math.round(amt*100)/100,b.createdAt?b.createdAt.slice(0,10):'',c.paid?'Yes':'No',lastLog,lines]);
+    });
+    var ws=XLSX.utils.aoa_to_sheet(rows);var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Accounts');
+    XLSX.writeFile(wb,'amara-accounts-'+new Date().toISOString().slice(0,10)+'.xlsx');
+    toast('Excel downloaded','ok');
+  });
+}
+function accDownloadPDF(){
+  var inv=(bills||[]).filter(function(b){return b.invoiceNo&&String(b.invoiceNo).trim();});
+  var checked=inv.filter(function(b){var el=document.getElementById('achk_'+b.id);return el&&el.checked;});
+  var target=checked.length?checked:inv;
+  if(!target.length){toast('No invoices to print','er');return;}
+  function fAmt(n){return(Math.round((n||0)*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2});}
+  var style='<style>body{font-family:Georgia,serif;color:#1a1a1a;margin:0;padding:0;}.inv-page{page-break-after:always;padding:32px 40px;max-width:700px;margin:0 auto;}.inv-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:18px;}.inv-title{font-size:28px;font-style:italic;font-weight:700;}.inv-meta{font-size:11px;color:#555;text-align:right;}.inv-line{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #e0dbd5;font-size:12px;}.inv-total{display:flex;justify-content:space-between;padding:8px 0 0;font-weight:700;font-size:14px;}.inv-log{margin-top:16px;font-size:11px;color:#666;}.inv-status{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}</style>';
+  var pages=target.map(function(b){
+    var c=_colData(b.id);var amt=_billAmt(b)||0;
+    var lines=_accInvoiceLines(b);
+    var aedLines=lines.filter(function(l){return (l.cur||'AED')==='AED'&&l.amount>0;});
+    var gbpLines=lines.filter(function(l){return l.cur==='GBP'&&l.amount>0;});
+    var statusColor=c.paid?'#0F6E56':'#B8813A';var statusBg=c.paid?'#E1F5EE':'#FCF4E3';
+    return '<div class="inv-page">'+
+      '<div class="inv-header"><div><div class="inv-title">Amara</div><div style="font-size:11px;color:#888;margin-top:4px;">Medical Concierge</div></div>'+
+      '<div class="inv-meta"><div style="font-size:13px;font-weight:700;">Invoice '+esc(b.invoiceNo)+'</div>'+
+      '<div>Date: '+(b.createdAt?b.createdAt.slice(0,10):'')+'</div><div>Branch: '+esc(b.branch||'UAE')+'</div><div>Billed by: '+esc(b.billedBy||'Team')+'</div>'+
+      '<div style="margin-top:6px;"><span class="inv-status" style="color:'+statusColor+';background:'+statusBg+';">'+  (c.paid?'Paid':'Outstanding')+'</span></div></div></div>'+
+      '<div style="font-size:15px;font-weight:700;margin-bottom:12px;">'+esc(pLabel(b.patientName)||'Patient')+'</div>'+
+      aedLines.map(function(l){return '<div class="inv-line"><span>'+esc(l.label)+'</span><span>AED '+fAmt(l.amount)+'</span></div>';}).join('')+
+      gbpLines.map(function(l){return '<div class="inv-line"><span>'+esc(l.label)+'</span><span>GBP '+fAmt(l.amount)+'</span></div>';}).join('')+
+      '<div class="inv-total"><span>Total</span><span>AED '+fAmt(amt)+'</span></div>'+
+      (c.log.length?'<div class="inv-log"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin:14px 0 5px;">Contact log</div>'+c.log.slice().reverse().map(function(e){return '<div style="margin-bottom:4px;"><b>'+esc(e.date||'')+'</b> — '+esc(e.by||'Team')+': '+esc(e.note||'')+(e.next?' (follow-up: '+esc(e.next)+')'  :'')+'</div>';}).join('')+'</div>':'')+
+      '</div>';
+  }).join('');
+  var w=window.open('','_blank');
+  if(!w){toast('Allow pop-ups to download PDF','er');return;}
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Amara Invoices</title>'+style+'</head><body>'+pages+'<script>window.onload=function(){window.print();}<\/script></body></html>');
+  w.document.close();
+  toast('Print dialog opening — save as PDF','ok');
 }
 function colAdd(id){var c=_colData(id);var note=_v('col_note_'+id);if(!note){toast('Add a note','error');return;}c.log.push({id:_uid(),date:_today(),by:_v('col_by_'+id)||((CFG.team&&CFG.team[0])||'Team'),note:note,next:_v('col_next_'+id)});saveCFG();renderAccounts();var el=document.getElementById('acc_'+id);if(el)el.classList.add('open');toast('Logged','success');}
 function colPaid(id){var c=_colData(id);c.paid=!c.paid;saveCFG();renderAccounts();}
@@ -9666,8 +10370,16 @@ function closeComments(){var ov=document.getElementById('cmtmod');if(ov)ov.class
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){var ov=document.getElementById('cmtmod');if(ov&&!ov.classList.contains('h'))closeComments();}});
 
 
-var _patFB='',_patFR='',_patFQ='',_patFRg='';
-function patFilter(){_patFB=(document.getElementById('patFB')||{}).value||'';_patFR=(document.getElementById('patFR')||{}).value||'';_patFQ=(document.getElementById('patFQ')||{}).value||'';_patFRg=(document.getElementById('patFRg')||{}).value||'';renderPats();var q=document.getElementById('patFQ');if(q){q.focus();try{var v=q.value;q.value='';q.value=v;}catch(e){}}}
+var _patFB='',_patFR='',_patFQ='',_patFRg='',_patSort='alpha';
+function patFilter(){
+  var fb=document.getElementById('patFB'),fr=document.getElementById('patFR'),fq=document.getElementById('patFQ'),frg=document.getElementById('patFRg');
+  if(fb)_patFB=fb.value||'';
+  if(fr)_patFR=fr.value||'';
+  if(fq)_patFQ=fq.value||'';
+  if(frg)_patFRg=frg.value||'';
+  renderPats();
+  var q=document.getElementById('patFQ');if(q){q.focus();try{var v=q.value;q.value='';q.value=v;}catch(e){}}
+}
 function clearPatFilters(){_patFB='';_patFR='';_patFQ='';_patFRg='';renderPats();}
 
 /* ════════ v122: PATIENT CODES (per region) + PRIVACY MODE ════════ */
@@ -9679,13 +10391,36 @@ function assignPatCode(name,region){_pcfg3();var k=_pnorm(name);if(!k)return '';
   if(!m){m={region:region||'UAE',code:_nextPatCode(region)};CFG.patientMeta[k]=m;}
   else{var curpfx=(String(m.code||'').match(/^([A-Z]+)-/)||[])[1];if(region&&curpfx!==pfx){m.region=region;m.code=_nextPatCode(region);}else if(region){m.region=region;}if(!m.code)m.code=_nextPatCode(m.region||region);}
   return m.code;}
-function pRegion(name){_pcfg3();var m=CFG.patientMeta[_pnorm(name)];return m?m.region:'';}
+function pRegion(name){
+  _pcfg3();
+  // Prefer the DB patient row region (most reliable source after migration)
+  if(typeof patients!=='undefined'){var _pr=patients.find(function(x){return _pnorm(x.name)===_pnorm(name);});if(_pr&&_pr.region)return _pr.region;}
+  var m=CFG.patientMeta[_pnorm(name)];return m?m.region:'UAE';
+}
 function pCode(name){_pcfg3();var m=CFG.patientMeta[_pnorm(name)];return m?m.code:'';}
 function maskName(name){name=(name||'').trim();if(!name)return '';var p=name.split(/\s+/);if(p.length===1)return p[0];return p[0]+' '+p[p.length-1].charAt(0).toUpperCase()+'.';}
 function pLabel(name){_pcfg3();if(!name)return '';var code=pCode(name);var base=CFG.privacyMode?maskName(name):name;return (code?code+' \u00B7 ':'')+base;}
-function assignPatCodesAll(){_pcfg3();var changed=false;(typeof patients!=='undefined'?patients:[]).forEach(function(p){var k=_pnorm(p.name);if(k&&!CFG.patientMeta[k]){CFG.patientMeta[k]={region:p.region||'UAE',code:_nextPatCode(p.region||'UAE')};changed=true;}});if(changed&&typeof saveCFG==='function'){try{saveCFG();}catch(e){}}}
-var _EYE='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.6"/></svg>';
-var _EYEOFF='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.7 9.7 0 0 1 12 6c6.5 0 10 6 10 6a16.7 16.7 0 0 1-3.4 4M6.2 7.2A16.7 16.7 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 3.4-.6"/><path d="M9.9 9.9a2.6 2.6 0 0 0 3.7 3.7"/></svg>';
+function assignPatCodesAll(){
+  _pcfg3();var changed=false;
+  (typeof patients!=='undefined'?patients:[]).forEach(function(p){
+    var k=_pnorm(p.name);if(!k)return;
+    var dbRegion=p.region||'UAE';
+    var m=CFG.patientMeta[k];
+    if(!m){
+      // New entry — create with DB region
+      CFG.patientMeta[k]={region:dbRegion,code:_nextPatCode(dbRegion)};changed=true;
+    } else if(m.region!==dbRegion){
+      // DB row has authoritative region — update meta to match
+      m.region=dbRegion;
+      // Re-code only if prefix doesn't match (avoids renumbering unnecessarily)
+      var curpfx=(String(m.code||'').match(/^([A-Z]+)-/)||[])[1];
+      if(curpfx!==_regPfx(dbRegion)){m.code=_nextPatCode(dbRegion);}
+      changed=true;
+    }
+    if(!m.code){m.code=_nextPatCode(dbRegion);changed=true;}
+  });
+  if(changed&&typeof saveCFG==='function'){try{saveCFG();}catch(e){}}}
+
 function _updPrivBtn(){_pcfg3();var b=document.getElementById('privBtn');if(!b)return;b.innerHTML=(CFG.privacyMode?_EYEOFF:_EYE)+'<span style="margin-left:5px;">'+(CFG.privacyMode?'Masked':'Full names')+'</span>';if(CFG.privacyMode)b.classList.add('on');else b.classList.remove('on');}
 function togglePrivacy(){_pcfg3();CFG.privacyMode=!CFG.privacyMode;if(typeof saveCFG==='function')saveCFG();_updPrivBtn();
   try{if(typeof render==='function')render();}catch(e){}
@@ -9754,7 +10489,8 @@ function importPatientsExcel(){
               var key=name.toLowerCase();
               if(seen[key]){try{assignPatCode(name,region);}catch(_e){}skip++;continue;}
               seen[key]=1;
-              var ok=await dbSavePat({name:name,notes:notes,billTo:billTo,rollingInvoice:roll});
+              try{assignPatCode(name,region);}catch(_e){}
+              var ok=await dbSavePat({name:name,notes:notes,billTo:billTo,rollingInvoice:roll,region:region});
               if(ok){try{assignPatCode(name,region);}catch(_e){}count++;}
             }
           }
@@ -9773,7 +10509,7 @@ function _clnUK(l){return String(l==null?'':l).replace(/\s*\(if settled by Amara
 var _lwReg='UAE';
 function _lwEnsure(){if(!CFG.labWorks||typeof CFG.labWorks!=='object'||Array.isArray(CFG.labWorks))CFG.labWorks={UAE:[],UK:[],Global:[]};['UAE','UK','Global'].forEach(function(r){if(!Array.isArray(CFG.labWorks[r]))CFG.labWorks[r]=[];});}
 function lwTab(r){_lwReg=r;renderSettings();}
-function lwAdd(){_lwEnsure();var n=(_v('lw_name')||'').trim();if(!n){toast('Enter a lab work name','er');return;}var fee=parseFloat(_v('lw_fee'))||0;var reg=_lwReg||'UAE';if(CFG.labWorks[reg].some(function(x){return (x.name||'').toLowerCase()===n.toLowerCase();})){toast('Already in the '+reg+' list','er');return;}CFG.labWorks[reg].push({name:n,fee:fee});saveCFG();logAudit('Added','Lab work ('+reg+')',n);renderSettings();toast('Added to '+reg,'ok');}
+function lwAdd(){_lwEnsure();var n=(_v('lw_name')||'').trim();if(!n){toast('Enter a lab work name','er');return;}var fee=parseFloat(_v('lw_fee'))||0;var reg=_lwReg||'UAE';var ex=CFG.labWorks[reg].find(function(x){return (x.name||'').trim().toLowerCase()===n.toLowerCase();});if(ex){ex.fee=fee;saveCFG();logAudit('Edited','Lab work ('+reg+')',n+' \u00b7 fee updated');renderSettings();toast('Updated '+n+' ('+reg+')','ok');return;}CFG.labWorks[reg].push({name:n,fee:fee});saveCFG();logAudit('Added','Lab work ('+reg+')',n);renderSettings();toast('Added to '+reg,'ok');}
 function lwDel(reg,idx){_lwEnsure();var _ln=(CFG.labWorks[reg]&&CFG.labWorks[reg][idx]&&CFG.labWorks[reg][idx].name)||'';if(CFG.labWorks[reg])CFG.labWorks[reg].splice(idx,1);saveCFG();logAudit('Deleted','Lab work ('+reg+')',_ln);renderSettings();}
 function lwClear(reg){_lwEnsure();if(!CFG.labWorks[reg]||!CFG.labWorks[reg].length)return;if(!confirm('Delete all '+CFG.labWorks[reg].length+' lab works for '+reg+'?'))return;CFG.labWorks[reg]=[];saveCFG();logAudit('Cleared','Lab works ('+reg+')','');renderSettings();toast(reg+' lab works cleared','in');}
 function lwBulkExcel(){var inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls,.csv';inp.onchange=function(){var f=inp.files&&inp.files[0];if(!f)return;_loadXLSX(function(){var rd=new FileReader();rd.onload=function(e){try{_lwEnsure();var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});var count=0;wb.SheetNames.forEach(function(sn){var su=String(sn).trim().toUpperCase();var sheetReg=(su.indexOf('UK')>=0||su.indexOf('KINGDOM')>=0)?'UK':(su.indexOf('GLOB')>=0?'Global':(su.indexOf('UAE')>=0?'UAE':''));XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:''}).forEach(function(r){var name=String(r['Test name']||r['Lab']||r['Name']||r.name||r.Test||'').trim();if(!name)return;var fee=parseFloat(r['Fee']||r['Price']||r['Amount']||r.fee||0)||0;var rg=String(r['Region']||r.region||sheetReg||'UAE').trim().toUpperCase();var region=(rg.indexOf('UK')>=0||rg.indexOf('KINGDOM')>=0)?'UK':(rg.indexOf('GLOB')>=0?'Global':'UAE');if(CFG.labWorks[region].some(function(x){return (x.name||'').toLowerCase()===name.toLowerCase();}))return;CFG.labWorks[region].push({name:name,fee:fee});count++;});});saveCFG();renderSettings();toast('Imported '+count+' lab work'+(count!==1?'s':''),'ok');}catch(err){toast('Could not read that file','er');}};rd.readAsArrayBuffer(f);});};inp.click();}
@@ -9785,13 +10521,55 @@ function _labFeeFor(name,region){_lwEnsure();if(region==='UAE'&&FEES&&FEES.labs&
 function _labTotalFor(arr,region){if(!arr||!arr.length)return 0;return arr.reduce(function(s,n){return s+_labFeeFor(n,region);},0);}
 function lwEdit(reg,idx,field,val){_lwEnsure();var L=CFG.labWorks[reg];if(!L||!L[idx])return;if(field==='fee')L[idx].fee=parseFloat(val)||0;else L[idx].name=String(val).trim();saveCFG();}
 function _plEnsure(){if(!CFG.patientLinks||typeof CFG.patientLinks!=='object'||Array.isArray(CFG.patientLinks))CFG.patientLinks={};}
-function pLinks(name){_plEnsure();return CFG.patientLinks[_pnorm(name)]||[];}
+function pLinks(name){
+  _plEnsure();
+  var cfgLinks=CFG.patientLinks[_pnorm(name)]||[];
+  // Also pull from the patient row's links column (promoted to DB)
+  var p=patients.find(function(x){return _pnorm(x.name)===_pnorm(name);});
+  var dbLinks=(p&&Array.isArray(p.links)?p.links:[]);
+  // Merge: DB links win on same target name
+  var have={};cfgLinks.forEach(function(l){if(l.name)have[_pnorm(l.name)]=l;});
+  dbLinks.forEach(function(l){if(l.name)have[_pnorm(l.name)]=l;});
+  return Object.values(have);
+}
 function _relInverse(rel){var m={'Spouse':'Spouse','Parent':'Child','Child':'Parent','Sibling':'Sibling','Relative':'Relative','Friend':'Friend','Referred by':'Referred'};return m[rel]||rel;}
 function _jq(s){return esc(s).replace(/'/g,"\\'");}
-function addPatLink(fromName,toName,rel){_plEnsure();fromName=(fromName||'').trim();toName=(toName||'').trim();if(!fromName||!toName||_pnorm(fromName)===_pnorm(toName))return;var fk=_pnorm(fromName),tk=_pnorm(toName);if(!CFG.patientLinks[fk])CFG.patientLinks[fk]=[];if(!CFG.patientLinks[tk])CFG.patientLinks[tk]=[];CFG.patientLinks[fk]=CFG.patientLinks[fk].filter(function(l){return _pnorm(l.name)!==tk;});CFG.patientLinks[fk].push({name:toName,rel:rel});CFG.patientLinks[tk]=CFG.patientLinks[tk].filter(function(l){return _pnorm(l.name)!==fk;});CFG.patientLinks[tk].push({name:fromName,rel:_relInverse(rel)});saveCFG();}
-function delPatLink(fromName,toName){_plEnsure();var fk=_pnorm(fromName),tk=_pnorm(toName);if(CFG.patientLinks[fk])CFG.patientLinks[fk]=CFG.patientLinks[fk].filter(function(l){return _pnorm(l.name)!==tk;});if(CFG.patientLinks[tk])CFG.patientLinks[tk]=CFG.patientLinks[tk].filter(function(l){return _pnorm(l.name)!==fk;});saveCFG();}
+function addPatLink(fromName,toName,rel){_plEnsure();fromName=(fromName||'').trim();toName=(toName||'').trim();if(!fromName||!toName||_pnorm(fromName)===_pnorm(toName))return;var fk=_pnorm(fromName),tk=_pnorm(toName);if(!CFG.patientLinks[fk])CFG.patientLinks[fk]=[];if(!CFG.patientLinks[tk])CFG.patientLinks[tk]=[];CFG.patientLinks[fk]=CFG.patientLinks[fk].filter(function(l){return _pnorm(l.name)!==tk;});CFG.patientLinks[fk].push({name:toName,rel:rel});CFG.patientLinks[tk]=CFG.patientLinks[tk].filter(function(l){return _pnorm(l.name)!==fk;});CFG.patientLinks[tk].push({name:fromName,rel:_relInverse(rel)});saveCFG();
+  // Also persist to DB patient rows so links survive settings-cloud staleness
+  if(typeof dbSavePat==='function'&&typeof patients!=='undefined'){
+    var fp=patients.find(function(x){return _pnorm(x.name)===fk;});
+    var tp=patients.find(function(x){return _pnorm(x.name)===tk;});
+    if(fp)dbSavePat(Object.assign({},fp,{links:CFG.patientLinks[fk]})).catch(function(){});
+    if(tp)dbSavePat(Object.assign({},tp,{links:CFG.patientLinks[tk]})).catch(function(){});
+  }
+}
+function delPatLink(fromName,toName){
+  _plEnsure();
+  var fk=_pnorm(fromName),tk=_pnorm(toName);
+  if(CFG.patientLinks[fk])CFG.patientLinks[fk]=CFG.patientLinks[fk].filter(function(l){return _pnorm(l.name)!==tk;});
+  if(CFG.patientLinks[tk])CFG.patientLinks[tk]=CFG.patientLinks[tk].filter(function(l){return _pnorm(l.name)!==fk;});
+  saveCFG();
+  // Also update DB patient rows
+  if(typeof dbSavePat==='function'&&typeof patients!=='undefined'){
+    var fp=patients.find(function(x){return _pnorm(x.name)===fk;});
+    var tp=patients.find(function(x){return _pnorm(x.name)===tk;});
+    if(fp)dbSavePat(Object.assign({},fp,{links:CFG.patientLinks[fk]||[]})).catch(function(){});
+    if(tp)dbSavePat(Object.assign({},tp,{links:CFG.patientLinks[tk]||[]})).catch(function(){});
+  }
+}
 function _refreshPatForm(){var el=document.getElementById('pmod-body');if(el)el.innerHTML=renderPatForm();}
-function addPatLinkFromForm(){var pn=_v('pl_pat'),rel=_v('pl_rel')||'Relative';if(!curPat||!(curPat.name||'').trim()){toast('Enter the patient name first','er');return;}if(!pn){toast('Select a patient to link','er');return;}addPatLink(curPat.name,pn,rel);_refreshPatForm();toast('Linked','ok');}
+function addPatLinkFromForm(){
+  var pn=_v('pl_pat'),rel=_v('pl_rel')||'Relative';
+  if(!curPat||!(curPat.name||'').trim()){toast('Enter and save the patient name first before adding links','er');return;}
+  if(!pn){toast('Select a patient to link','er');return;}
+  if(_pnorm(pn)===_pnorm(curPat.name)){toast('Cannot link a patient to themselves','er');return;}
+  addPatLink(curPat.name,pn,rel);
+  // Update curPat in-memory so card reflects immediately
+  var p=patients.find(function(x){return _pnorm(x.name)===_pnorm(curPat.name);});
+  if(p)curPat=Object.assign({},curPat,{id:curPat.id||p.id});
+  _refreshPatForm();
+  toast('Linked '+esc(pn)+' as '+rel,'ok');
+}
 function openPatByName(name){var p=patients.find(function(x){return _pnorm(x.name)===_pnorm(name);});if(p){try{closeMod('pmod');}catch(e){}viewPat(p.id);}}
 function saveProtPins(){var ss=(_v('pin_settings')||'').trim(),rr=(_v('pin_reports')||'').trim();if(ss&&!/^\d{4}$/.test(ss)){toast('Settings PIN must be 4 digits','er');return;}if(rr&&!/^\d{4}$/.test(rr)){toast('Reports PIN must be 4 digits','er');return;}if(!CFG.protPins)CFG.protPins={};CFG.protPins.settings=ss||'1982';CFG.protPins.reports=rr||'1982';saveCFG();logAudit('Edited','Access PINs','');toast('Access PINs updated','ok');}
 var _curUser=(typeof localStorage!=='undefined'&&localStorage.getItem('amara_user'))||'';
