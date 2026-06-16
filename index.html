@@ -787,11 +787,11 @@ button{cursor:pointer;}
       <div style="font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:#8FA0AB;margin-bottom:32px;">Private Billing</div>
       <div style="background:rgba(244,239,224,.06);border:1px solid rgba(244,239,224,.14);border-radius:20px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:26px 26px 22px;width:100%;box-sizing:border-box;box-shadow:0 24px 70px rgba(0,0,0,.4);">
         <div style="font-size:12px;font-weight:600;color:rgba(244,239,224,.55);margin-bottom:14px;letter-spacing:.04em;text-align:center;">Sign in to your account</div>
-        <input id="login-email" type="email" placeholder="Email address" autocomplete="email" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid rgba(244,239,224,.18);background:rgba(244,239,224,.08);color:#F4EFE0;font-size:14px;font-family:-apple-system,'Inter',sans-serif;outline:none;margin-bottom:10px;" oninput="document.getElementById('auth-err').textContent=''">
-        <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid rgba(244,239,224,.18);background:rgba(244,239,224,.08);color:#F4EFE0;font-size:14px;font-family:-apple-system,'Inter',sans-serif;outline:none;margin-bottom:6px;" oninput="document.getElementById('auth-err').textContent=''">
-        <div id="auth-err" style="font-size:12px;color:#F4806A;min-height:18px;margin-bottom:10px;text-align:center;"></div>
+        <input id="login-email" type="email" placeholder="Email address" autocomplete="email" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid rgba(244,239,224,.18);background:rgba(244,239,224,.08);color:#F4EFE0;font-size:14px;font-family:-apple-system,'Inter',sans-serif;outline:none;margin-bottom:10px;" oninput="var _e=document.getElementById('auth-err');if(_e){_e.textContent='';_e.style.display='none';}">
+        <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid rgba(244,239,224,.18);background:rgba(244,239,224,.08);color:#F4EFE0;font-size:14px;font-family:-apple-system,'Inter',sans-serif;outline:none;margin-bottom:6px;" oninput="var _e=document.getElementById('auth-err');if(_e){_e.textContent='';_e.style.display='none';}">
+        <div id="auth-err" style="font-size:12px;color:#F4806A;margin-bottom:8px;text-align:center;display:none;"></div>
         <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
-          <input type="checkbox" id="remember-me" checked style="width:15px;height:15px;accent-color:#6FBBA2;cursor:pointer;flex-shrink:0;">
+          <input type="checkbox" id="remember-me" checked style="width:15px;height:15px;cursor:pointer;flex-shrink:0;accent-color:#6FBBA2;">
           <span style="font-size:12px;color:rgba(244,239,224,.55);letter-spacing:.02em;">Remember me on this device</span>
         </label>
         <button id="login-btn" onclick="doLogin()" style="width:100%;padding:13px;border-radius:10px;background:#F4EFE0;color:#021620;font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:-apple-system,'Inter',sans-serif;letter-spacing:.02em;transition:opacity .15s;">Sign in</button>
@@ -813,7 +813,7 @@ button{cursor:pointer;}
       <span id="cloud-status" title="Settings sync status" style="font-size:14px;opacity:0.4;cursor:pointer;transition:opacity .3s;" onclick="showSettingsSQL()">☁️</span>
       <div onclick="manualRefresh()" title="Click to refresh now" style="display:flex;align-items:center;gap:5px;cursor:pointer;"><div class="sdot" id="sdot"></div><span id="slbl" style="font-size:10px;color:rgba(251,247,236,.3);"></span></div>
       <button class="tbtn priv" id="privBtn" onclick="togglePrivacy()" title="Toggle patient-name privacy"></button>
-      <span id="actingAs" style="font-size:11px;color:rgba(251,247,236,.7);padding:3px 8px;background:rgba(251,247,236,.08);border:1px solid rgba(251,247,236,.15);border-radius:6px;font-family:var(--sans);white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;"></span>
+      <span id="actingAs" style="font-size:11px;color:rgba(251,247,236,.7);padding:3px 8px;background:rgba(251,247,236,.08);border:1px solid rgba(251,247,236,.15);border-radius:6px;font-family:var(--sans);white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="openAccountSettings()" title="My account settings"></span>
       <button class="tbtn" onclick="logout()">Log out</button><button class="tbtn" onclick="openMod('kmod')">Backup</button>
       <button class="tbtn solid" onclick="openNew()">+ New Bill</button>
     </div>
@@ -943,6 +943,18 @@ button{cursor:pointer;}
 </div>
 
 <!-- BACKUP -->
+<!-- ACCOUNT SETTINGS MODAL -->
+<div class="ov h" id="acctmod">
+  <div class="mbox" style="max-width:480px;margin:auto;">
+    <div class="mhd"><div class="mtit">My Account</div><button class="mcls" onclick="closeMod('acctmod')">&#215;</button></div>
+    <div class="mbody" id="acctmod-body" style="padding:18px 20px;"></div>
+    <div class="mfoot">
+      <button class="btn btn-g" onclick="closeMod('acctmod')">Close</button>
+      <button class="btn btn-p" onclick="saveAccountSettings()">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <div class="ov h" id="kmod">
   <div class="mbox" style="max-width:440px;">
     <div class="mhd"><div class="mtit">Backup &amp; Restore</div><button class="mcls" onclick="closeMod('kmod')">&#215;</button></div>
@@ -967,6 +979,17 @@ button{cursor:pointer;}
 function _initAuth(){
   var d=gDB();if(!d){setTimeout(_initAuth,500);return;}
   d.auth.onAuthStateChange(function(event,session){
+    if(event==='PASSWORD_RECOVERY'){
+      // User clicked reset link — show app and open password change immediately
+      _authUser=session.user;
+      _authProfile={display_name:session.user.email,role:'user'};
+      _curUser=session.user.email;
+      _showApp();
+      setTimeout(function(){
+        openPasswordReset();
+      },600);
+      return;
+    }
     if(session&&session.user){_authUser=session.user;_loadProfile(session.user.id);}
     else{_authUser=null;_authProfile=null;_showLogin();}
   });
@@ -990,7 +1013,7 @@ function showSplash(){
   var lf=document.getElementById('login-form');
   if(lf){lf.style.transition='opacity .25s,transform .25s';lf.style.opacity='0';lf.style.transform='translateY(8px)';setTimeout(function(){lf.style.display='none';},250);}
   if(sp){sp.style.display='flex';sp.style.opacity='0';sp.style.transform='scale(.96)';requestAnimationFrame(function(){sp.style.transition='opacity .35s .1s,transform .35s .1s';sp.style.opacity='1';sp.style.transform='none';});}
-  var pe=document.getElementById('auth-err');if(pe)pe.textContent='';
+  var pe=document.getElementById('auth-err');if(pe){pe.textContent='';pe.style.display='none';}
 }
 function _showLogin(){
   var ls=document.getElementById('ls');if(ls)ls.style.display='flex';
@@ -998,7 +1021,7 @@ function _showLogin(){
   // Show splash first — user taps to reach the login form
   var sp=document.getElementById('splash');if(sp){sp.style.display='flex';sp.style.opacity='1';sp.style.transform='none';sp.style.transition='';}
   var lf=document.getElementById('login-form');if(lf)lf.style.display='none';
-  var pe=document.getElementById('auth-err');if(pe)pe.textContent='';
+  var pe=document.getElementById('auth-err');if(pe){pe.textContent='';pe.style.display='none';}
   var btn=document.getElementById('login-btn');if(btn){btn.disabled=false;btn.textContent='Sign in';}
   // Set splash logo image
   if(window.AMARA_LOGO_CREAM){var spl=document.getElementById('sp-logo-img');if(spl&&!spl.src)spl.src=window.AMARA_LOGO_CREAM;}
@@ -1007,6 +1030,24 @@ function _showApp(){
   document.getElementById('ls').style.display='none';
   document.getElementById('app').style.display='flex';
   if(typeof APP_INIT==='function')APP_INIT();
+  _applyRoleNav();
+}
+function _applyRoleNav(){
+  var isAdmin=_authProfile&&_authProfile.role==='admin';
+  // Reports and Settings hidden for regular users
+  var reports=document.getElementById('nt-reports');
+  var settings=document.getElementById('nt-settings');
+  var admin=document.getElementById('nt-admin');
+  if(reports) reports.style.display=isAdmin?'':'none';
+  if(settings) settings.style.display=isAdmin?'':'none';
+  if(admin)    admin.style.display=isAdmin?'':'none';
+  // If user is on a restricted page, redirect to bills
+  if(!isAdmin){
+    var cur=document.querySelector('.page.on');
+    if(cur&&(cur.id==='page-reports'||cur.id==='page-settings'||cur.id==='page-admin')){
+      if(typeof showPage==='function') showPage('bills');
+    }
+  }
 }
 async function _loadProfile(uid){
   var d=gDB();if(!d)return;
@@ -1020,22 +1061,54 @@ async function _saveProfile(uid,name,role){
   await d.from('user_profiles').upsert({id:uid,display_name:name,role:role||'user'});
   _authProfile=Object.assign({},_authProfile||{},{display_name:name,role:role||'user'});
   _curUser=name;if(typeof _popActingAs==='function')_popActingAs();
+  if(typeof _applyRoleNav==='function')_applyRoleNav();
 }
 async function doLogin(){
   var email=(_v('login-email')||'').trim();var pass=_v('login-pass')||'';
   var pe=document.getElementById('auth-err');
-  if(!email||!pass){if(pe)pe.textContent='Enter email and password';return;}
+  function showErr(msg){if(pe){pe.textContent=msg;pe.style.display='block';}}
+  function clearErr(){if(pe){pe.textContent='';pe.style.display='none';}}
+  clearErr();
+  if(!email||!pass){showErr('Enter email and password');return;}
   var btn=document.getElementById('login-btn');
-  if(btn){btn.disabled=true;btn.textContent='Signing in…';}
-  var d=gDB();if(!d)return;
-  var r=await d.auth.signInWithPassword({email:email,password:pass});
-  if(r.error){if(pe)pe.textContent=r.error.message||'Incorrect email or password';if(btn){btn.disabled=false;btn.textContent='Sign in';}}
+  if(btn){btn.disabled=true;btn.textContent='Signing in...';}
+  var d=gDB();if(!d){if(btn){btn.disabled=false;btn.textContent='Sign in';}return;}
+  try{
+    var r=await d.auth.signInWithPassword({email:email,password:pass});
+    if(r.error){
+      var msg=r.error.message||'Sign in failed';
+      if(msg.toLowerCase().indexOf('database error')>=0){msg='Server configuration error - contact your admin';}
+      else if(msg.toLowerCase().indexOf('invalid login')>=0){msg='Incorrect email or password';}
+      else if(msg.toLowerCase().indexOf('not confirmed')>=0){msg='Account not confirmed - contact your admin';}
+      showErr(msg);
+      if(btn){btn.disabled=false;btn.textContent='Sign in';}
+    }
+  }catch(err){
+    showErr('Connection error - check your internet and try again');
+    if(btn){btn.disabled=false;btn.textContent='Sign in';}
+  }
 }
 async function doForgotPassword(){
-  var email=(_v('login-email')||'').trim();if(!email){alert('Enter your email address first');return;}
+  var email=(_v('login-email')||'').trim();
+  if(!email){
+    var pe=document.getElementById('auth-err');
+    if(pe){pe.textContent='Enter your email address first';pe.style.display='block';}
+    return;
+  }
   var d=gDB();if(!d)return;
-  await d.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
-  alert('Password reset email sent to '+email+'. Check your inbox.');
+  var btn=document.querySelector('[onclick="doForgotPassword()"]');
+  if(btn){btn.textContent='Sending...';btn.disabled=true;}
+  var r=await d.auth.resetPasswordForEmail(email,{
+    redirectTo:'https://amaraconcierge.github.io/billing/'
+  });
+  if(btn){btn.textContent='Forgot password?';btn.disabled=false;}
+  if(r.error){
+    var pe=document.getElementById('auth-err');
+    if(pe){pe.textContent='Could not send reset email: '+r.error.message;pe.style.display='block';}
+  }else{
+    var pe=document.getElementById('auth-err');
+    if(pe){pe.textContent='Password reset email sent to '+email+'. Check your inbox.';pe.style.display='block';pe.style.color='#6FBBA2';}
+  }
 }
 // Start auth after DOM ready
 document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){try{_initAuth();}catch(e){console.error('Auth init',e);}},400);});
@@ -6693,51 +6766,151 @@ function renderAdminUsers(){
   var isAdmin=_authProfile&&_authProfile.role==='admin';
   var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">'+
     '<button onclick="adminBack()" style="background:none;border:none;color:var(--t);cursor:pointer;font-size:13px;">&#8592; Back</button>'+
-    '<div style="font-size:18px;font-weight:700;color:var(--tx);">👥 User Management</div></div>';
-  if(!isAdmin){
-    return h+'<div class="pa-card"><p style="font-size:13px;color:var(--m2);">Only admins can manage users. Contact your Amara admin to change user settings.</p></div>';
-  }
+    '<div style="font-size:18px;font-weight:700;color:var(--tx);">&#128101; User Management</div></div>';
+  if(!isAdmin)return h+'<div class="pa-card"><p style="font-size:13px;color:var(--m2);">Only admins can manage users.</p></div>';
   h+='<div class="pa-card">'+
-    '<div style="font-size:12px;color:var(--m2);margin-bottom:14px;line-height:1.6;">'+
-    'Invite team members via Supabase → Authentication → Users → Invite User. Once they sign in, their profile appears here and you can assign their display name and role.</div>'+
-    '<div id="users-list"><div style="color:var(--m2);font-size:12px;">Loading users…</div></div>'+
-    '</div>'+
-    '<div class="pa-card">'+
-    '<div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:10px;">My profile</div>'+
-    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'+
-    '<input id="my-display-name" class="fi" style="flex:1;max-width:240px;" placeholder="Your display name…" value="'+esc(_authProfile?_authProfile.display_name:'')+'">'+
-    '<button class="ab" onclick="(function(){var n=document.getElementById(\'my-display-name\').value.trim();if(!n)return;_saveProfile(_authUser.id,n,_authProfile.role||\'user\').then(function(){toast(\'Display name updated\',\'ok\');});})()">Save</button>'+
-    '</div>'+
-    '<p style="font-size:11px;color:var(--m2);margin:8px 0 0;">This name appears on bills, reports, and the audit log.</p>'+
-    '</div>';
-  // Load users async
+    '<div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:8px;">Team members</div>'+
+    '<div style="font-size:12px;color:var(--m2);margin-bottom:12px;">To add new members: Supabase &rarr; Auth &rarr; Users &rarr; Add user, then run the team SQL script.</div>'+
+    '<div id="users-list"><div style="color:var(--m2);font-size:12px;">Loading...</div></div></div>';
   setTimeout(async function(){
     var d=gDB();if(!d)return;
-    var r=await d.from('user_profiles').select('*').order('display_name');
     var el=document.getElementById('users-list');if(!el)return;
+    var r=await d.from('user_profiles_with_email').select('*').order('display_name');
+    if(r.error)r=await d.from('user_profiles').select('*').order('display_name');
     if(r.error||!r.data||!r.data.length){
-      el.innerHTML='<div style="font-size:12px;color:var(--m2);font-style:italic;">No user profiles yet. Team members appear here after their first sign-in.</div>';
+      el.innerHTML='<div style="font-size:12px;color:var(--m2);font-style:italic;">No team members yet.</div>';
       return;
     }
     var rows=r.data.map(function(u){
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bo);flex-wrap:wrap;" id="urow_'+u.id+'">'+
-        '<div style="width:32px;height:32px;border-radius:50%;background:var(--tb);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--t);flex-shrink:0;">'+esc((u.display_name||'?')[0].toUpperCase())+'</div>'+
-        '<div style="flex:1;min-width:0;">'+
-          '<div style="font-weight:600;font-size:13px;">'+esc(u.display_name||'(unnamed)')+'</div>'+
-          '<div style="font-size:11px;color:var(--m2);">'+esc(u.role||'user')+(u.id===(_authUser&&_authUser.id)?' · you':'')+'</div>'+
+      var email=u.auth_email||u.email||'';
+      var lastSeen=u.last_sign_in_at?('Last seen '+new Date(u.last_sign_in_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'})):'Never signed in';
+      var initials=((u.display_name||email||'?')[0]||'?').toUpperCase();
+      var isMe=u.id===(_authUser&&_authUser.id);
+      return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--bo);flex-wrap:wrap;">'+
+        '<div style="width:36px;height:36px;border-radius:50%;background:var(--tb);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--t);flex-shrink:0;">'+esc(initials)+'</div>'+
+        '<div style="flex:1;min-width:120px;">'+
+          '<div style="font-weight:600;font-size:13px;">'+esc(u.display_name||'(unnamed)')+(isMe?' <span style="font-size:10px;background:var(--tb);color:var(--t);padding:1px 6px;border-radius:99px;">you</span>':'')+'</div>'+
+          '<div style="font-size:11px;color:var(--m2);">'+esc(email)+(u.job_title?' &middot; '+esc(u.job_title):'')+'</div>'+
+          '<div style="font-size:10px;color:var(--m2);">'+esc(lastSeen)+'</div>'+
         '</div>'+
-        '<select onchange="(function(uid,role){var d=gDB();if(d)d.from(\'user_profiles\').update({role:role}).eq(\'id\',uid).then(function(){toast(\'Role updated\',\'ok\');});})(\''+u.id+'\',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--bo2);border-radius:6px;background:var(--wh);color:var(--tx);">'+
+        '<select data-uid="'+u.id+'" onchange="adminUpdateRole(this.dataset.uid,this.value)" style="font-size:12px;padding:5px 8px;border:1px solid var(--bo2);border-radius:6px;background:var(--wh);color:var(--tx);">'+
           '<option value="user"'+(u.role==='user'?' selected':'')+'>User</option>'+
           '<option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option>'+
         '</select>'+
-        '<input id="dn_'+u.id+'" style="font-size:12px;padding:6px 9px;border:1px solid var(--bo2);border-radius:6px;width:140px;" value="'+esc(u.display_name||'')+'">'+
-        '<button onclick="(function(uid){var n=document.getElementById(\'dn_\'+uid).value.trim();if(!n)return;var d=gDB();if(d)d.from(\'user_profiles\').update({display_name:n}).eq(\'id\',uid).then(function(){toast(\'Updated\',\'ok\');});})(\''+u.id+'\')" style="font-size:11px;padding:5px 10px;border:1px solid var(--bo2);border-radius:6px;background:var(--wh);cursor:pointer;">Save</button>'+
+        '<input id="dn_'+u.id+'" style="font-size:12px;padding:6px 9px;border:1px solid var(--bo2);border-radius:6px;width:130px;" value="'+esc(u.display_name||'')+'" placeholder="Display name">'+
+        '<button data-uid="'+u.id+'" onclick="adminUpdateName(this.dataset.uid)" style="font-size:11px;padding:5px 10px;border:1px solid var(--bo2);border-radius:6px;background:var(--wh);cursor:pointer;">Save</button>'+
       '</div>';
     }).join('');
-    el.innerHTML='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:8px;">'+r.data.length+' team member'+(r.data.length!==1?'s':'')+'</div>'+rows;
+    el.innerHTML='<div style="font-size:11px;color:var(--m2);margin-bottom:10px;">'+r.data.length+' team member'+(r.data.length!==1?'s':'')+'</div>'+rows;
   },100);
   return h;
 }
+function openPasswordReset(){
+  var body=document.getElementById('acctmod-body');
+  if(!body)return;
+  body.innerHTML=
+    '<div style="text-align:center;margin-bottom:20px;">'+
+      '<div style="width:52px;height:52px;border-radius:50%;background:var(--tb);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 10px;">&#128274;</div>'+
+      '<div style="font-weight:700;font-size:16px;color:var(--tx);">Set new password</div>'+
+      '<div style="font-size:12px;color:var(--m2);margin-top:4px;">Choose a strong password for your account</div>'+
+    '</div>'+
+    '<div class="fg"><label class="fl">New password</label><input class="fi" id="acct-pw" type="password" placeholder="Minimum 6 characters" autofocus></div>'+
+    '<div class="fg"><label class="fl">Confirm new password</label><input class="fi" id="acct-pw2" type="password" placeholder="Repeat new password"></div>';
+  // Override the Save button to only do password change
+  var footer=document.querySelector('#acctmod .mfoot');
+  if(footer){
+    footer.innerHTML=
+      '<button class="btn btn-g" onclick="closeMod(\'acctmod\');logout();">Cancel</button>'+
+      '<button class="btn btn-p" onclick="saveNewPassword()">Set password</button>';
+  }
+  openMod('acctmod');
+  setTimeout(function(){var pw=document.getElementById('acct-pw');if(pw)pw.focus();},300);
+}
+async function saveNewPassword(){
+  var pw=(document.getElementById('acct-pw')||{}).value||'';
+  var pw2=(document.getElementById('acct-pw2')||{}).value||'';
+  if(!pw){toast('Enter a new password','er');return;}
+  if(pw!==pw2){toast('Passwords do not match','er');return;}
+  if(pw.length<6){toast('Password must be at least 6 characters','er');return;}
+  var d=gDB();if(!d)return;
+  var r=await d.auth.updateUser({password:pw});
+  if(r.error){toast('Failed: '+r.error.message,'er');return;}
+  toast('Password set successfully! You are now logged in.','ok');
+  closeMod('acctmod');
+  // Reload profile properly
+  if(_authUser)_loadProfile(_authUser.id);
+  // Restore normal Save button in account settings
+  var footer=document.querySelector('#acctmod .mfoot');
+  if(footer){
+    footer.innerHTML=
+      '<button class="btn btn-g" onclick="closeMod(\'acctmod\')">Close</button>'+
+      '<button class="btn btn-p" onclick="saveAccountSettings()">Save changes</button>';
+  }
+}
+function openAccountSettings(){
+  var p=_authProfile||{};
+  var email=(_authUser&&_authUser.email)||'';
+  var body=document.getElementById('acctmod-body');
+  if(!body)return;
+  body.innerHTML=
+    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">'+
+      '<div style="width:52px;height:52px;border-radius:50%;background:var(--tb);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:var(--t);">'+(p.display_name?p.display_name[0].toUpperCase():'?')+'</div>'+
+      '<div><div style="font-weight:700;font-size:16px;">'+esc(p.display_name||email)+'</div>'+
+      '<div style="font-size:12px;color:var(--m2);">'+esc(email)+'</div>'+
+      '<div style="font-size:11px;color:var(--t);margin-top:2px;font-weight:600;text-transform:capitalize;">'+esc(p.role||'user')+'</div></div>'+
+    '</div>'+
+    '<div class="fg"><label class="fl">Display name</label><input class="fi" id="acct-name" value="'+esc(p.display_name||'')+'" placeholder="e.g. Carmela, Dr Jay"></div>'+
+    '<div class="fg"><label class="fl">Job title</label><input class="fi" id="acct-title" value="'+esc(p.job_title||'')+'" placeholder="e.g. Concierge, Doctor, Nurse"></div>'+
+    '<div class="fg"><label class="fl">Phone / WhatsApp</label><input class="fi" id="acct-phone" type="tel" value="'+esc(p.phone||'')+'" placeholder="+971 50 000 0000"></div>'+
+    '<div class="divider"></div>'+
+    '<div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:10px;">Change password</div>'+
+    '<div class="fg"><label class="fl">New password</label><input class="fi" id="acct-pw" type="password" placeholder="Leave blank to keep current"></div>'+
+    '<div class="fg"><label class="fl">Confirm new password</label><input class="fi" id="acct-pw2" type="password" placeholder="Repeat new password"></div>';
+  openMod('acctmod');
+}
+async function saveAccountSettings(){
+  var d=gDB();if(!d)return;
+  var name=(document.getElementById('acct-name')||{}).value||'';
+  var title=(document.getElementById('acct-title')||{}).value||'';
+  var phone=(document.getElementById('acct-phone')||{}).value||'';
+  var pw=(document.getElementById('acct-pw')||{}).value||'';
+  var pw2=(document.getElementById('acct-pw2')||{}).value||'';
+  var pwCur=(document.getElementById('acct-pw-cur')||{}).value||'';
+  name=name.trim();title=title.trim();phone=phone.trim();
+  if(!name){toast('Display name is required','er');return;}
+  var uid=_authUser&&_authUser.id;if(!uid)return;
+  var up={id:uid,display_name:name,role:(_authProfile&&_authProfile.role)||'user'};
+  if(title)up.job_title=title;
+  if(phone)up.phone=phone;
+  var r=await d.from('user_profiles').upsert(up);
+  if(r.error){toast('Save failed: '+r.error.message,'er');return;}
+  _authProfile=Object.assign({},_authProfile||{},{display_name:name,job_title:title,phone:phone});
+  _curUser=name;_popActingAs();
+  if(pw){
+    if(pw!==pw2){toast('New passwords do not match','er');return;}
+    if(pw.length<6){toast('New password must be at least 6 characters','er');return;}
+    var pr=await d.auth.updateUser({password:pw});
+    if(pr.error){toast('Password change failed: '+pr.error.message,'er');return;}
+    toast('Profile and password updated','ok');
+  }else{
+    toast('Profile saved','ok');
+  }
+  closeMod('acctmod');
+}
+function adminUpdateRole(uid,role){
+  var d=gDB();
+  if(d)d.from('user_profiles').update({role:role}).eq('id',uid).then(function(){toast('Role updated','ok');});
+}
+function adminUpdateName(uid){
+  var n=(document.getElementById('dn_'+uid)||{}).value||'';
+  n=n.trim();if(!n)return;
+  var d=gDB();
+  if(d)d.from('user_profiles').update({display_name:n}).eq('id',uid).then(function(){
+    toast('Name updated','ok');
+    if(uid===(_authUser&&_authUser.id)){_curUser=n;_popActingAs();}
+  });
+}
+
 function adminFeeCount(){
   var n=0;
   ['docFlat','docExtUnit','physAdmin','teamAdmin','nurse','prescription','referral','nurseUK','adminUK','referralUK','prescriptionUK'].forEach(function(k){if(FEES[k]&&typeof FEES[k]==='object')n+=Object.keys(FEES[k]).length;});
