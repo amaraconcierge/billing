@@ -213,6 +213,8 @@ button{cursor:pointer;}
 .bl-row:hover{background:#F8F4EE;}
 .bl-cb{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--bo2);background:var(--wh);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;font-size:11px;color:#fff;font-weight:700;}
 .bl-cb.on{background:var(--t);border-color:var(--t);}
+.bl-cb.bl-cb-clr{cursor:pointer;}
+.bl-cb.bl-cb-clr:hover{background:var(--re)!important;border-color:var(--re)!important;transform:scale(1.1);}
 .bl-lbl{flex:1;}
 .bl-lt{font-size:13px;color:var(--tx);font-weight:500;}
 .bl-ls{font-size:11px;color:var(--m2);font-style:italic;margin-top:1px;}
@@ -2508,9 +2510,15 @@ async function dbDelPat(id){
 // Ensure required internal doctors / billers are always present, even when
 // stored or cloud config predates them. Idempotent; safe to call repeatedly.
 function ensureCoreLists(){
-  var REQUIRED_DOCTORS=['Dr Jay Lakhani','Dr Cristina Goedhuis','Dr Vaibhav Sharma','Dr Elizabeth Thorne','Dr Jay','Dr Cristina','Dr Sharma','Dr Thorne'];
+  var REQUIRED_DOCTORS=['Dr Jay Lakhani','Dr Cristina Goedhuis','Dr Vaibhav Sharma','Dr Elizabeth Thorne'];
   if(!Array.isArray(CFG.doctors))CFG.doctors=[];
   REQUIRED_DOCTORS.forEach(function(d){if(CFG.doctors.indexOf(d)<0)CFG.doctors.push(d);});
+  // Deduplicate: remove any short-name duplicates (keep full names only)
+  var _fullDocs=['Dr Jay Lakhani','Dr Cristina Goedhuis','Dr Vaibhav Sharma','Dr Elizabeth Thorne'];
+  var _shortDocs=['Dr Jay','Dr Cristina','Dr Sharma','Dr Thorne'];
+  CFG.doctors=CFG.doctors.filter(function(d){
+    return _shortDocs.indexOf(d)<0||_fullDocs.indexOf(d)>=0;
+  });
   if(!Array.isArray(CFG.team))CFG.team=[];
   if(CFG.team.indexOf('Dr Elizabeth Thorne')<0&&CFG.team.indexOf('Dr Elizabeth')<0&&CFG.team.indexOf('Dr Thorne')<0)CFG.team.push('Dr Thorne');
 }
@@ -3011,7 +3019,9 @@ function billLocked(){return !!(curBill&&curBill.invoiceNo&&String(curBill.invoi
 function lockWrap(html){return billLocked()?'<div style="pointer-events:none;opacity:.6;filter:grayscale(.15);">'+html+'</div>':html;}
 function lockBanner(){return billLocked()?'<div class="lock-banner">&#128274; Invoice '+esc(curBill.invoiceNo)+' has been issued — this bill is locked and can no longer be edited. You can still add follow-up items below for reference.</div>':'';}
 function renderBForm(){
+  try{
   var body=document.getElementById('bmod-body');
+  if(!body)return;
   if(curTab==='i'){body.innerHTML=lockBanner()+lockWrap(renderInfoTab());attachTextListeners(body,'info');return;}
   if(curTab==='f'){body.innerHTML=lockBanner()+renderFUTab();attachTextListeners(body,'fu');return;}
   if(curTab==='n'){
@@ -3032,6 +3042,7 @@ function renderBForm(){
     '</div>';
   body.innerHTML=lockBanner()+lockWrap(regionPills+(extRegion==='u'?renderUKSec():renderSecTab(sk)));
   attachTextListeners(body,sk);
+  }catch(e){console.error('renderBForm error:',e);var body2=document.getElementById('bmod-body');if(body2)body2.innerHTML='<div style="padding:20px;color:var(--re);">Error loading form. Please close and reopen the bill. ('+e.message+')</div>';}
 }
 
 /* Attach text listeners — fires on change/blur, not on every keystroke */
@@ -3326,8 +3337,8 @@ function renderSecTab(sk){
     var idata=sdata[item.id]||{};
     var checked=item.fields.some(function(f){var v=idata[f.id];return v&&(Array.isArray(v)?v.length>0:typeof v==='object'&&v!==null&&v.amount?parseFloat(v.amount)>0:v!==false&&v!=='');});
     var isOpen=!!openItems[sk+'_'+item.id];
-    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\')" ondblclick="clearBI(\''+sk+'\',\''+item.id+'\')">'+
-      '<div class="bl-cb'+(checked?' on':'')+'">'+( checked?'&#10003;':'')+'</div>'+
+    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\',event)" >'+
+      '<div class="bl-cb'+(checked?' on bl-cb-clr':'')+'">'+( checked?'&#10003;':'')+'</div>'+
       '<div class="bl-lbl"><div class="bl-lt">'+item.label+'</div>'+(item.sub?'<div class="bl-ls">'+item.sub+'</div>':'')+( item.note?'<div class="bl-ls">'+item.note+'</div>':'')+
       '</div><span class="bl-cv'+(isOpen?' op':'')+'">&#9662;</span></div>';
     if(isOpen){
@@ -3340,7 +3351,16 @@ function renderSecTab(sk){
   });
   h+='</div>';return h;
 }
-function toggleBI(sk,itemId){
+function toggleBI(sk,itemId,evt){
+  // If click originated from the checkbox of a checked item, deselect it
+  if(evt&&evt.target){
+    var t=evt.target;
+    var cb=(t.classList&&t.classList.contains('bl-cb'))?t:(t.closest?t.closest('.bl-cb'):null);
+    if(cb&&cb.classList&&cb.classList.contains('bl-cb-clr')){
+      clearBI(sk,itemId);
+      return;
+    }
+  }
   var k=sk+'_'+itemId;openItems[k]=!openItems[k];
   if(!curBill.billingData[sk])curBill.billingData[sk]={};
   if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
@@ -9841,8 +9861,8 @@ function renderUKSec(sk,structKey){
     var r=ukItemLines(item,idata);
     var checked=r.lines.length>0;
     var isOpen=!!openItems[sk+'_'+item.id];
-    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\')" ondblclick="clearBI(\''+sk+'\',\''+item.id+'\')">'+
-      '<div class="bl-cb'+(checked?' on':'')+'">'+(checked?'&#10003;':'')+'</div>'+
+    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\',event)" >'+
+      '<div class="bl-cb'+(checked?' on bl-cb-clr':'')+'">'+( checked?'&#10003;':'')+'</div>'+
       '<div class="bl-lbl"><div class="bl-lt">'+esc(item.displayName||item.name)+(r.total>0?' <span style="font-size:11px;color:#0C447C;font-weight:700;">\u00b7 GBP '+r.total.toLocaleString('en-GB')+'</span>':'')+'</div>'+(item.description?'<div class="bl-ls">'+esc(item.description)+'</div>':'')+'</div>'+
       '<span class="bl-cv'+(isOpen?' op':'')+'">&#9662;</span></div>';
     if(isOpen){
