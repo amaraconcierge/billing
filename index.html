@@ -1567,6 +1567,7 @@ var FEES={
   },
   // ── UK GBP rates (Onewelbeck / Amara UK fee schedule) ──
   nurseUK:{'In Hours':275,'Out of Hours':395,'Bank Holiday':592.50},
+  nurseGL:{'In Hours':500,'Out of Hours':750},
   nurseMonitoringUK:750,          // 8-hour monitoring flat fee
   referralUK:{'In Hours':75,'Out of Hours':95},
   adminUK:{'In Hours':45,'Out of Hours':75},  // per 30-min unit
@@ -1608,6 +1609,55 @@ function fmtAdminUnits(hVal,mVal){
   var hrs=Math.floor(totalMins/60),mins=totalMins%60;
   var timeStr=(hrs>0?hrs+'h ':'')+(mins>0?mins+'min':'');
   return (timeStr?timeStr+' → ':'')+units+' set'+(units!==1?'s':'');
+}
+
+
+// ── Medication Logistics fee calculator ──
+// Includes prescription fee + 30 min admin free.
+// Extra time beyond 30 min billed in 0.5-set (15 min) increments.
+// region: 'UAE-Local'|'UAE-International'|'UK'|'Global'
+// when: 'In Hours'|'Out of Hours'
+// dur: {h, m} — total time logged (includes the free 30 min)
+function calcMedLogisticsFee(region, when, dur, baseFeeOverride){
+  when = when||'In Hours';
+  var totalMins = dur?(parseInt(dur.h||0)*60+parseInt(dur.m||0)):0;
+  // Prescription/logistics fee (base) — can be overridden for OTC/Custom types
+  var baseFee = 0;
+  var cur = 'AED';
+  if(baseFeeOverride!=null){
+    baseFee = baseFeeOverride;
+    cur = (region==='UK')?'GBP':'AED';
+  } else if(region==='UK'){
+    baseFee = (FEES.prescriptionUK&&FEES.prescriptionUK[when])||75;
+    cur = 'GBP';
+  } else {
+    var _loc = (region==='UAE-Local'||!region)?'Inside UAE':(region==='UAE-International'?'International':'International');
+    if(region==='Global') _loc='International';
+    var prxKey = when+'-'+_loc;
+    baseFee = (FEES.prescription&&FEES.prescription[prxKey])||250;
+    cur = 'AED';
+  }
+  // Extra time beyond free 30 min — billed in 0.5-set (15 min) increments
+  var extraMins = Math.max(0, totalMins - 30);
+  var extraSets = extraMins > 0 ? Math.ceil(extraMins/15)*0.5 : 0;
+  var adminRate = 0;
+  if(region==='UK'){
+    adminRate = (FEES.adminUK&&FEES.adminUK[when])||45;
+  } else if(region==='Global'||region==='UAE-International'){
+    adminRate = when==='Out of Hours'?255:170;
+  } else {
+    adminRate = (FEES.teamAdmin&&FEES.teamAdmin[when+'-Inside UAE'])||220;
+  }
+  var extraFee = Math.round(extraSets * adminRate * 100)/100;
+  return {baseFee:baseFee, extraSets:extraSets, extraFee:extraFee, total:baseFee+extraFee, cur:cur, totalMins:totalMins, adminRate:adminRate};
+}
+function fmtMedLogisticsDesc(billDate){
+  var d = billDate ? new Date(billDate) : new Date();
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var dd = String(d.getDate()).padStart(2,'0');
+  var mmm = months[d.getMonth()];
+  var yy = String(d.getFullYear()).slice(-2);
+  return dd+'-'+mmm+'-'+yy+' Locating medications, confirming proper dispensing with pharmacist, arranging delivery where required. Service provided by medical concierge, which is not typically covered by health insurance.';
 }
 
 // ── Doctor fee calculator ──
@@ -1675,7 +1725,8 @@ function calcBillGrandTotal(b){
       // Physician admin (padh)
       if((item.id==='ic'||item.id==='inv'||item.id==='env')&&idata['padh']){total+=calcAdminFee(idata['padh'].h,idata['padh'].m,idata['padh_h']||'In Hours',(item.id==='inv'?(idata['pal']||'Inside UAE'):'Inside UAE'),'physAdmin');}
       // Nurse
-      if(['is','ie','ii','inv','env'].includes(item.id)){total+=FEES.nurse[idata['nv']||'In Hours']||0;}
+      if(['is','ie','ii','inv'].includes(item.id)){total+=FEES.nurse[idata['nv']||'In Hours']||0;}
+      // env: stdnfee is GBP (no markup) — not added to AED total; feepaid forEach handles markup
       // External nurse visit fee (nf toggle on external items)
       if(['es','ee','ei'].includes(item.id)&&(idata['nf']===true||idata['nf']==='true')){total+=FEES.nurse[idata['nv']||'In Hours']||0;}
       // Phlebotomy
@@ -1699,18 +1750,26 @@ function calcBillGrandTotal(b){
       if(idata['rr']===true||idata['rr']==='true'){total+=FEES.reReport||500;}
       // Internal medication type fee (imt selector on im item)
       if(item.id==='im'&&idata['imt']){
-        if(idata['imt'].indexOf('OTC')>=0)total+=FEES.internalMedOTC||75;
-        else if(idata['imt'].indexOf('Custom')>=0){var _mfg=idata['mfee'];if(_mfg&&parseFloat(_mfg.amount)&&(_mfg.cur||'AED')==='AED')total+=parseFloat(_mfg.amount)||0;}
-        else total+=FEES.internalMedPrescription||195;
-      }
-      // External medication minimum fee (emf toggle on em item)
-      if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true')){total+=FEES.externalMedMin||75;}
-      // Prescription on medication items — em ONLY uses FEES.prescription (AED 250/375/367.25/550.875)
+        // Medication fee (flat rate by type)
+        var _imMF=0;
+        if(idata['imt'].indexOf('OTC')>=0){_imMF=FEES.internalMedOTC||75;}
+        else if(idata['imt'].indexOf('Custom')>=0){var _mfg=idata['mfee'];_imMF=(_mfg&&parseFloat(_mfg.amount))||0;}
+        else{_imMF=FEES.internalMedPrescription||195;}
+        total+=_imMF;
+        // Medication Logistics fee (same as em — prescription rate + 30 min free + extra time)
+        if(idata['ph2']){
+          var _imLoc=idata['pl']||'Local';
+          var _imReg=(_imLoc==='International'||_imLoc.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';
+          total+=calcMedLogisticsFee(_imReg,idata['ph2'],idata['adh']).total||0;
+        }
+      }      // Prescription on medication items — em ONLY uses FEES.prescription (AED 250/375/367.25/550.875)
       // im uses imt selector (OTC AED 75 / Prescription AED 195) — NOT FEES.prescription
-      if(item.id==='em'&&idata['pl']&&idata['ph2']){
-        var prxLoc=idata['pl']||'Inside UAE';var prxH=idata['ph2']||'In Hours';
-        var prxKey=prxH+'-'+(prxLoc.toLowerCase().indexOf('international')>=0?'International':prxLoc.toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');
-        total+=FEES.prescription&&FEES.prescription[prxKey]?FEES.prescription[prxKey]:0;
+      if(item.id==='em'&&idata['ph2']){
+        var _emLocGT=idata['pl']||'Local';
+        var _emWhenGT=idata['ph2']||'In Hours';
+        var _emRegGT=(_emLocGT==='International'||_emLocGT.toLowerCase().indexOf('international')>=0||_emLocGT==='Global')?'UAE-International':'UAE-Local';
+        var _emFeeGT=calcMedLogisticsFee(_emRegGT,_emWhenGT,idata['adh']);
+        total+=_emFeeGT.total||0;
       }
       // Prescription on doctor's consultation (ptype field = in/out of hours selected)
       if(item.id==='ic'&&idata['ptype']){var loc=idata['al']||'Inside UAE';var ch=idata['ch']||'In Hours';var pk=ch+'-'+(loc==='International'?'International':loc.startsWith('Inside')?'Inside UAE':'Outside UAE');total+=FEES.prescription&&FEES.prescription[pk]?FEES.prescription[pk]:0;}
@@ -1723,9 +1782,11 @@ function calcBillGrandTotal(b){
         } else if(coItem.customFee&&parseFloat(coItem.customFee)){total+=parseFloat(coItem.customFee)||0;}
       }
       // External fees
-      ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv.amount)&&(fv.cur||'AED')==='AED')total+=(parseFloat(fv.amount)||0)*1.05;});
+      ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv.amount)){var _fpc=fv.cur||'AED';var _fpSettled=Math.round((parseFloat(fv.amount)||0)*(1+_settleMk(_fpc))*100)/100;if(_fpc==='AED')total+=_fpSettled;}});
+      // stdnfee (standard nurse fee toggle — no markup)
+      var _snf2=idata['stdnfee'];if(_snf2&&_snf2.on&&_snf2.override>0&&(_snf2.cur||'AED')==='AED')total+=_snf2.override;
       // Team admin
-      if(idata['adh']){total+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['adh_h']||idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
+      if(idata['adh']&&item.id!=='em'&&item.id!=='im'){total+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['adh_h']||idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
       // Labs
       if(Array.isArray(idata['lw'])&&idata['lw'].length)total+=_labTotalFor(idata['lw'],_skRegion(sk));
     });
@@ -1742,6 +1803,8 @@ function calcBillGrandTotal(b){
     var f=fuComputedFee(fu);
     if(f.amount>0&&f.cur==='AED')total+=f.amount;
   });
+  // Global internal lines (AED)
+  if(typeof computeGlobalLines==='function'){computeGlobalLines(b).forEach(function(l){total+=l.amount||0;});}
   total+=_billStdTaxTotal(b);
   return Math.max(0,total);
 }
@@ -2204,7 +2267,7 @@ int:{label:'Internal Arrangements',sub:'Amara team — no markup',col:'#5A7A55',
   {id:'co',l:'Courier — transport samples',t:'courieropts'},
   {id:'sm',l:'Stat Medicine (per tablet)',t:'tog',n:'If medications are given during the visit'},
   {id:'smmeds',l:'Stat medicine — medication(s) given',t:'mta'},
-  {id:'al',l:'Admin concierge location (if applicable)',t:'sel',o:['Inside UAE','International'],grp:'g3'},
+  {id:'al',l:'Admin concierge location (if applicable)',t:'sel',o:['Local','International'],grp:'g3'},
   {id:'adh',l:'Concierge admin time (results / arrangements)',t:'hours',grp:'g3'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
@@ -2214,7 +2277,7 @@ int:{label:'Internal Arrangements',sub:'Amara team — no markup',col:'#5A7A55',
   {id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'g1'},
   {id:'dur',l:'Time spent',t:'hours',grp:'g1'},
   {id:'padh',l:'Physician admin time',t:'hours',grp:'g2'},
-  {id:'pal',l:'Physician admin location',t:'sel',o:['Inside UAE','International'],grp:'g2'},
+  {id:'pal',l:'Physician admin location',t:'sel',o:['Local','International'],grp:'g2'},
   {id:'padh_h',l:'Physician admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'g2'},
   {id:'ph',l:'Phlebotomy fee',t:'sel',o:['UAE — AED 75','Global — AED 275'],n:'Only if there are blood samples'},
   {id:'lw',l:'Lab work',t:'lab',n:'Ensure lab uses Amara profile (Dubai Lab) and TDL test code for UK'},
@@ -2227,18 +2290,20 @@ int:{label:'Internal Arrangements',sub:'Amara team — no markup',col:'#5A7A55',
   {id:'vacf',l:'Vaccine administration fee',t:'feetog',fee:'vaccine',cond:{f:'nvt',has:'Medication administration'},grp:'g5'},
   {id:'nnotes',l:'Nurse notes',t:'mta'},
   {id:'adh',l:'Concierge admin time',t:'hours',grp:'g3'},
-  {id:'al',l:'Concierge admin location',t:'sel',o:['Inside UAE','International'],grp:'g3'},
+  {id:'al',l:'Concierge admin location',t:'sel',o:['Local','International'],grp:'g3'},
   {id:'adh_h',l:'Concierge admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'g3'},
   {id:'adesc',l:'Concierge admin time description',t:'admintmpl'}
  ]},
- {id:'im',label:'Medication',sub:'Internal medication arrangement',fields:[
-  {id:'imt',l:'Prescription type',t:'sel',o:['Amara medication (OTC)','Amara prescription medication','Custom fee'],req:1},
+ {id:'im',label:'Internal Medication',sub:'Medication fee + Medication Logistics (30 min FOC)',note:'First 30 min of concierge time is free. Additional time billed in 0.5-set (15 min) increments.',fields:[
+  {id:'imt',l:'Medication type',t:'sel',o:['Amara medication (OTC)','Amara prescription medication','Custom fee'],req:1},
   {id:'mfee',l:'Custom fee (AED)',t:'feefield',cond:{f:'imt',has:'Custom fee'}},
-  {id:'meds',l:'Medication (arranged & prescribed by Amara Doctor)',t:'mta',req:1},
+  {id:'meds',l:'Medication arranged',t:'mta',req:1},
   {id:'ct2',l:'Courier',t:'courieropts',n:'UAE, UK or Global'},
-  {id:'adh',l:'Concierge admin time',t:'hours',grp:'gm'},
-  {id:'al',l:'Concierge admin location',t:'sel',o:['Inside UAE','International'],grp:'gm'},
-  {id:'adh_h',l:'Concierge admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'gm'},
+  {id:'pl',l:'Location',t:'sel',o:['Local','International'],req:1,grp:'g1'},
+  {id:'ph2',l:'Hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'g1'},
+  {id:'adh',l:'Total time spent (including free 30 min)',t:'hours',grp:'g3'},
+  {id:'adh_h',l:'Admin hours type',t:'sel',o:['In Hours','Out of Hours'],grp:'g3'},
+  {id:'_preview',l:'Fee preview',t:'medlogpreview'},
   {id:'adesc',l:'Description',t:'admintmpl'}
  ]}
 ]},
@@ -2248,8 +2313,10 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#3D6B85',bg:'#EA
   {id:'nvt',l:'Nurse visit type',t:'multi',o:['Sample collection','Device fitting','Medication administration'],req:1},
   {id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'g1'},
   {id:'dur',l:'Time spent',t:'hours',grp:'g1'},
+  {id:'feepaid',l:'Nurse fee paid (external)',t:'feefield',req:0,n:'Fee paid to the external nurse — enter amount and select currency'},
+  {id:'stdnfee',l:'Use standard fee',t:'nursestdfee',rateKey:'nurseUK',cur:'GBP',n:'UK nurse standard rate (GBP 275 In Hours / GBP 395 Out of Hours) — no markup applied'},
   {id:'padh',l:'Physician admin time',t:'hours',grp:'g2'},
-  {id:'pal',l:'Physician admin location',t:'sel',o:['Inside UAE','International'],grp:'g2'},
+  {id:'pal',l:'Physician admin location',t:'sel',o:['Local','International'],grp:'g2'},
   {id:'padh_h',l:'Physician admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'g2'},
   {id:'ph',l:'Phlebotomy fee',t:'sel',o:['UAE — AED 75','Global — AED 275'],n:'Only if there are blood samples'},
   {id:'lw',l:'Lab work',t:'lab',n:'Ensure lab uses Amara profile (Dubai Lab) and TDL test code for UK'},
@@ -2262,7 +2329,7 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#3D6B85',bg:'#EA
   {id:'vacf',l:'Vaccine administration fee',t:'feetog',fee:'vaccine',cond:{f:'nvt',has:'Medication administration'},grp:'g5'},
   {id:'nnotes',l:'Nurse notes',t:'mta'},
   {id:'adh',l:'Concierge admin time',t:'hours',grp:'g3'},
-  {id:'al',l:'Concierge admin location',t:'sel',o:['Inside UAE','International'],grp:'g3'},
+  {id:'al',l:'Concierge admin location',t:'sel',o:['Local','International'],grp:'g3'},
   {id:'adh_h',l:'Concierge admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'g3'},
   {id:'adesc',l:'Concierge admin time description',t:'admintmpl'}
  ]},
@@ -2276,7 +2343,7 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#3D6B85',bg:'#EA
   {id:'lw',l:'Lab work',t:'lab',n:'Ensure lab uses Amara profile (Dubai Lab) and TDL test code for UK'},
   {id:'labwhere',l:'Laboratory (where samples sent)',t:'labsel'},
   {id:'co',l:'Courier — transport samples',t:'courieropts'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Local','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
@@ -2288,7 +2355,7 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#3D6B85',bg:'#EA
   {id:'dur',l:'Time spent',t:'hours'},
   {id:'ef',l:'ECG / BP monitor fee',t:'tog'},
   {id:'co',l:'Courier — return monitor to hospital',t:'courieropts'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Local','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
@@ -2298,11 +2365,11 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#3D6B85',bg:'#EA
   {id:'nf',l:'Nurse visit fee',t:'tog'},
   {id:'feepaid',l:'Fee paid for nurse / injection',t:'feefield',req:1},
   {id:'dur',l:'Time spent',t:'hours'},
-  {id:'pl',l:'Prescription location',t:'sel',o:['Inside UAE','International']},
+  {id:'pl',l:'Prescription location',t:'sel',o:['Local','International']},
   {id:'ph2',l:'Prescription hours',t:'sel',o:['In Hours','Out of Hours']},
   {id:'prx_dest',l:'Prescription sent to',t:'txt'},
   {id:'if2',l:'Injection / IV drips fee',t:'tog'},
-  {id:'al',l:'Admin concierge location',t:'sel',o:['Inside UAE','International']},
+  {id:'al',l:'Admin concierge location',t:'sel',o:['Local','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
@@ -2313,7 +2380,7 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#3D6B85',bg:'#EA
   {id:'sf',l:'Fee for scan / procedure (if paid)',t:'feefield',req:1,grp:'g2'},
   {id:'rr',l:'Re-reporting fee (UK)',t:'tog',n:'If re-reported in the UK'},
   {id:'adh',l:'Concierge admin time',t:'hours',grp:'g3'},
-  {id:'al',l:'Concierge admin location',t:'sel',o:['Inside UAE','International'],grp:'g3'},
+  {id:'al',l:'Concierge admin location',t:'sel',o:['Local','International'],grp:'g3'},
   {id:'adh_h',l:'Concierge admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'g3'},
   {id:'adesc',l:'Description',t:'admintmpl'}
  ]},
@@ -2323,25 +2390,24 @@ ext:{label:'External Arrangements',sub:'5% markup applies',col:'#3D6B85',bg:'#EA
   {id:'rf',l:'Physician referral sent',t:'tog',n:'First-time specialist — referral fee applies',grp:'g2'},
   {id:'cf',l:'Consultation fee (if we paid)',t:'feefield',grp:'g2'},
   {id:'adh',l:'Concierge admin time',t:'hours',grp:'g3'},
-  {id:'al',l:'Concierge admin location',t:'sel',o:['Inside UAE','International'],grp:'g3'},
+  {id:'al',l:'Concierge admin location',t:'sel',o:['Local','International'],grp:'g3'},
   {id:'adh_h',l:'Concierge admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'g3'},
   {id:'adesc',l:'Description',t:'admintmpl'}
  ]},
- {id:'em',label:'Medication — External',sub:'External medication arrangement',fields:[
-  {id:'pl',l:'Prescription location',t:'sel',o:['Inside UAE','Outside UAE'],req:1,grp:'g1'},
-  {id:'ph2',l:'Prescription hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'g1'},
-  {id:'prx_dest',l:'Pharmacy',t:'txt'},
+ {id:'em',label:'Medication Logistics',sub:'Prescription fee + 30 mins admin included',note:'First 30 min of admin time is free (included in the logistics fee). Additional time billed in 0.5-set (15 min) increments.',fields:[
+  {id:'pl',l:'Location',t:'sel',o:['Local','International'],req:1,grp:'g1'},
+  {id:'ph2',l:'Hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'g1'},
   {id:'meds',l:'Medication arranged',t:'mta',req:1},
-  {id:'feepaid',l:'Fee paid',t:'feefield',req:1},
+  {id:'feepaid',l:'Fee settled by Amara (external payment)',t:'feefield',req:0},
   {id:'emf',l:'External controlled medication fee (minimum AED 75)',t:'tog',n:'Applies when sourcing controlled medication externally.'},
   {id:'ct',l:'Courier',t:'courieropts',n:'UAE, UK or Global'},
-  {id:'adh',l:'Concierge admin time',t:'hours',grp:'g3'},
-  {id:'al',l:'Concierge admin location',t:'sel',o:['Inside UAE','International'],grp:'g3'},
-  {id:'adh_h',l:'Concierge admin hours',t:'sel',o:['In Hours','Out of Hours'],grp:'g3'},
+  {id:'adh',l:'Total time spent (including free 30 min)',t:'hours',grp:'g3'},
+  {id:'adh_h',l:'Admin hours type',t:'sel',o:['In Hours','Out of Hours'],grp:'g3'},
+  {id:'_preview',l:'Fee preview',t:'medlogpreview'},
   {id:'adesc',l:'Description',t:'admintmpl'}
  ]},
- {id:'eadm',label:'Admin Concierge Time',sub:'Concierge admin — per 30-min unit',note:'Standalone concierge time (Inside UAE / International, in / out of hours).',fields:[
-  {id:'al',l:'Location',t:'sel',o:['Inside UAE','International'],req:1,grp:'ga'},
+ {id:'eadm',label:'Admin Concierge Time',sub:'Concierge admin — per 30-min unit',note:'Standalone concierge time (Local / International, in / out of hours).',fields:[
+  {id:'al',l:'Location',t:'sel',o:['Local','International'],req:1,grp:'ga'},
   {id:'adh_h',l:'Hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'ga'},
   {id:'adh',l:'Admin concierge time',t:'hours',req:1},
   {id:'adesc',l:'Description of work',t:'admintmpl'}
@@ -3015,12 +3081,12 @@ function render(){
           if(idata['sm']===true||idata['sm']==='true')rptTotal+=FEES.statMedicine||20;
           if(idata['rf']===true||idata['rf']==='true'){var rfLoc2=idata['al']||'Inside UAE';var rfH2=idata['rf_h']||idata['ch']||idata['nv']||'In Hours';var rfk2=rfH2+'-'+(rfLoc2==='International'?'International':rfLoc2.startsWith('Inside')?'Inside UAE':'Outside UAE');rptTotal+=FEES.referral[rfk2]||220;}
           if(idata['rr']===true||idata['rr']==='true')rptTotal+=FEES.reReport||500;
-          if(item.id==='im'&&idata['imt']){if(idata['imt'].indexOf('OTC')>=0)rptTotal+=FEES.internalMedOTC||75;else if(idata['imt'].indexOf('Custom')>=0){var _mfr=idata['mfee'];if(_mfr&&parseFloat(_mfr.amount))rptTotal+=parseFloat(_mfr.amount)||0;}else rptTotal+=FEES.internalMedPrescription||195;}
+          if(item.id==='im'&&idata['imt']){var _rptMF=0;if(idata['imt'].indexOf('OTC')>=0){_rptMF=FEES.internalMedOTC||75;}else if(idata['imt'].indexOf('Custom')>=0){var _mfr=idata['mfee'];_rptMF=(_mfr&&parseFloat(_mfr.amount))||0;}else{_rptMF=FEES.internalMedPrescription||195;}rptTotal+=_rptMF;if(idata['ph2']){var _rptImLoc=idata['pl']||'Local';var _rptImReg=(_rptImLoc==='International'||_rptImLoc.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';rptTotal+=calcMedLogisticsFee(_rptImReg,idata['ph2'],idata['adh']).total||0;}}
           if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true'))rptTotal+=FEES.externalMedMin||75;
           if(item.id==='ic'&&idata['ptype']){var prxLocIC=idata['al']||'Inside UAE';var prxHIC=idata['ch']||'In Hours';var prxKIC=prxHIC+'-'+(prxLocIC==='International'?'International':prxLocIC.startsWith('Inside')?'Inside UAE':'Outside UAE');rptTotal+=FEES.prescription&&FEES.prescription[prxKIC]?FEES.prescription[prxKIC]:0;}
-          if(item.id==='em'&&idata['pl']&&idata['ph2']){var prxL=idata['pl'],prxH2=idata['ph2'];var prxK=prxH2+'-'+(prxL.toLowerCase().indexOf('international')>=0?'International':prxL.toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');rptTotal+=FEES.prescription&&FEES.prescription[prxK]?FEES.prescription[prxK]:0;}
+          if(item.id==='em'&&idata['ph2']){var _emLR=idata['pl']||'Local';var _emWR=idata['ph2']||'In Hours';var _emRegR=(_emLR==='International'||_emLR.toLowerCase().indexOf('international')>=0||_emLR==='Global')?'UAE-International':'UAE-Local';var _emFR=calcMedLogisticsFee(_emRegR,_emWR,idata['adh']);rptTotal+=_emFR.total||0;}
           ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv.amount)&&(fv.cur||'AED')==='AED')rptTotal+=parseFloat(fv.amount)||0;});
-          if(idata['adh']){rptTotal+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
+          if(idata['adh']&&item.id!=='em'){rptTotal+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
           if(Array.isArray(idata['lw'])&&idata['lw'].length)rptTotal+=_labTotalFor(idata['lw'],_skRegion(sk));
         });
       }
@@ -3063,10 +3129,18 @@ async function refreshPatientsOnly(){
     }
   }catch(e){console.warn('Patient refresh failed (using cached list):',e);}
 }
+
+function _branchToRegion(branch){
+  if(branch==='UK')return{ir:'u',er:'u'};
+  if(branch==='Global')return{ir:'g',er:'g'};
+  return{ir:'x',er:'x'};
+}
 function openNew(){
   curBill={patientName:'',branch:'UAE',status:(CFG.statuses&&CFG.statuses[0]?CFG.statuses[0].name:'In progress'),billedBy:_curUser||'',notes:'',billingData:{},followUps:[],billDate:new Date().toISOString().slice(0,10)};
-  openItems={};document.getElementById('bmod-t').textContent='New Patient Bill';swTab('i');openMod('bmod');
-  // Silently refresh patient list in the background so any recent profile edits are picked up
+  openItems={};
+  // Reset region tabs to UAE by default for new bills
+  intRegion='x';extRegion='x';
+  document.getElementById('bmod-t').textContent='New Patient Bill';swTab('i');openMod('bmod');
   refreshPatientsOnly();
 }
 function openEdit(id){
@@ -3078,7 +3152,11 @@ function openEdit(id){
   // Set billDate from createdAt for display in date picker
   if(!curBill.billDate&&curBill.createdAt)curBill.billDate=curBill.createdAt.slice(0,10);
   if(!curBill.billDate)curBill.billDate=new Date().toISOString().slice(0,10);
-  openItems={};document.getElementById('bmod-t').textContent=b.patientName||'Edit Bill';swTab('i');openMod('bmod');
+  openItems={};
+  // Set region tabs from bill's branch so the correct section opens immediately
+  var _br=_branchToRegion(curBill.branch||'UAE');
+  intRegion=_br.ir;extRegion=_br.er;
+  document.getElementById('bmod-t').textContent=b.patientName||'Edit Bill';swTab('i');openMod('bmod');
 }
 var extRegion='x';
 function setExtRegion(r){extRegion=r;renderBForm();}
@@ -3103,7 +3181,16 @@ function renderBForm(){
   if(curTab==='f'){body.innerHTML=lockBanner()+renderFUTab();attachTextListeners(body,'fu');return;}
   if(curTab==='n'){
     var _iOpts=[{r:'x',l:'UAE'},{r:'u',l:'UK'},{r:'g',l:'Global'}];
-    var intPills='<div style="display:flex;gap:6px;margin-bottom:14px;">'+_iOpts.map(function(opt){var on=intRegion===opt.r;return'<button type="button" data-ir="'+opt.r+'" onclick="setIntRegion(this.dataset.ir)" style="padding:6px 16px;border-radius:99px;font-size:12px;font-weight:600;border:1.5px solid '+(on?'var(--g)':'var(--bo)')+';background:'+(on?'var(--g)':'var(--wh)')+';color:'+(on?'#FBF7EC':'var(--m2)')+';cursor:pointer;">'+opt.l+'</button>';}).join('')+'</div>';
+    var _homeReg=curBill.patientName?(typeof pRegion==='function'?pRegion(curBill.patientName):''):'';
+    var _homeIR=_homeReg==='UK'?'u':_homeReg==='Global'?'g':'x';
+    // Mismatch warning if team has switched away from patient's home region
+    var _intMismatch=curBill.patientName&&_homeReg&&intRegion!==_homeIR;
+    var intMismatchBanner=_intMismatch?'<div style="font-size:11px;background:#FFF3E0;border:1px solid #EF9F27;border-radius:var(--r);padding:7px 11px;margin-bottom:10px;color:#7A4700;">&#9888; Patient\'s home region is <strong>'+_homeReg+'</strong> — are you sure you want to bill under '+(_iOpts.find(function(o){return o.r===intRegion;})||{l:'this region'}).l+'?</div>':'';
+    var intPills='<div style="display:flex;gap:6px;margin-bottom:'+(intMismatchBanner?'8':'14')+'px;">'+_iOpts.map(function(opt){
+      var on=intRegion===opt.r;
+      var isHome=opt.r===_homeIR&&_homeReg;
+      return'<button type="button" data-ir="'+opt.r+'" onclick="setIntRegion(this.dataset.ir)" style="padding:6px 16px;border-radius:99px;font-size:12px;font-weight:600;border:1.5px solid '+(on?'var(--g)':isHome?'var(--oc)':'var(--bo)')+';background:'+(on?'var(--g)':'var(--wh)')+';color:'+(on?'#FBF7EC':isHome?'var(--oc)':'var(--m2)')+';cursor:pointer;">'+opt.l+(isHome&&!on?' &#9632;':'')+'</button>';
+    }).join('')+'</div>'+intMismatchBanner;
     if(intRegion==='u'){body.innerHTML=lockBanner()+lockWrap(intPills+renderUKSec('intUK','internal_uk'));attachTextListeners(body,'intUK');}
     else if(intRegion==='g'){body.innerHTML=lockBanner()+lockWrap(intPills+renderUKSec('intGL','internal_global'));attachTextListeners(body,'intGL');}
     else{body.innerHTML=lockBanner()+lockWrap(intPills+renderSecTab('int'));attachTextListeners(body,'int');}
@@ -3112,12 +3199,17 @@ function renderBForm(){
   // External tab — show UAE/UK/Global region pills then section
   var sk=extRegion==='u'?'extUK':extRegion==='g'?'extGlobal':'ext';
   var _rOpts=[{r:'x',l:'UAE'},{r:'u',l:'UK'},{r:'g',l:'Global'}];
-  var regionPills='<div style="display:flex;gap:6px;margin-bottom:14px;">'+
+  var _homeRegExt=curBill.patientName?(typeof pRegion==='function'?pRegion(curBill.patientName):''):'';
+  var _homeER=_homeRegExt==='UK'?'u':_homeRegExt==='Global'?'g':'x';
+  var _extMismatch=curBill.patientName&&_homeRegExt&&extRegion!==_homeER;
+  var extMismatchBanner=_extMismatch?'<div style="font-size:11px;background:#FFF3E0;border:1px solid #EF9F27;border-radius:var(--r);padding:7px 11px;margin-bottom:10px;color:#7A4700;">&#9888; Patient\'s home region is <strong>'+_homeRegExt+'</strong> — are you sure you want to bill under '+(_rOpts.find(function(o){return o.r===extRegion;})||{l:'this region'}).l+'?</div>':'';
+  var regionPills='<div style="display:flex;gap:6px;margin-bottom:'+(extMismatchBanner?'8':'14')+'px;">'+
     _rOpts.map(function(opt){
       var on=extRegion===opt.r;
-      return'<button type="button" data-er="'+opt.r+'" onclick="setExtRegion(this.dataset.er)" style="padding:6px 16px;border-radius:99px;font-size:12px;font-weight:600;border:1.5px solid '+(on?'var(--g)':'var(--bo)')+';background:'+(on?'var(--g)':'var(--wh)')+';color:'+(on?'#FBF7EC':'var(--m2)')+';cursor:pointer;">'+opt.l+'</button>';
+      var isHome=opt.r===_homeER&&_homeRegExt;
+      return'<button type="button" data-er="'+opt.r+'" onclick="setExtRegion(this.dataset.er)" style="padding:6px 16px;border-radius:99px;font-size:12px;font-weight:600;border:1.5px solid '+(on?'var(--g)':isHome?'var(--oc)':'var(--bo)')+';background:'+(on?'var(--g)':'var(--wh)')+';color:'+(on?'#FBF7EC':isHome?'var(--oc)':'var(--m2)')+';cursor:pointer;">'+opt.l+(isHome&&!on?' &#9632;':'')+'</button>';
     }).join('')+
-    '</div>';
+    '</div>'+extMismatchBanner;
   body.innerHTML=lockBanner()+lockWrap(regionPills+(extRegion==='u'?renderUKSec():renderSecTab(sk)));
   attachTextListeners(body,sk);
   }catch(e){console.error('renderBForm error:',e);var body2=document.getElementById('bmod-body');if(body2)body2.innerHTML='<div style="padding:20px;color:var(--re);">Error loading form. Please close and reopen the bill. ('+e.message+')</div>';}
@@ -3384,7 +3476,7 @@ function selectPatient(name){
     if(_pr&&['UAE','UK','Global'].indexOf(_pr)>=0)curBill.branch=_pr;
     // Default internal/external region tabs to patient's home geography
     if(_pr==='UK'){intRegion='u';extRegion='u';}
-    else if(_pr==='Global'){intRegion='g';extRegion='x';}
+    else if(_pr==='Global'){intRegion='g';extRegion='g';}
     else{intRegion='x';extRegion='x';}
     // For NEW bills (no id yet), always sync notes/rolling invoice from the current patient record
     // so recent edits to the patient profile are reflected, including clearing removed values.
@@ -3415,7 +3507,7 @@ function setF(k,v){
     }
     // Also update region tabs to match new branch
     if(v==='UK'){intRegion='u';extRegion='u';}
-    else if(v==='Global'){intRegion='g';extRegion='x';}
+    else if(v==='Global'){intRegion='g';extRegion='g';}
     else{intRegion='x';extRegion='x';}
   }
   curBill[k]=v;
@@ -3594,6 +3686,16 @@ function renderDF(sk,itemId,f,val){
       '</div>';
   }
   if(f.t==='hours'){
+    // For em/im (Medication Logistics), adh preview is handled by medlogpreview field — suppress generic here
+    if(id_==='em'||id_==='im'){
+      var hv0=val||{h:'',m:''};
+      var _emHours='\''+sk_+'\''+','+'\'' +id_+'\''+',' + '\'' +fid_+'\'';
+      return '<div class="dr"><div class="dl">'+esc(f.l)+(f.n?' <span style="font-style:italic;color:var(--m2);font-weight:400;"> — '+esc(f.n)+'</span>':'')+' </div>'+
+        '<div class="hrs-w">'+
+        '<input class="hrs-n" type="number" min="0" max="23" placeholder="0" value="'+esc(hv0.h||'')+'" data-save-key="'+sk_+'|'+id_+'|'+fid_+'_h"><span class="hrs-l">hrs</span>'+
+        '<input class="hrs-n" type="number" min="0" max="59" placeholder="0" value="'+esc(hv0.m||'')+'" data-save-key="'+sk_+'|'+id_+'|'+fid_+'_m"><span class="hrs-l">min</span>'+
+        '</div></div>';
+    }
     var hv=val||{h:'',m:''};
     var _hMins=(parseInt(hv.h)||0)*60+(parseInt(hv.m)||0);
     var _hUnits=_hMins>0?adminUnits(_hMins):0;
@@ -3601,7 +3703,7 @@ function renderDF(sk,itemId,f,val){
     var _hPreview='';
     if(_hMins>0&&_hUnits>0){
       var _hHT=(fid_==='padh'?curBill.billingData[sk_]&&curBill.billingData[sk_][id_]&&curBill.billingData[sk_][id_]['padh_h']:'In Hours')||'In Hours';
-      var _hLoc=(fid_==='padh'?curBill.billingData[sk_]&&curBill.billingData[sk_][id_]&&curBill.billingData[sk_][id_]['pal']:'Inside UAE')||'Inside UAE';
+      var _hLocRaw=(fid_==='padh'?curBill.billingData[sk_]&&curBill.billingData[sk_][id_]&&curBill.billingData[sk_][id_]['pal']:null)||'Inside UAE';var _hLoc=(_hLocRaw==='Local'||_hLocRaw.startsWith('Inside'))?'Inside UAE':_hLocRaw;
       var _fType=(fid_==='padh'||fid_==='adh')?'physAdmin':'adminTime';
       var _hRate=(FEES[_fType]&&FEES[_fType][_hHT+'-'+_hLoc])||0;
       var _hFee=_hUnits*_hRate;
@@ -3628,7 +3730,59 @@ function renderDF(sk,itemId,f,val){
       '<input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc(fv.amount||'')+'" data-save-key="'+sk_+'|'+id_+'|'+fid_+'_amt">'+
       '</div></div>';
   }
-  if(f.t==='lab'){
+  if(f.t==='nursestdfee'){
+    var _rk=f.rateKey||'nurseUK';
+    var _fdc=f.cur||'AED';
+    // In renderDF context, get parent item data from curBill (idata not in scope here)
+    var _itemData=(curBill.billingData[sk_]&&curBill.billingData[sk_][id_])||{};
+    var _when=_itemData['nv']||_itemData['when']||'In Hours';
+    var _stdRate=(FEES[_rk]&&FEES[_rk][_when])||0;
+    var _togOn=val&&val.on===true;
+    var _overrideAmt=(val&&val.override!=null)?val.override:_stdRate;
+    var _stdRateStr=_fdc+' '+(_stdRate||0);
+    var _onclick='toggleStdNFee(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',\''+_rk+'\',\''+_fdc+'\',\''+_when+'\')';
+    var _onchange='setStdNFeeOverride(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',this.value)';
+    return '<div class="dr"><div class="dl">'+esc(f.l)+(f.n?' <span style="font-weight:400;font-style:italic;color:var(--m2);">— '+esc(f.n)+'</span>':'')+' </div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;">'+
+        '<button type="button" class="tog-btn" style="background:'+(_togOn?'var(--t)':'#C5BAB0')+';" onclick="'+_onclick+'">'+
+          '<div class="tog-thumb" style="left:'+(_togOn?'19':'3')+'px;"></div>'+
+        '</button>'+
+        '<span style="font-size:13px;font-weight:500;">'+esc(_stdRateStr)+'</span>'+
+        '<span style="font-size:11px;color:var(--m2);">'+esc(_when)+'</span>'+
+        '<span style="font-size:11px;font-weight:700;color:var(--g);">No markup</span>'+
+      '</div>'+
+      (_togOn?
+        '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;">'+
+          '<span style="font-size:11px;color:var(--m2);">Override:</span>'+
+          '<span style="font-size:12px;color:var(--m2);">'+esc(_fdc)+'</span>'+
+          '<input class="fee-inp" style="width:110px;" type="number" min="0" step="0.01" value="'+esc(String(_overrideAmt))+'" onchange="'+_onchange+'">'+
+          '<span style="font-size:11px;color:var(--m2);">default: '+esc(_stdRateStr)+'</span>'+
+        '</div>':'')+'</div>';
+  }
+  if(f.t==='medlogpreview'){
+    // Live fee preview for Medication Logistics (em and im items)
+    var _pvItem2=curBill.billingData[sk_]&&curBill.billingData[sk_][id_]||{};
+    var _pvPl2=_pvItem2['pl']||_pvItem2['al']||'';
+    var _pvWhen2=_pvItem2['ph2']||_pvItem2['adh_h']||'';
+    var _pvAdh2=_pvItem2['adh']||{};
+    if(!_pvWhen2)return '<div class="dr" style="font-size:11px;color:var(--m2);padding:8px 0;">Select location and hours above to see fee preview.</div>';
+    var _pvReg2=(_pvPl2==='International'||_pvPl2.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';
+    var _pvFee2=calcMedLogisticsFee(_pvReg2,_pvWhen2,_pvAdh2);
+    var _pvLines2=[];
+    _pvLines2.push('<div style="display:flex;justify-content:space-between;font-weight:600;"><span>Medication Logistics fee</span><span>AED '+_pvFee2.baseFee.toLocaleString()+'</span></div>');
+    _pvLines2.push('<div style="font-size:10px;color:var(--m2);margin-bottom:4px;">'+_pvWhen2+' · '+(_pvPl2||'Local')+' · Prescription + 30 min included</div>');
+    var _pvMins2=(parseInt(_pvAdh2.h||0)*60+parseInt(_pvAdh2.m||0));
+    if(_pvMins2>0&&_pvMins2<=30){
+      _pvLines2.push('<div style="display:flex;justify-content:space-between;color:var(--g);"><span>30 min included</span><span>AED 0</span></div>');
+    } else if(_pvMins2>30){
+      _pvLines2.push('<div style="display:flex;justify-content:space-between;color:var(--m2);font-size:11px;"><span>30 min included</span><span>AED 0</span></div>');
+      _pvLines2.push('<div style="display:flex;justify-content:space-between;"><span>Extra '+_pvFee2.extraSets+' set'+(+_pvFee2.extraSets!==1?'s':'')+' × AED '+_pvFee2.adminRate+'</span><span style="font-weight:600;">AED '+_pvFee2.extraFee.toLocaleString()+'</span></div>');
+      _pvLines2.push('<div style="border-top:1px solid var(--bo);margin-top:5px;padding-top:5px;display:flex;justify-content:space-between;font-weight:700;"><span>Total</span><span>AED '+_pvFee2.total.toLocaleString()+'</span></div>');
+    }
+    return '<div class="dr"><div style="background:var(--wh2);border:1px solid var(--bo);border-radius:var(--r);padding:10px 12px;font-size:12px;line-height:2;">'+_pvLines2.join('')+'</div></div>';
+  }
+
+if(f.t==='lab'){
     var sel=Array.isArray(val)?val:[];var ddO=!!openItems['lab_'+sk_+'_'+id_];
     var labQ=openItems['labq_'+sk_+'_'+id_]||'';
     var _lreg=_skRegion(sk_),_lcur=_labCur(_lreg);
@@ -3748,7 +3902,8 @@ function autoFillAdminDesc(sk,itemId){
   }
   // Medication — internal
   else if(itemId==='im'){
-    desc='Medication arranged, prescribed by Amara Doctor'+(meds?': '+meds:'')+'.';
+    var _bd=curBill&&(curBill.billDate||curBill.createdAt);
+    desc=typeof fmtMedLogisticsDesc==='function'?fmtMedLogisticsDesc(_bd):('Locating medications, confirming proper dispensing with pharmacist, arranging delivery where required. Service provided by medical concierge, which is not typically covered by health insurance.');
   }
   // Medication — external
   else if(['em'].includes(itemId)){
@@ -3823,125 +3978,36 @@ function applyTmpl(sk,itemId,fId,idx){
 }
 
 // ── FOLLOW-UPS ──
-var FU_TYPES=['Admin time','Physician time','Fee settlement','Additional tests','Medication follow-up','Nurse follow-up','Other'];
-var FU_TYPE_META={
-  'Admin time':{icon:'\u{1F4CB}',col:'#6B5B8A',bg:'#F3F1F7'},
-  'Physician time':{icon:'\u{1FA7A}',col:'#185FA5',bg:'#F0F5FB'},
-  'Fee settlement':{icon:'\u{1F4B0}',col:'#B8813A',bg:'#FBF6EE'},
-  'Additional tests':{icon:'\u{1F52C}',col:'#0F6E56',bg:'#F0F7F4'},
-  'Medication follow-up':{icon:'\u{1F48A}',col:'#534AB7',bg:'#F2F1FD'},
-  'Nurse follow-up':{icon:'\u{1FA79}',col:'#0F6E56',bg:'#F0F7F4'},
-  'Other':{icon:'\u{1F4CC}',col:'#73706A',bg:'#F0ECE6'}
-};
-function _fuRegionRate(type,region,loc,when){
-  // type: 'admin' or 'phys' — region: 'UAE'|'UK'|'Global' — loc (UAE only): 'Inside UAE'|'International'
-  if(region==='UAE'){
-    var table=type==='phys'?FEES.physAdmin:FEES.teamAdmin;
-    return (table&&table[when+'-'+(loc||'Inside UAE')])||0;
-  }
-  if(region==='UK'){
-    return (FEES.adminUK&&FEES.adminUK[when])||0;
-  }
-  // Global — flat AED rates mirroring richInternalGlobalItems
-  return type==='phys'?(when==='Out of Hours'?830:550):(when==='Out of Hours'?255:170);
-}
-function _fuRegionCur(region){return region==='UK'?'GBP':'AED';}
 function renderFUTab(){
   var fus=curBill.followUps||[];
-  var h='<p style="font-size:12px;color:var(--m2);margin-bottom:12px;line-height:1.5;">Add follow-up entries with their own date \u2014 admin time, physician time, fee settlements and more, across UAE, UK or Global, in any currency.</p><div>';
+  var h='<p style="font-size:12px;color:var(--m2);margin-bottom:12px;line-height:1.5;">Add follow-up entries with their own date. Useful for admin time logged on different days, fee settlements, and additional services.</p><div>';
   fus.forEach(function(fu,idx){
-    var meta=FU_TYPE_META[fu.type]||FU_TYPE_META['Other'];
-    var isOpen=openItems['fu_open_'+idx]!==false; // default open for follow-ups (they're already explicit entries)
-    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);">';
-    h+='<div class="bl-row" onclick="togFUCard('+idx+')" style="background:'+meta.bg+';">'+
-      '<span style="font-size:16px;flex-shrink:0;">'+meta.icon+'</span>'+
-      '<div class="bl-lbl"><div class="bl-lt" style="color:'+meta.col+';">'+esc(fu.type||'Follow-up')+'</div>'+
-      '<div class="bl-ls">'+fdt(fu.date)+(fu.addedBy?' \u00b7 '+esc(fu.addedBy):'')+'</div></div>'+
-      '<button type="button" onclick="event.stopPropagation();removeFU('+idx+')" style="background:none;border:none;color:var(--re);font-size:11px;cursor:pointer;padding:4px 6px;flex-shrink:0;">&#10005;</button>'+
-      '<span class="bl-cv'+(isOpen?' op':'')+'">&#9662;</span>'+
-      '</div>';
-    if(isOpen){
-      h+='<div class="bl-det">';
-      h+='<div class="dr2" style="margin-bottom:8px;">'+
+    h+='<div class="fu-entry">'+
+      '<button type="button" class="fu-rem" onclick="removeFU('+idx+')" title="Delete this follow-up">&#10005; Delete</button>'+
+      '<div class="dr2" style="margin-bottom:8px;">'+
       '<div><span class="dl">Date</span><input class="dfi" type="date" value="'+esc(fu.date||'')+'" data-fu-idx="'+idx+'" data-fu-key="date" data-save-key="FU"></div>'+
       '<div><span class="dl">Time (optional)</span><input class="dfi" type="time" value="'+esc(fu.time||'')+'" data-fu-idx="'+idx+'" data-fu-key="time" data-save-key="FU"></div>'+
       '<div><span class="dl">Type</span><select class="fse" onchange="setFU('+idx+',\'type\',this.value)">'+
-      FU_TYPES.map(function(t){return'<option'+(fu.type===t?' selected':'')+'>'+t+'</option>';}).join('')+
+      ['Admin time','Fee settlement','Additional tests','Medication follow-up','Nurse follow-up','Other'].map(function(t){return'<option'+(fu.type===t?' selected':'')+'>'+t+'</option>';}).join('')+
       '</select></div></div>'+
-      '<div class="dr"><span class="dl">Added by</span>'+
-      '<select class="fse" onchange="setFU('+idx+',\'addedBy\',this.value)">'+
-      '<option value="">— Select team member —</option>'+
-      CFG.team.map(function(tm){return'<option'+(fu.addedBy===tm?' selected':'')+'>'+escJ(tm)+'</option>';}).join('')+
-      '</select></div>';
-
-      if(fu.type==='Admin time'||fu.type==='Physician time'){
-        h+=renderFUTimeBlock(idx,fu);
-      }
-
-      h+='<div class="dr"><span class="dl">Description</span>'+
+      '<div class="dr"><span class="dl">Description</span>'+
       '<div class="tmpl-w" style="margin-bottom:4px;"><div class="tmpl-hd" onclick="togFUTmpl('+idx+')">Choose template&#8230; <span style="opacity:.35;">&#9662;</span></div>'+
       '<div class="tmpl-bd'+(openItems['fu_tmpl_'+idx]?' op':'')+'">'+
       ATMPLS.map(function(t,ti){return'<div class="tmpl-it" onclick="applyFUTmpl('+idx+','+ti+')">'+esc(t.l)+'</div>';}).join('')+
       '</div></div>'+
-      '<textarea class="dfta" placeholder="Description of follow-up action&#8230;" data-fu-idx="'+idx+'" data-fu-key="desc" data-save-key="FU">'+esc(fu.desc||'')+'</textarea></div>';
-
-      if(fu.type==='Additional tests')h+=renderFULabPicker(idx,fu);
-
-      if(fu.type==='Fee settlement')h+=renderFUFeeBlock(idx,fu);
-
-      h+='</div>';
-    }
-    h+='</div>';
+      '<textarea class="dfta" placeholder="Description of follow-up action&#8230;" data-fu-idx="'+idx+'" data-fu-key="desc" data-save-key="FU">'+esc(fu.desc||'')+'</textarea></div>'+
+      (fu.type==='Additional tests'?renderFULabPicker(idx,fu)+'':'')+
+      (fu.type==='Fee settlement'?
+        '<div class="dr"><span class="dl">Amount Settled</span><div class="fee-w">'+
+        '<select class="fee-cur-sel" onchange="setFU('+idx+',\'cur\',this.value)">'+
+        CURRENCIES.map(function(c){return'<option'+(fu.cur===c?' selected':'')+'>'+c+'</option>';}).join('')+
+        '</select><input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc(fu.amount||'')+'" data-fu-idx="'+idx+'" data-fu-key="amount" data-save-key="FU">'+
+        '</div></div>':'')+
+      '</div>';
   });
   h+='</div><button type="button" class="add-fu" onclick="addFU()" style="margin-top:8px;">+ Add Follow-up Entry</button>';
   return h;
 }
-function renderFUTimeBlock(idx,fu){
-  var isPhys=fu.type==='Physician time';
-  var region=fu.region||'UAE';
-  var loc=fu.fuLoc||'Inside UAE';
-  var when=fu.fuWhen||'In Hours';
-  var dur=fu.duration||{h:'',m:''};
-  var mins=(parseInt(dur.h)||0)*60+(parseInt(dur.m)||0);
-  var units=mins>0?adminUnits(mins):0;
-  var rate=_fuRegionRate(isPhys?'phys':'admin',region,loc,when);
-  var cur=_fuRegionCur(region);
-  var fee=units*rate;
-  var h='<div class="dr"><span class="dl">Region</span><div class="chips">'+
-    ['UAE','UK','Global'].map(function(r){return'<button type="button" class="chip'+(region===r?' on':'')+'" onclick="setFURegion('+idx+',\''+r+'\')">'+r+'</button>';}).join('')+
-    '</div></div>';
-  if(region==='UAE'){
-    h+='<div class="dr"><span class="dl">Location</span><div class="chips">'+
-      ['Inside UAE','International'].map(function(l){return'<button type="button" class="chip'+(loc===l?' on':'')+'" onclick="setFU('+idx+',\'fuLoc\',\''+l+'\')">'+l+'</button>';}).join('')+
-      '</div></div>';
-  }
-  h+='<div class="dr"><span class="dl">Hours</span><div class="chips">'+
-    ['In Hours','Out of Hours'].map(function(w){return'<button type="button" class="chip'+(when===w?' on':'')+'" onclick="setFU('+idx+',\'fuWhen\',\''+w+'\')">'+w+'</button>';}).join('')+
-    '</div></div>';
-  h+='<div class="dr"><span class="dl">'+(isPhys?'Physician':'Admin')+' time spent</span>'+
-    '<div class="hrs-w">'+
-    '<input class="hrs-n" type="number" min="0" max="23" placeholder="0" value="'+esc(dur.h||'')+'" onchange="setFUDur('+idx+',\'h\',this.value)"><span class="hrs-l">hrs</span>'+
-    '<input class="hrs-n" type="number" min="0" max="59" placeholder="0" value="'+esc(dur.m||'')+'" onchange="setFUDur('+idx+',\'m\',this.value)"><span class="hrs-l">min</span>'+
-    '</div>'+
-    (units>0?'<div style="font-size:11px;color:var(--oc);font-weight:700;margin-top:4px;">'+units+' set'+(units!==1?'s':'')+' \u00d7 '+cur+' '+rate.toLocaleString()+' = <strong>'+cur+' '+fee.toLocaleString()+'</strong><span style="font-weight:400;color:var(--m2);"> ('+when+(region==='UAE'?' \u00b7 '+loc:'')+')</span></div>':'')+
-    '</div>';
-  return h;
-}
-function renderFUFeeBlock(idx,fu){
-  var amt=parseFloat(fu.amount)||0;
-  var cur=fu.cur||'AED';
-  var mkr=_settleMk(cur);
-  var settled=amt>0?Math.round(amt*(1+mkr)*100)/100:0;
-  return '<div class="dr"><span class="dl">Amount Settled</span><div class="fee-w">'+
-    '<select class="fee-cur-sel" onchange="setFU('+idx+',\'cur\',this.value)">'+
-    CURRENCIES.map(function(c){return'<option'+(fu.cur===c?' selected':'')+'>'+c+'</option>';}).join('')+
-    '</select><input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc(fu.amount||'')+'" data-fu-idx="'+idx+'" data-fu-key="amount" data-save-key="FU">'+
-    '</div>'+
-    (amt>0?'<div style="font-size:11px;color:var(--oc);font-weight:700;margin-top:4px;">'+cur+' '+settled.toLocaleString()+' settled <span style="font-weight:400;color:var(--m2);">(+'+Math.round(mkr*100)+'% markup)</span></div>':'')+
-    '</div>';
-}
-function togFUCard(idx){var k='fu_open_'+idx;openItems[k]=openItems[k]===false?true:false;renderBForm();}
-function setFURegion(idx,region){if(!curBill.followUps[idx])return;curBill.followUps[idx].region=region;renderBForm();}
 function renderFULabPicker(idx,fu){
   var sel=Array.isArray(fu.labs)?fu.labs:[];
   var labwhere=fu.labwhere||'';
@@ -3982,10 +4048,9 @@ function setFULabWhere(idx,val){
   curBill.followUps[idx].labwhere=val;
   renderBForm();
 }
-function addFU(){if(!curBill.followUps)curBill.followUps=[];curBill.followUps.push({date:new Date().toISOString().slice(0,10),type:'Admin time',desc:'',amount:'',cur:'AED',labs:[],labwhere:'',addedBy:_curUser||'',duration:{h:'',m:''},region:curBill.branch||'UAE',fuLoc:'Inside UAE',fuWhen:'In Hours'});renderBForm();}
-function setFUDur(idx,part,val){if(!curBill.followUps||!curBill.followUps[idx])return;if(!curBill.followUps[idx].duration)curBill.followUps[idx].duration={h:'',m:''};curBill.followUps[idx].duration[part]=val;renderBForm();}
+function addFU(){if(!curBill.followUps)curBill.followUps=[];curBill.followUps.push({date:new Date().toISOString().slice(0,10),type:'Admin time',desc:'',amount:'',cur:'AED',labs:[],labwhere:''});renderBForm();}
 function removeFU(idx){var _f=curBill.followUps[idx];var _l=(_f&&_f.type?_f.type:'this follow-up')+(_f&&_f.date?' ('+_f.date+')':'');if(!confirm('Delete '+_l+'?'))return;curBill.followUps.splice(idx,1);renderBForm();toast('Follow-up deleted','in');}
-function setFU(idx,k,v){if(!curBill.followUps[idx])return;curBill.followUps[idx][k]=v;if(k==='type'||k==='fuLoc'||k==='fuWhen'||k==='cur')renderBForm();}
+function setFU(idx,k,v){if(!curBill.followUps[idx])return;curBill.followUps[idx][k]=v;if(k==='type')renderBForm();}
 function togFUTmpl(idx){var k='fu_tmpl_'+idx;openItems[k]=!openItems[k];renderBForm();}
 function applyFUTmpl(idx,ti){var t=ATMPLS[ti];if(!curBill.followUps[idx])return;curBill.followUps[idx].desc=t.t||t.text||'';openItems['fu_tmpl_'+idx]=false;renderBForm();}
 
@@ -4057,64 +4122,55 @@ function attachTextListeners(body,ctx){
   });
 }
 
+
+function _billHasContent(){
+  if(!curBill)return false;
+  if(curBill.patientName)return true;
+  if(!curBill.billingData)return false;
+  return Object.keys(curBill.billingData).some(function(sk){
+    if(sk==='_followUps')return false;
+    var sec=curBill.billingData[sk]||{};
+    return Object.keys(sec).some(function(id){
+      var item=sec[id];
+      if(!item||typeof item!=='object')return false;
+      return Object.keys(item).some(function(k){var v=item[k];return v&&(Array.isArray(v)?v.length>0:v!==false&&v!=='');});
+    });
+  });
+}
+function stashDraftAndClose(){
+  if(_billHasContent()){
+    var ov=document.getElementById('bmod-confirm');
+    if(!ov){
+      var d=document.createElement('div');
+      d.id='bmod-confirm';
+      d.style.cssText='position:absolute;inset:0;background:rgba(20,20,20,.55);z-index:9999;display:flex;align-items:center;justify-content:center;border-radius:var(--rl);';
+      d.innerHTML=
+        '<div style="background:var(--wh);border-radius:var(--rl);padding:24px 28px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.18);">'+
+        '<div style="font-size:28px;margin-bottom:10px;">&#128683;</div>'+
+        '<div style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:6px;">Leave without saving?</div>'+
+        '<div style="font-size:13px;color:var(--m2);margin-bottom:20px;line-height:1.5;">Your billing items will be lost.</div>'+
+        '<div style="display:flex;gap:10px;justify-content:center;">'+
+          '<button onclick="document.getElementById(&quot;bmod-confirm&quot;).remove()" style="flex:1;padding:10px;border-radius:var(--r);border:1px solid var(--bo2);background:var(--wh);font-size:13px;font-weight:600;cursor:pointer;color:var(--tx);">Keep editing</button>'+
+          '<button onclick="document.getElementById(&quot;bmod-confirm&quot;).remove();closeMod(&quot;bmod&quot;);" style="flex:1;padding:10px;border-radius:var(--r);border:none;background:var(--re);font-size:13px;font-weight:600;cursor:pointer;color:#fff;">Leave</button>'+
+        '</div>'+
+        '</div>';
+      var mbox=document.querySelector('#bmod .mbox');
+      if(mbox){mbox.style.position='relative';mbox.appendChild(d);}
+      else{document.getElementById('bmod').appendChild(d);}
+    }
+    return;
+  }
+  closeMod('bmod');
+}
 async function saveBill(){
   if(!(curBill.patientName||'').trim()){toast('Patient name is required','er');return;}
   if(!(curBill.billedBy||'').trim()){toast('Please select who billed this','er');return;}
   if(_savingBill)return;_savingBill=true;
   try{
-    // Detect new follow-ups added to an already-invoiced bill, before save overwrites the old record
-    var _oldBill=curBill.id?bills.find(function(x){return x.id===curBill.id;}):null;
-    var _hasInvoice=!!((curBill.invoiceNo&&String(curBill.invoiceNo).trim())||(curBill.soNumber&&String(curBill.soNumber).trim()));
-    var _oldFUCount=(_oldBill&&Array.isArray(_oldBill.billingData&&_oldBill.billingData._followUps))?_oldBill.billingData._followUps.length:0;
-    var _newFUCount=(curBill.followUps||[]).length;
-    var _newFUs=_hasInvoice&&_newFUCount>_oldFUCount?(curBill.followUps||[]).slice(_oldFUCount):[];
-
     curBill.billingData._followUps=curBill.followUps||[];if(curBill.discount)curBill.billingData._discount=curBill.discount;
     var ok=await dbSave(curBill);
-    if(ok){
-      closeMod('bmod');renderStats();popBillTo();
-      if(_newFUs.length)_promptAccountsNotify(curBill,_newFUs);
-    }
+    if(ok){closeMod('bmod');renderStats();popBillTo();}
   }finally{_savingBill=false;}
-}
-function _promptAccountsNotify(bill,newFUs){
-  var patName=bill.patientName||'this bill';
-  var date=new Date().toLocaleDateString('en-GB');
-  var refLabel=bill.invoiceNo?'Invoice No':'SO Number';
-  var refVal=bill.invoiceNo||bill.soNumber||'';
-  var itemsList=newFUs.map(function(fu){
-    var line='\u2022 '+(fu.type||'Item')+(fu.desc?': '+fu.desc:'');
-    if(fu.amount&&parseFloat(fu.amount))line+=' \u2014 '+fmtMoney(fu.amount,fu.cur||'AED');
-    if(fu.addedBy)line+=' (added by '+fu.addedBy+')';
-    return line;
-  }).join('\n');
-  var summary=
-    'Patient: '+patName+'\n'+
-    refLabel+': '+refVal+'\n'+
-    'Branch: '+(bill.branch||'UAE')+'\n'+
-    'Date: '+date+'\n\n'+
-    'New item'+(newFUs.length>1?'s':'')+' added since SO/invoice was issued:\n'+itemsList;
-  var emailSubject='Invoice Update Needed \u2014 '+patName+' \u2014 '+date+' ('+refVal+')';
-  var emailBody='Hi,\n\nNew item'+(newFUs.length>1?'s have':' has')+' been added to a bill that already has an SO/invoice issued. Please update accordingly.\n\n'+summary+'\n\nTo view the full bill, open the Amara Billing app and find this bill in the list.\n\nAmara Medical Billing';
-  window._fuNotifySummary=summary;
-  var mod=document.createElement('div');
-  mod.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
-  mod.innerHTML='<div style="background:var(--wh);border-radius:var(--rl);padding:22px;max-width:440px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.18);">'+
-    '<div style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:4px;">Notify Accounts Team</div>'+
-    '<div style="font-size:11px;color:var(--m2);margin-bottom:14px;">New item'+(newFUs.length>1?'s':'')+' added to '+esc(refLabel)+' '+esc(refVal)+' for '+esc(patName)+'</div>'+
-    '<div style="background:var(--wh2);border:1px solid var(--bo);border-radius:var(--r);padding:11px 13px;font-size:11px;line-height:1.8;color:var(--tx);white-space:pre-wrap;margin-bottom:14px;max-height:180px;overflow-y:auto;">'+esc(summary)+'</div>'+
-    '<div style="display:flex;flex-direction:column;gap:8px;">'+
-    '<button onclick="copyFUNotifySummary()" style="padding:9px;border:1px solid var(--bo);border-radius:var(--r);background:var(--wh);cursor:pointer;font-size:12px;font-family:var(--sans);">Copy summary to clipboard</button>'+
-    '<a href="mailto:accounts@amarahealthcare.com,bp@amarahealthcare.com?subject='+encodeURIComponent(emailSubject)+'&body='+encodeURIComponent(emailBody)+'" target="_blank" style="display:block;padding:9px;border:1px solid var(--t);border-radius:var(--r);background:var(--t);color:#fff;cursor:pointer;font-size:12px;font-family:var(--sans);text-align:center;text-decoration:none;">Open in Mail (accounts &amp; bp)</a>'+
-    '</div>'+
-    '<button onclick="this.closest(\'[style*=fixed]\').remove()" style="margin-top:12px;width:100%;padding:8px;border:none;background:none;cursor:pointer;font-size:12px;color:var(--m2);">Skip</button>'+
-    '</div>';
-  document.body.appendChild(mod);
-}
-function copyFUNotifySummary(){
-  var s=window._fuNotifySummary||'';
-  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(s).then(function(){toast('Summary copied','ok');});}
-  else{var ta=document.createElement('textarea');ta.value=s;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('Summary copied','ok');}
 }
 async function delBill(id){
   var b=bills.find(function(x){return x.id==id;});
@@ -4149,15 +4205,11 @@ function buildBillTotal(b){
   var lines=[];
   var grandTotal=0;
   var ALL_SECS=Object.assign({},SECS);
-  var _bbtHasIntUK=!!(b.billingData&&b.billingData.intUK&&b.billingData.intUK.doctor_uki&&Object.keys(b.billingData.intUK.doctor_uki).length);
-  var _bbtHasIntGL=!!(b.billingData&&b.billingData.intGL&&b.billingData.intGL.doctor_gli&&Object.keys(b.billingData.intGL.doctor_gli).length);
   for(var sk in ALL_SECS){
     if(sk==='extUK')continue;
     var sec=ALL_SECS[sk];var sdata=b.billingData&&b.billingData[sk];if(!sdata)continue;
     sec.items.forEach(function(item){
       var idata=sdata[item.id];if(!idata)return;
-      // Skip int.ic when bill uses new intUK.doctor_uki path (totals handled by computeUKLines)
-      if(sk==='int'&&item.id==='ic'&&_bbtHasIntUK)return;
       var hasAny=item.fields.some(function(f){var v=idata[f.id];return v&&(Array.isArray(v)?v.length>0:typeof v==='object'&&v&&v.amount?parseFloat(v.amount)>0:v!==false&&v!=='');});
       if(!hasAny)return;
       // Doctor consultation fee — internal only (external fees entered via feepaid/cf fields)
@@ -4185,10 +4237,20 @@ function buildBillTotal(b){
         if(idata['sm']===true||idata['sm']==='true'){var smf=FEES.statMedicine||20;lines.push({label:'Stat Medicine',amount:smf});grandTotal+=smf;}
       }
       // Nurse visit fee — internal
-      if(['is','ie','ii','inv','env'].includes(item.id)){
+      if(['is','ie','ii','inv'].includes(item.id)){
         var nv=idata['nv']||'In Hours';
         var nf=FEES.nurse[nv]||0;
         if(nf>0){lines.push({label:item.label+' ('+nv+')',amount:nf});grandTotal+=nf;}
+      }
+      // External UAE nurse (env) — stdnfee toggle (GBP, no markup) or feepaid (markup)
+      if(item.id==='env'){
+        var _envSnf=idata['stdnfee'];
+        if(_envSnf&&_envSnf.on&&_envSnf.override>0){
+          var _envSnfCur=_envSnf.cur||'GBP';
+          lines.push({label:"Nurse's Home Visit — External ("+(idata['nv']||'In Hours')+') — Standard rate, no markup',amount:_envSnf.override,cur:_envSnfCur,external:true});
+          // GBP — not added to AED grandTotal; shown in GBP section
+        }
+        // feepaid handled below in feepaid forEach (5%/10% markup) (with markup)
       }
       // ── UK GBP fees (extUK section only) ──────────────────
       if(sk==='extUK'){
@@ -4284,14 +4346,24 @@ function buildBillTotal(b){
           else{lines.push({label:'Re-reporting fee (UK)',amount:rrf});grandTotal+=rrf;}}
       // Internal medication type
       if(item.id==='im'&&idata['imt']){
-        var _imv=idata['imt'],imtf,imtl2;
-        if(_imv.indexOf('OTC')>=0){imtf=FEES.internalMedOTC||75;imtl2='Amara Medication (OTC)';}
-        else if(_imv.indexOf('Custom')>=0){var _mf=idata['mfee'];imtf=(_mf&&parseFloat(_mf.amount))?parseFloat(_mf.amount):0;imtl2='Medication — custom fee';}
-        else{imtf=FEES.internalMedPrescription||195;imtl2='Amara Prescription Medication';}
-        lines.push({label:imtl2,amount:imtf});grandTotal+=imtf;
+        // Row 1: Medication fee (flat standard rate by type)
+        var _imMF2=0;var _imMFLbl='';
+        if(idata['imt'].indexOf('OTC')>=0){_imMF2=FEES.internalMedOTC||75;_imMFLbl='Amara Medication (OTC)';}
+        else if(idata['imt'].indexOf('Custom')>=0){var _mfv=idata['mfee'];_imMF2=(_mfv&&parseFloat(_mfv.amount))||0;_imMFLbl='Medication fee';}
+        else{_imMF2=FEES.internalMedPrescription||195;_imMFLbl='Amara Prescription Medication';}
+        if(_imMF2>0){lines.push({label:_imMFLbl,amount:_imMF2,cur:'AED'});grandTotal+=_imMF2;}
+        // Row 2: Medication Logistics (same as em — prescription rate + 30 min free + extra time)
+        if(idata['ph2']){
+          var _imLoc2=idata['pl']||'Local';
+          var _imReg2=(_imLoc2==='International'||_imLoc2.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';
+          var _imMLF=calcMedLogisticsFee(_imReg2,idata['ph2'],idata['adh']);
+          if(_imMLF.baseFee>0){lines.push({label:'Medication Logistics',amount:_imMLF.baseFee,cur:'AED'});grandTotal+=_imMLF.baseFee;}
+          if(_imMLF.extraFee>0){lines.push({label:'Medication Logistics (additional time)',amount:_imMLF.extraFee,cur:'AED'});grandTotal+=_imMLF.extraFee;}
+          if(_imMLF.totalMins>0&&_imMLF.totalMins<=30){lines.push({label:'30 min included',amount:0,cur:'AED'});}
+        }
       }
       // External medication minimum fee
-      if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true')){var emff=FEES.externalMedMin||75;lines.push({label:'External controlled medication fee',amount:emff});grandTotal+=emff;}
+      if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true')){var emff=FEES.externalMedMin||75;lines.push({label:'External medication fee',amount:emff});grandTotal+=emff;}
       // Courier — UAE items only; UK courier handled in UK fees block above
       if(sk!=='extUK'){
       var coTot=idata['co']||idata['ct']||idata['ct2'];
@@ -4322,15 +4394,13 @@ function buildBillTotal(b){
         ['feepaid','sf','cf'].forEach(function(fk){
           var fv=idata[fk];if(!fv||!parseFloat(fv.amount))return;
           var amt=parseFloat(fv.amount)||0;
-          var _cur=fv.cur||'AED';
-          var _mkr=_settleMk(_cur);
-          var _settled=Math.round(amt*(1+_mkr)*100)/100;
-          lines.push({label:item.label,amount:_settled,cur:_cur,external:true});
-          if(_cur==='AED')grandTotal+=_settled;
+          var _mkr=(fv.cur==='GBP')?0.10:0.05;var _settled=Math.round(amt*(1+_mkr)*100)/100;
+          lines.push({label:(item.id==='em'?'Medication fee settled':item.label),amount:_settled,cur:fv.cur||'AED',external:true});
+          if((fv.cur||'AED')==='AED')grandTotal+=_settled;
         });
       }
       // Admin time fee — UAE AED or UK GBP depending on section
-      if(idata['adh']){
+      if(idata['adh']&&!['em','im','uk_med','rx_gli'].includes(item.id)){
         var _bbtAh=parseInt(idata['adh'].h)||0,_bbtAm=parseInt(idata['adh'].m)||0;
         if(_bbtAh||_bbtAm){
           if(sk==='extUK'){
@@ -4359,24 +4429,24 @@ function buildBillTotal(b){
         if(lt>0){lines.push({label:'Lab tests ('+idata['lw'].length+')',amount:lt});grandTotal+=lt;}
       }
       // Prescription fee on external medication only (em) — internal uses imt selector
-      if(item.id==='em'&&idata['pl']&&idata['ph2']){
-        var prxK3=(idata['ph2']||'In Hours')+'-'+(idata['pl'].toLowerCase().indexOf('international')>=0?'International':idata['pl'].toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');
-        var pf3=FEES.prescription&&FEES.prescription[prxK3]?FEES.prescription[prxK3]:0;
-        if(pf3>0){lines.push({label:'Prescription fee',amount:pf3});grandTotal+=pf3;}
+      if(item.id==='em'&&idata['ph2']){
+        var _emBTLoc=idata['pl']||'Local';
+        var _emBTWhen=idata['ph2']||'In Hours';
+        var _emBTReg=(_emBTLoc==='International'||_emBTLoc.toLowerCase().indexOf('international')>=0||_emBTLoc==='Global')?'UAE-International':'UAE-Local';
+        var _emBTFee=calcMedLogisticsFee(_emBTReg,_emBTWhen,idata['adh']);
+        if(_emBTFee.baseFee>0){lines.push({label:'Medication Logistics',amount:_emBTFee.baseFee,cur:'AED'});grandTotal+=_emBTFee.baseFee;}
+        if(_emBTFee.extraFee>0){lines.push({label:'Medication Logistics (additional time)',amount:_emBTFee.extraFee,cur:'AED'});grandTotal+=_emBTFee.extraFee;}
+        if(_emBTFee.totalMins>0&&_emBTFee.totalMins<=30){lines.push({label:'30 min included',amount:0,cur:'AED'});}
       }
     });
   }
-  // Follow-up fees (all types: Fee settlement, Admin time, Physician time)
+  // Follow-up fees settled
   var fus=b.billingData&&b.billingData._followUps||[];
   fus.forEach(function(fu){
-    var f=fuComputedFee(fu);
-    if(f.amount>0){
-      var fuLbl=fu.type==='Fee settlement'?'Follow-up: '+fdt(fu.date)+' fee settled':
-                 fu.type==='Admin time'?'Follow-up: '+fdt(fu.date)+' admin time':
-                 fu.type==='Physician time'?'Follow-up: '+fdt(fu.date)+' physician time':
-                 'Follow-up: '+fdt(fu.date)+' '+(fu.type||'');
-      lines.push({label:fuLbl,amount:f.amount,cur:f.cur,external:true});
-      if(f.cur==='AED')grandTotal+=f.amount;
+    if(fu.type==='Fee settlement'&&fu.amount&&parseFloat(fu.amount)){
+      var _fmk=_settleMk(fu.cur||'AED');var famt=Math.round((parseFloat(fu.amount)||0)*(1+_fmk)*100)/100;
+      lines.push({label:'Follow-up: '+fdt(fu.date)+' fee settled',amount:famt,cur:fu.cur||'AED',external:true});
+      if((fu.cur||'AED')==='AED')grandTotal+=famt;
     }
   });
   // Apply discount if set
@@ -4391,7 +4461,7 @@ function buildBillTotal(b){
   }
   (typeof computeUKLines==='function'?computeUKLines(b):[]).forEach(function(l){lines.push(l);});
   // Global internal lines (AED)
-  (typeof computeGlobalLines==='function'?computeGlobalLines(b):[]).forEach(function(l){lines.push({label:l.label,amount:l.amount||0,cur:'AED'});});
+  (typeof computeGlobalLines==='function'?computeGlobalLines(b):[]).forEach(function(l){var _ga=l.amount||0;lines.push({label:l.label,amount:_ga,cur:'AED'});grandTotal+=_ga;});
   var _vatTot=_billStdTaxTotal(b);if(_vatTot>0){lines.push({label:'VAT (Standard Rate 5%)',amount:_vatTot,tax:true});grandTotal+=_vatTot;}
   window._BILL_LINES=lines.slice();window._BILL_GT=grandTotal;
   if(!lines.length&&grandTotal<=0&&!disc.type)return'';
@@ -4467,14 +4537,6 @@ function buildItemCard(item,idata,secCol,secBg,sk){
   function tv(id){var v=idata[id];return v&&String(v).trim()?String(v).trim():'';}
   function fmtDur(id){var v=idata[id];if(!v)return'';var hh=parseInt(v.h)||0,mm=parseInt(v.m)||0;if(!hh&&!mm)return'';return(hh?hh+'h ':'')+(mm?mm+'min':'').trim();}
   function fmtFee(id){var v=idata[id];if(!v||!parseFloat(v.amount))return'';return(v.cur||'AED')+' '+(parseFloat(v.amount)||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  // Settled-fee formatter — applies the 5% (AED) / 10% (GBP) settlement markup for fee-paid fields (cf, feepaid, sf)
-  function fmtFeeSettled(id){
-    var v=idata[id];if(!v||!parseFloat(v.amount))return'';
-    var cur=v.cur||'AED';var mkr=_settleMk(cur);
-    var settled=Math.round((parseFloat(v.amount)||0)*(1+mkr)*100)/100;
-    return cur+' '+settled.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
-  }
-  function feeSettledAmt(id){var v=idata[id];if(!v||!parseFloat(v.amount))return 0;var cur=v.cur||'AED';var mkr=_settleMk(cur);return Math.round((parseFloat(v.amount)||0)*(1+mkr)*100)/100;}
   function fmtCourier(id){var v=idata[id];if(!v||!v.region)return'';return v.region+(v.type?' — '+v.type:'')+(v.customFee?' ('+v.customFee+')':'');}
 
   // ── Determine item type and build summary line ────────────
@@ -4513,7 +4575,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       // Consultation fee if paid
       var _cfv2=idata['cf'];
       if(_cfv2&&parseFloat(_cfv2.amount))
-        summaryRows.push({title:'Consultation fee',desc:'Physician’s consultation fee',fee:feeSettledAmt('cf'),amtCur:_cfv2.cur||(_isUKDoc?'GBP':'AED')});
+        summaryRows.push({title:'Consultation fee',desc:'Physician’s consultation fee',fee:parseFloat(_cfv2.amount),amtCur:_cfv2.cur||(_isUKDoc?'GBP':'AED')});
       // Labs if any (shouldn't usually be on UK doctor but handle it)
       var _uecLabs=Array.isArray(idata['lw'])?idata['lw']:[];
       var _uecLabwhere=tv('labwhere');
@@ -4524,7 +4586,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       // Admin time (GBP for UK, AED for Global)
       // handled by the universal admin block below
     } else {
-    var fee=fmtFeeSettled('cf')||fmtFeeSettled('feepaid');
+    var fee=fmtFee('cf')||fmtFee('feepaid');
     if(fee){
       summaryRows.push({title:"Doctor's Consultation fee",desc:summary+' — '+fee,highlight:true});
     } else if(itemId==='ic'){
@@ -4566,11 +4628,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
     }
     // Prescription issued during consultation (ptype = hours selected)
     var ptype=tv('ptype');
-    if(ptype&&itemId==='ic'){
-      var prxLoc2=idata['al']||'Inside UAE';var prxKey2=ptype+'-'+(prxLoc2==='International'?'International':prxLoc2.startsWith('Inside')?'Inside UAE':'Outside UAE');
-      var prxAmt2=FEES.prescription&&FEES.prescription[prxKey2]?FEES.prescription[prxKey2]:0;
-      summaryRows.push({title:"Physician's Prescription",desc:ptype+(prxLoc2?' · '+prxLoc2:''),fee:prxAmt2,highlight:prxAmt2>0});
-    }
+    // Physician's Prescription removed — prescription is now part of Medication Logistics item
     // Stat medicine
     var smv=idata['sm'];if(smv===true||smv==='true')summaryRows.push({title:'Stat Medicine',desc:'Per tablet'+(idata['smmeds']&&String(idata['smmeds']).trim()?' — '+esc(String(idata['smmeds']).trim()):''),fee:FEES.statMedicine||20,highlight:true});
     // Physician admin time (separate charge)
@@ -4588,7 +4646,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
   // NURSE VISITS (is, ie, ii, es, ee, ei)
   else if(['is','ie','ii','inv','env','es','ee','ei','ues','uee','uei','ges'].includes(itemId)){
     var nu=tv('nu');var nv=tv('nv');var dur=fmtDur('dur');
-    var fee=fmtFeeSettled('feepaid');
+    var fee=fmtFee('feepaid');
     var nurseType=(itemId==='inv'||itemId==='env')?((Array.isArray(idata['nvt'])?idata['nvt']:[]).join(' · ')||'Visit'):
                   itemId==='is'||itemId==='es'?'Sample Collection':
                   itemId==='ie'||itemId==='ee'?'ECG / BP Monitor':
@@ -4602,16 +4660,26 @@ function buildItemCard(item,idata,secCol,secBg,sk){
     if(dur)summary+=' — '+dur;
     // UK nurse auto-fee
     var isUKNurse=['ues','uee','uei'].includes(itemId);
-    // Internal: auto-calculate nurse fee; External: use feepaid
-    if(fee){
-      summaryRows.push({title:'Nurse Visit fee',desc:summary+' — '+fee,highlight:true});
+    var isEnvUAE=itemId==='env';
+    var _snfEnv=idata['stdnfee'];
+    var _snfOn=_snfEnv&&_snfEnv.on===true;
+    // Internal: auto-calculate nurse fee; External UAE: stdnfee toggle or feepaid; UK: UK rate
+    if(fee&&!_snfOn){
+      // Custom feepaid entered (will have 5% AED / 10% GBP markup applied in billing)
+      summaryRows.push({title:'Nurse Visit fee',desc:summary+' — '+fee+' (5% markup applies)',highlight:true});
+    } else if(_snfOn){
+      // Standard fee toggle — no markup
+      var _snfRate=(_snfEnv.override!=null)?_snfEnv.override:((FEES[_snfEnv.rateKey||'nurseGL']&&FEES[_snfEnv.rateKey||'nurseGL'][nv||'In Hours'])||500);
+      var _snfCur=_snfEnv.cur||'AED';
+      summaryRows.push({title:'Nurse Visit fee',desc:summary+' — Standard rate, no markup',fee:_snfRate,amtCur:_snfCur,highlight:_snfRate>0});
     } else if(isUKNurse||sk==='extUK'){
       var nurseFee=(FEES.nurseUK&&FEES.nurseUK[nv||'In Hours'])||275;
       summaryRows.push({title:'Nurse Visit fee',desc:summary,fee:nurseFee,amtCur:'GBP',highlight:nurseFee>0});
-    } else if(!isExt){
+    } else if(!isExt&&!isEnvUAE){
       var nurseFee=FEES.nurse[nv||'In Hours']||0;
       summaryRows.push({title:'Nurse Visit fee',desc:summary,fee:nurseFee,amtCur:'AED',highlight:nurseFee>0});
     } else {
+      // External UAE — no auto-fee; team uses feepaid or stdnfee toggle
       summaryRows.push({title:'External Nurse Visit',desc:summary});
     }
     // ECG
@@ -4648,7 +4716,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
     }
     // Prescription on injection items (ei has pl/ph2)
     var pl=tv('pl');var ph2=tv('ph2');var prxd=tv('prx_dest');
-    if(pl&&ph2){
+    if(pl&&ph2&&!['em','im'].includes(itemId)){
       var prxKeyNu=ph2+'-'+(pl.toLowerCase().indexOf('international')>=0?'International':pl.toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');
       var prxAmtNu=FEES.prescription&&FEES.prescription[prxKeyNu]?FEES.prescription[prxKeyNu]:0;
       summaryRows.push({title:"Physician's Prescription",desc:pl+' · '+ph2+(prxd?' — sent to '+prxd:''),fee:prxAmtNu,highlight:prxAmtNu>0});
@@ -4667,8 +4735,13 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       } else if(coVal.region==='UAE'){
         if(coVal.type==='Controlled drugs courier (Amara driver)'){coAmt=FEES.courierControlled||250;coStr='UAE — Controlled drugs courier (Amara driver)';}
         else{coAmt=FEES.courierUAE||135;coStr='UAE — Standard courier';}
+      } else if(coVal.region==='UK'){
+        // UK courier on UAE external items — GBP rate
+        coAmt=FEES.courierUK||35;_coCur='GBP';
+        if(coVal.customFee&&parseFloat(coVal.customFee))coAmt=parseFloat(coVal.customFee);
+        coStr='UK — '+(coVal.type||'Standard');
       } else {
-        coStr=coVal.region+(coVal.type?' — '+coVal.type:'')+(coVal.customFee?' (AED '+coVal.customFee+')'  :'');
+        coStr=coVal.region+(coVal.type?' — '+coVal.type:'')+(coVal.customFee?' ('+coVal.customFee+')'  :'');
         if(coVal.customFee)coAmt=parseFloat(coVal.customFee)||0;
       }
     } else if(coVal===true||coVal==='true'){
@@ -4680,7 +4753,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
 
   // SCAN / PROCEDURE (ep)
   else if(['ep','uep','gep'].includes(itemId)){
-    var scanname=tv('scanname');var hosp=tv('hospital');var fee=fmtFeeSettled('sf')||fmtFeeSettled('feepaid');
+    var scanname=tv('scanname');var hosp=tv('hospital');var fee=fmtFee('sf')||fmtFee('feepaid');
     var scanDesc=scanname+(hosp?' at '+hosp:'')+(fee?' — settled for '+fee:'');
     if(scanDesc)summaryRows.push({title:'Scan / Procedure',desc:scanDesc,highlight:!!fee});
     var rf=idata['rf'];
@@ -4697,43 +4770,57 @@ function buildItemCard(item,idata,secCol,secBg,sk){
   else if(['im','em','uem','gem'].includes(itemId)){
     var pl=tv('pl');var ph2=tv('ph2');var prxd=tv('prx_dest');
     var meds=tv('meds');
-    var fee=fmtFeeSettled('feepaid');
+    var fee=fmtFee('feepaid');
     // Determine fees and labels based on item type
     var _isUKMed=itemId==='uem';var _isGlobalMed=itemId==='gem';var _isExtMed=itemId==='em';
-    // Prescription fee
+    // Medication Logistics fee (replaces prescription + admin for em)
+    if(_isExtMed&&ph2){
+      var _emSumLoc=pl||'Local';
+      var _emSumRegion=(_emSumLoc==='International'||_emSumLoc.toLowerCase().indexOf('international')>=0||_emSumLoc==='Global')?'UAE-International':'UAE-Local';
+      var _emSumFee=calcMedLogisticsFee(_emSumRegion,ph2,idata['adh']);
+      // Build single clean Medication Logistics row
+      var _emTimeNote=_emSumFee.totalMins>0?(' · '+(_emSumFee.totalMins<=30?'30 min — included':_emSumFee.totalMins+'min total'+(+_emSumFee.extraSets>0?' · '+_emSumFee.extraSets+' extra set'+(+_emSumFee.extraSets!==1?'s':''):''))):' · 30 min included';
+      var _emFeeTotal=_emSumFee.baseFee+_emSumFee.extraFee;
+      summaryRows.push({title:'Medication Logistics',desc:ph2+' · Prescription + 30 min included'+(meds?' · '+meds.slice(0,60):'')+_emTimeNote,fee:_emFeeTotal,amtCur:'AED'});
+      if(_emSumFee.totalMins>0&&_emSumFee.totalMins<=30)summaryRows.push({title:'30 min included',desc:'No additional charge',fee:0,amtCur:'AED'});
+    }
+    // Prescription fee (for im/ic items — unchanged)
     var prxFeeAmt=0;var prxFeeCur='AED';
     if(_isUKMed){
       var _uprxH=ph2||'In Hours';
       prxFeeAmt=(FEES.prescriptionUK&&FEES.prescriptionUK[_uprxH])||75;
       prxFeeCur='GBP';
-    } else if(_isExtMed&&pl&&ph2){
+    } else if(!_isExtMed&&pl&&ph2){
       var prxFeeKey=ph2+'-'+(pl.toLowerCase().indexOf('international')>=0?'International':pl.toLowerCase().indexOf('outside')>=0?'Outside UAE':'Inside UAE');
       prxFeeAmt=FEES.prescription&&FEES.prescription[prxFeeKey]?FEES.prescription[prxFeeKey]:0;
     }
     var imt=tv('imt');
     if(itemId==='im'&&imt){
-      if(imt.indexOf('OTC')>=0)prxFeeAmt=FEES.internalMedOTC||75;
-      else if(imt.indexOf('Custom')>=0){var _mfc=idata['mfee'];prxFeeAmt=(_mfc&&parseFloat(_mfc.amount))?parseFloat(_mfc.amount):0;}
-      else prxFeeAmt=FEES.internalMedPrescription||195;
+      // Row 1: flat medication fee
+      var _imCMF=0;var _imCMFLbl='';
+      if(imt.indexOf('OTC')>=0){_imCMF=FEES.internalMedOTC||75;_imCMFLbl='Amara Medication (OTC)';}
+      else if(imt.indexOf('Custom')>=0){var _mfcI=idata['mfee'];_imCMF=(_mfcI&&parseFloat(_mfcI.amount))?parseFloat(_mfcI.amount):0;_imCMFLbl='Medication fee';}
+      else{_imCMF=FEES.internalMedPrescription||195;_imCMFLbl='Amara Prescription Medication';}
+      if(_imCMF>0)summaryRows.push({title:_imCMFLbl,desc:(meds?meds.slice(0,60):''),fee:_imCMF,amtCur:'AED'});
+      // Row 2: Medication Logistics (identical to em — prescription rate + 30 min free)
+      var _imCPl=tv('pl')||'';var _imCPh2=tv('ph2')||'';
+      if(_imCPh2){
+        var _imCLoc=_imCPl||'Local';
+        var _imCReg=(_imCLoc==='International'||_imCLoc.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';
+        var _imCMLF=calcMedLogisticsFee(_imCReg,_imCPh2,idata['adh']);
+        var _imCNote=_imCMLF.totalMins>0?(' · '+(_imCMLF.totalMins<=30?'30 min — included':_imCMLF.totalMins+'min total'+(_imCMLF.extraSets>0?' · '+_imCMLF.extraSets+' extra set':''))):' · 30 min included';
+        summaryRows.push({title:'Medication Logistics',desc:_imCPh2+' · Prescription + 30 min included'+(_imCPl?' · '+_imCPl:'')+_imCNote,fee:_imCMLF.baseFee+_imCMLF.extraFee,amtCur:'AED'});
+        if(_imCMLF.totalMins>0&&_imCMLF.totalMins<=30)summaryRows.push({title:'30 min included',desc:'No additional charge',fee:0,amtCur:'AED'});
+      }
     }
-    // Prescription row
-    // Sub: "In Hours prescription · for Augmentin · sent to Prince Pharmacy"
-    var _prxSubParts=[];
-    if(!_isUKMed&&!_isGlobalMed&&pl)_prxSubParts.push(pl); // location only for UAE
-    if(ph2)_prxSubParts.push(ph2+' prescription');
-    if(meds)_prxSubParts.push('for '+meds);
-    if(prxd)_prxSubParts.push('sent to '+prxd);
-    var prxSub=_prxSubParts.join(' · ');
-    var prxTitle=itemId==='im'?(imt&&imt.indexOf('OTC')>=0?'Amara Medication (OTC)':imt&&imt.indexOf('Custom')>=0?'Medication — custom fee':'Amara Prescription Medication'):"Physician’s Prescription";
-    if(prxSub||prxFeeAmt>0||(itemId==='im'&&imt))summaryRows.push({title:prxTitle,desc:prxSub||(meds?'for '+meds:(imt||'')),fee:prxFeeAmt||null,amtCur:prxFeeCur});
-    // External medication fee paid (feepaid = what was paid to the pharmacy) — show settled amount (with markup)
+    // Prescription included in Medication Logistics — no separate row    // External medication fee paid (feepaid = what Amara settled — with markup)
     if(fee){
       var _fvMed=idata['feepaid'];
       var _medCur=(_fvMed&&_fvMed.cur)||(_isUKMed?'GBP':'AED');
-      var _medRaw=parseFloat((_fvMed&&_fvMed.amount)||0)||0;
-      var _medMkr=_settleMk(_medCur);
-      var _medSettled=_medRaw>0?Math.round(_medRaw*(1+_medMkr)*100)/100:null;
-      summaryRows.push({title:'External medication fee',desc:'External payment'+(meds?' for '+meds:''),fee:_medSettled,amtCur:_medCur});
+      var _medRawAmt=parseFloat((_fvMed&&_fvMed.amount)||0)||0;
+      var _medSettled=_medRawAmt>0?Math.round(_medRawAmt*(1+_settleMk(_medCur))*100)/100:null;
+      var _mkPct=Math.round(_settleMk(_medCur)*100);
+      summaryRows.push({title:'Medication fee settled',desc:'Fee settled by Amara'+(meds?' for '+meds:''),fee:_medSettled,amtCur:_medCur,highlight:_medSettled>0});
     }
     // Courier — context-aware: check if controlled drugs type
     var coMed=idata['ct']||idata['ct2']||idata['co'];var coMedStr='';var coMedAmt=0;var coMedTitle='';var _coMedCur='AED';
@@ -4773,11 +4860,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
     // Lab + labwhere
     var labs=Array.isArray(idata['lw'])?idata['lw'].join(', '):'';
     var labwhere=tv('labwhere');
-    if(labs){var labTotal2=calcLabTotal(idata['lw']||[]);summaryRows.push({title:'Lab work',desc:labs+(labwhere?' — sent to '+labwhere:''),fee:labTotal2,highlight:labTotal2>0});}
-    // Prescription
-    var pl=tv('pl');var ph2=tv('ph2');var prxd=tv('prx_dest');
-    if(pl||ph2)summaryRows.push({title:"Physician's Prescription",desc:(pl?pl+' ':'')+(ph2||'')+(prxd?' — sent to '+prxd:'')});
-  }
+    if(labs){var labTotal2=calcLabTotal(idata['lw']||[]);summaryRows.push({title:'Lab work',desc:labs+(labwhere?' — sent to '+labwhere:''),fee:labTotal2,highlight:labTotal2>0});}  }
 
   // ── Always append: Admin time + desc ──
   // Courier universal (for ic, ep items — not nurse/medication which handle their own)
@@ -4796,10 +4879,12 @@ function buildItemCard(item,idata,secCol,secBg,sk){
     } else if(coVal2===true||coVal2==='true'){coStr2='UAE — Standard courier';coAmt2=FEES.courierUAE||135;}
     if(coStr2)summaryRows.push({title:coTitle2,desc:coStr2,fee:coAmt2,highlight:coAmt2>0});
   }
+  // Admin time — em/uk_med/rx_gli use Medication Logistics logic, not generic admin time display
+  var _isMedLogItem2=['em','im','uk_med','rx_gli'].includes(itemId);
   // Admin time
   var adh=idata['adh'];var al=tv('al');
   var adhStr=fmtDur('adh');
-  if(adhStr){
+  if(adhStr&&!_isMedLogItem2){
     var _adhH=tv('adh_h')||tv('ph2')||'In Hours';
     var _ah=parseInt((adh&&adh.h)||0),_am=parseInt((adh&&adh.m)||0);
     var _adminMins=_ah*60+_am;if(_adminMins>0&&_adminMins<15)_adminMins=15;
@@ -4873,15 +4958,11 @@ function buildView(b){
   var billNo='#'+String(idx+1).padStart(4,'0');
   var intCards='',extCards='',ukCards='',globalCards='';
   var ALL_SECS=Object.assign({},SECS);
-  var _hasIntUKDoctor=!!(b.billingData&&b.billingData.intUK&&b.billingData.intUK.doctor_uki&&Object.keys(b.billingData.intUK.doctor_uki).length);
-  var _hasIntGLDoctor=!!(b.billingData&&b.billingData.intGL&&b.billingData.intGL.doctor_gli&&Object.keys(b.billingData.intGL.doctor_gli).length);
   for(var sk in ALL_SECS){
     if(sk==='extUK')continue;
     var sec=ALL_SECS[sk];var sdata=b.billingData&&b.billingData[sk];if(!sdata)continue;
     sec.items.forEach(function(item){
       var idata=sdata[item.id];if(!idata)return;
-      // Skip int.ic if bill uses the new intUK.doctor_uki path (avoids duplicate/wrong-currency card)
-      if(sk==='int'&&item.id==='ic'&&(_hasIntUKDoctor||_hasIntGLDoctor))return;
       var _hasAny=item.fields.some(function(f){var v=idata[f.id];return v&&(Array.isArray(v)?v.length>0:typeof v==='object'&&v!==null&&v.amount?parseFloat(v.amount)>0:v!==false&&v!=='');});
       if(!_hasAny)return;
       var card=buildItemCard(item,idata,sec.col,sec.bg,sk);
@@ -4894,8 +4975,6 @@ function buildView(b){
   }
   if(typeof buildUKCard==='function'){ensureRichRegions();var _ukItems=(CFG.billingStructure&&CFG.billingStructure.external_uk)||[];var _uksd=(b.billingData&&b.billingData.extUK)||{};_ukItems.forEach(function(item){var _id=_uksd[item.id];if(!_id)return;var _c=buildUKCard(item,_id,b);if(_c)ukCards+=_c;});}
   if(typeof buildUKCard==='function'){var _iuk=_seedUKInt()||[];var _isdv=(b.billingData&&b.billingData.intUK)||{};_iuk.forEach(function(item){var _id=_isdv[item.id];if(!_id)return;var _c=buildUKCard(item,_id,b);if(_c)ukCards+=_c;});}
-  // Global internal cards (AED — shown in intCards section)
-  if(typeof buildUKCard==='function'){var _igl=_seedGlobalInt()||[];var _igld=(b.billingData&&b.billingData.intGL)||{};_igl.forEach(function(item){var _id=_igld[item.id];if(!_id)return;var _c=buildUKCard(item,_id,b);if(_c)intCards+=_c;});}
   // Section blocks with label
   var secHtml='';
   if(intCards){
@@ -4932,8 +5011,8 @@ function buildView(b){
       var fuLabWhere=fu.labwhere&&fu.labwhere!=='others'?fu.labwhere:(fu.labwhereCustom||'');
       fuHtml+='<div class="bv-fu-e">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+
-        '<div class="bv-fu-dt">'+fdt(fu.date)+(fu.time?' at '+esc(fu.time):'')+(fu.type?' — '+esc(fu.type):'')+(fu.addedBy?' · '+esc(fu.addedBy):'')+(fu.duration&&(parseInt(fu.duration.h)||parseInt(fu.duration.m))?' · '+(parseInt(fu.duration.h)||0)+'h '+(parseInt(fu.duration.m)||0)+'min ('+adminUnits((parseInt(fu.duration.h)||0)*60+(parseInt(fu.duration.m)||0))+' sets)':'')+'</div>'+
-        (function(){var f=fuComputedFee(fu);return f.amount>0?'<div style="font-size:13px;font-weight:600;color:var(--tx);">'+fmtMoney(f.amount,f.cur)+'</div>':'';})()+
+        '<div class="bv-fu-dt">'+fdt(fu.date)+(fu.time?' at '+esc(fu.time):'')+(fu.type?' — '+esc(fu.type):'')+'</div>'+
+        (fu.amount&&parseFloat(fu.amount)?'<div style="font-size:13px;font-weight:600;color:var(--tx);">'+fmtMoney(fu.amount,fu.cur||'AED')+'</div>':'')+
         '</div>'+
         (fu.type==='Additional tests'&&fuLabs?
           '<div style="font-size:12px;font-weight:500;color:var(--b);margin-bottom:3px;">'+esc(fuLabs)+(fuLabWhere?' — sent to '+esc(fuLabWhere):'')+'</div>':'')+
@@ -4962,6 +5041,7 @@ function buildView(b){
     (secHtml||'<div style="font-size:12px;color:var(--m2);font-style:italic;padding:8px 0;">No billing items have been added yet.</div>')+
     fuHtml+
     buildBillTotal(b)+
+    (typeof buildBillingRulesPanel==='function'?buildBillingRulesPanel(b):'')+
     (b.notes?'<div class="bv-note"><strong>Notes / Who to Bill:</strong> '+esc(b.notes)+'</div>':'')+
     _billActivityHtml(b)+
     '</div>';
@@ -4983,7 +5063,7 @@ function renderFees(){
         var amt=parseFloat(fv.amount)||0;
         rows.push({billId:b.id,patientName:b.patientName,billedBy:b.billedBy,date:b.createdAt,
           item:item.label,consultant:idata.cn||idata.nu||idata.scanname||idata.prx_dest||'',hospital:idata.hospital||'',
-          currency:fv.cur||'AED',paid:amt,markup:amt*_settleMk(fv.cur||'AED'),settled:amt*(1+_settleMk(fv.cur||'AED'))});
+          currency:fv.cur||'AED',paid:amt,markup:amt*(fv.cur==='GBP'?0.10:0.05),settled:amt*(fv.cur==='GBP'?1.10:1.05)});
       });
     });
   });
@@ -5036,22 +5116,27 @@ function rptSetNewPin(changing){
   else if(np!==null)toast('PIN must be exactly 4 digits','er');
 }
 function checkRptPin(){
-  var inp=document.getElementById('rpt-pin-inp');if(!inp)return;
-  var entered=inp.value;
   var rptPin=localStorage.getItem('amara_rpt_pin4');
-  var masterPin=(CFG.protPins&&CFG.protPins.reports)||'1982';
-  // Accept: master PIN (1982 or custom), OR hashed stored PIN
-  var ok=(entered===masterPin)||entered==='1982'||(rptPin&&_hp(entered)===rptPin);
-  if(ok){rptUnlocked=true;renderReports();}
+  var inp=document.getElementById('rpt-pin-inp');if(!inp)return;
+  if(_hp(inp.value)===rptPin){rptUnlocked=true;renderReports();}
   else{inp.value='';inp.style.borderColor='var(--re)';toast('Incorrect PIN','er');}
 }
 function lockReports(){rptUnlocked=false;renderReports();}
-// Simple hash for PIN storage (not cryptographic, just obfuscation)
-function _hp(s){var h=0,i,c;if(!s)return'0';for(i=0;i<s.length;i++){c=s.charCodeAt(i);h=((h<<5)-h)+c;h=h&h;}return h.toString(36);}
 var rptUnlocked=false;
 function renderReports(){
   var pg=document.getElementById('page-reports');
-  if(!pg)return;
+  // Check if reports PIN is set and if locked
+  var rptPin=localStorage.getItem('amara_rpt_pin4');
+  if(rptPin&&!rptUnlocked){
+    pg.innerHTML='<div style="max-width:340px;margin:60px auto;text-align:center;">'+
+      '<div style="font-size:48px;margin-bottom:16px;">&#128274;</div>'+
+      '<div style="font-family:var(--serif);font-size:22px;font-style:italic;margin-bottom:8px;">Reports</div>'+
+      '<div style="font-size:13px;color:var(--m2);margin-bottom:20px;">Enter your reports PIN to view</div>'+
+      '<input id="rpt-pin-inp" type="password" maxlength="4" placeholder="Enter PIN&#8230;" style="width:100%;padding:12px;font-size:18px;text-align:center;border:1px solid var(--bo);border-radius:var(--rl);font-family:var(--sans);margin-bottom:12px;letter-spacing:.3em;" onkeydown="if(event.key===\'Enter\')checkRptPin()">'+
+      '<button class="ab pri" style="width:100%;" onclick="checkRptPin()">Unlock Reports</button>'+
+      '</div>';
+    return;
+  }
   var totalBills=bills.length;
   var paidBills=bills.filter(function(b){return b.status==='Paid';}).length;
   var draftBills=bills.filter(function(b){return b.status==='Draft';}).length;
@@ -5064,59 +5149,40 @@ function renderReports(){
   var byBranch={};bills.forEach(function(b){var s=b.branch||'UAE';byBranch[s]=(byBranch[s]||0)+1;});
   var thisMonth=bills.filter(function(b){var d=new Date(b.createdAt);var n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).length;
 
-  var h='';
-  // Overview
-  h+='<div id="rpt-overview">';
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">';
-  h+='<span style="font-size:17px;font-weight:700;color:var(--tx);">Practice Overview</span>';
-  h+='</div>';
-  h+='<div class="rpt-grid">';
-  h+=rptCard(totalBills,'Total Bills','All time');
-  h+=rptCard(thisMonth,'Bills This Month',new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'}));
-  h+=rptCard(paidBills,'Paid Bills',Math.round(totalBills?paidBills/totalBills*100:0)+'% of total');
-  h+=rptCard(pendingBills,'Pending Bills','Awaiting settlement');
-  h+=rptCard(draftBills,'Draft Bills','In progress');
-  h+=rptCard(totalPats,'Patients','');
-  h+='</div>';
-  h+='</div>';
-  // External fees
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px;">';
-  h+='<span style="font-size:17px;font-weight:700;color:var(--tx);">External Fees Summary</span>';
-  h+='</div>';
-  h+='<div class="fee-total-bar" style="margin-bottom:12px;">';
-  h+='<div><div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;opacity:.4;margin-bottom:2px;">Total AED External Fees</div>';
-  h+='<div style="font-size:22px;font-weight:700;font-family:var(--sans);">'+fmtMoney(extFees,'AED')+'</div></div>';
-  h+='</div>';
-  // Tables
-  h+=rptTable('Bills by Status',byStatus,'status');
-  h+=rptTable('Bills by Branch',byBranch,'branch');
-  h+=rptTable('Bills by Team Member',byTeam,'team');
-  // Team performance table
-  h+=rptUnifiedTable();
-  // Team time report
-  h+=(typeof rptTeamReport==='function'?rptTeamReport():'');
-  // Export buttons
-  h+='<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">';
-  h+='<button class="ab" onclick="dlExcel()">&#8595; Export Excel</button>';
-  h+='<button class="ab" onclick="exportJSON()">&#8595; Export JSON Backup</button>';
-  h+='<button class="ab dk" onclick="printReport()">Print / PDF Report</button>';
-  h+='</div>';
-  pg.innerHTML=h;
+  var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'+'<span style="font-size:17px;font-weight:700;color:var(--tx);">Practice Overview</span>'+'<button onclick="togRptSec(\'rpt-overview\')" style="font-size:10px;padding:2px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);color:var(--m2);cursor:pointer;">hide</button>'+'</div>'+
+    '<div class="rpt-grid">'+
+    rptCard(totalBills,'Total Bills','All time')+
+    rptCard(thisMonth,'Bills This Month',new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'}))+
+    rptCard(paidBills,'Paid Bills',Math.round(totalBills?paidBills/totalBills*100:0)+'% of total')+
+    rptCard(pendingBills,'Pending Bills','Awaiting settlement')+
+    rptCard(draftBills,'Draft Bills','In progress')+
+    rptCard(totalPats,'Patients','')+
+    '</div>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px;">'+'<span style="font-size:17px;font-weight:700;color:var(--tx);">External Fees Summary</span>'+'<button onclick="togRptSec(\'rpt-external\')" style="font-size:10px;padding:2px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);color:var(--m2);cursor:pointer;">hide</button>'+'</div>'+
+    '<div class="fee-total-bar" style="margin-bottom:12px;"><div><div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;opacity:.4;margin-bottom:2px;">Total AED External Fees</div>'+
+    '<div style="font-size:22px;font-weight:700;font-family:var(--sans);">'+fmtMoney(extFees,'AED')+'</div></div></div>'+
+    '</div>'+
+    '</div>'+
+    '<div id="rpt-external">'+
+    '<div id="rpt-bystatus">'+
+    rptTable('Bills by Status',byStatus,'status')+
+    '</div>'+
+    '<div id="rpt-bybranch">'+
+    rptTable('Bills by Branch',byBranch,'branch')+
+    '</div>'+
+    '<div id="rpt-byteam">'+
+    rptTable('Bills by Team Member',byTeam,'team')+
+    rptUnifiedTable()+
+    '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">'+
+    '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'+
+    '<button class="ab" onclick="dlExcel()">&#8595; Export Excel</button>'+
+    '<button class="ab" onclick="exportJSON()">&#8595; Export JSON Backup</button>'+
+    '<button class="ab dk" onclick="printReport()">Print / PDF Report</button>'+
+    rptPinBtn()+
+    '</div>'+rptPinStatus();pg.innerHTML=h;
 }
-
 function rptUnifiedTable(){
   if(!bills.length)return '';
-  // Name normalisation map (full name -> short display name)
-  var nameMap={
-    'Dr Jay Lakhani':'Dr Jay','Dr Cristina Goedhuis':'Dr Cristina',
-    'Dr Vaibhav Sharma':'Dr Sharma','Dr Elizabeth Thorne':'Dr Thorne',
-    'Nurse Jasmine':'Jasmine','Nurse Jasmine Castelino':'Jasmine'
-  };
-  (CFG.team||[]).forEach(function(shortName){
-    (CFG.doctors||[]).forEach(function(fullName){
-      if(fullName.toLowerCase().startsWith(shortName.toLowerCase()))nameMap[fullName]=shortName;
-    });
-  });
   // ── Build per-member stats ──
   var M={};
   function g(k){if(!M[k])M[k]={bills:0,consultAED:0,adminAED:0,adminGBP:0,feeSettledAED:0,feeSettledGBP:0,labAED:0,labGBP:0,fuAED:0,fuGBP:0,totalAED:0,totalGBP:0,adminMins:0,docConsults:0,nurseVisits:0,scans:0,meds:0};return M[k];}
@@ -5124,41 +5190,11 @@ function rptUnifiedTable(){
     var billerKey=b.billedBy||'Unassigned';var m=g(billerKey);m.bills++;
     m.totalAED+=calcBillGrandTotal(b)||0;
     var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
-    var gll=(typeof computeGlobalLines==='function')?computeGlobalLines(b):[];
-    // Merge global lines into stats (AED)
-    gll.forEach(function(l){
-      if(/doctor.*consult|consult.*type|brief.*corres|standard.*consult|extended.*consult/i.test(l.label||'')){
-        var _intGLd=(b.billingData&&b.billingData.intGL&&b.billingData.intGL.doctor_gli)||{};
-        var _dname=nameMap[_intGLd.cn||'']||_intGLd.cn||billerKey;
-        var _dM=g(_dname);_dM.docConsults++;_dM.consultAED+=l.amount||0;
-      }
-      if(/half-hour increm/i.test(l.label||'')){
-        var _intGLd2=(b.billingData&&b.billingData.intGL&&b.billingData.intGL.doctor_gli)||{};
-        var _dn2=nameMap[_intGLd2.cn||'']||_intGLd2.cn||billerKey;
-        g(_dn2).consultAED+=l.amount||0;
-      }
-    });
-    ukl.forEach(function(l){if((l.cur||'GBP')==='GBP'){m.totalGBP+=l.amount||0;if(/admin/i.test(l.label||''))m.adminGBP+=l.amount||0;if(/lab/i.test(l.label||''))m.labGBP+=l.amount||0;if(/fee settled|pass|arrangement/i.test(l.label||''))m.feeSettledGBP+=l.amount||0;
-      // Credit doctor consultations + admin from intUK to named doctor
-      if(/doctor.*consult|consult.*type|half-hour increm/i.test(l.label||'')){
-        var _intUKd=(b.billingData&&b.billingData.intUK&&b.billingData.intUK.doctor_uki)||{};
-        var _dname=nameMap[_intUKd.cn||'']||_intUKd.cn||billerKey;
-        var _dM=g(_dname);
-        if(/consult.*type/i.test(l.label||''))_dM.docConsults++;
-        _dM.consultAED+=l.amount||0;
-      }
-      if(/physician admin/i.test(l.label||'')){
-        var _intUKd2=(b.billingData&&b.billingData.intUK&&b.billingData.intUK.doctor_uki)||{};
-        var _dname2=nameMap[_intUKd2.cn||'']||_intUKd2.cn||billerKey;
-        var _dM2=g(_dname2);_dM2.adminAED+=l.amount||0;
-      }
-    }});
-    var _hasIntUKDoc=!!(b.billingData&&b.billingData.intUK&&b.billingData.intUK.doctor_uki&&Object.keys(b.billingData.intUK.doctor_uki).length);
+    ukl.forEach(function(l){if((l.cur||'GBP')==='GBP'){m.totalGBP+=l.amount||0;if(/admin/i.test(l.label||''))m.adminGBP+=l.amount||0;if(/lab/i.test(l.label||''))m.labGBP+=l.amount||0;if(/fee settled|pass|arrangement/i.test(l.label||''))m.feeSettledGBP+=l.amount||0;}});
     for(var sk in SECS){
       var sd=b.billingData&&b.billingData[sk];if(!sd)continue;var reg=_skRegion(sk);
       SECS[sk].items.forEach(function(item){
         var idata=sd[item.id];if(!idata)return;
-        if(sk==='int'&&item.id==='ic'&&_hasIntUKDoc)return; // skip - handled by intUK path
         if(item.id==='ic'){
           var docKey=(idata.dn&&String(idata.dn).trim())||billerKey;
           var dM=g(docKey);dM.docConsults++;
@@ -5179,11 +5215,9 @@ function rptUnifiedTable(){
     var ukLW=(b.billingData&&b.billingData.extUK&&b.billingData.extUK._labworks&&b.billingData.extUK._labworks.lw)||[];
     if(ukLW.length)m.labGBP+=_labTotalFor(ukLW,'UK');
     var fus=(b.billingData&&b.billingData._followUps)||[];
-    fus.forEach(function(fu){var f=fuComputedFee(fu);if(f.amount>0){if(f.cur==='AED')m.fuAED+=f.amount;else m.fuGBP+=f.amount;}});
+    fus.forEach(function(fu){if(fu.amount&&parseFloat(fu.amount)){var fa=parseFloat(fu.amount)||0;var v=(fu.type==='Fee settlement')?Math.round(fa*(1+_settleMk(fu.cur||'AED'))*100)/100:fa;if((fu.cur||'AED')==='GBP')m.fuGBP+=v;else m.fuAED+=v;}});
   });
   var order=(CFG.team||[]).slice();
-  // Ensure all doctors appear in order even if not in team list
-  (CFG.doctors||[]).forEach(function(d){var s=nameMap&&nameMap[d]||d;if(order.indexOf(s)<0)order.push(s);});
   var keys=Object.keys(M).sort(function(a,b){var ia=order.indexOf(a),ib=order.indexOf(b);if(ia<0)ia=999;if(ib<0)ib=999;return(ia-ib)||a.localeCompare(b);});
   if(!keys.length)return '';
   function f2(n){return(Math.round((n||0)*100)/100).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:2});}
@@ -5240,26 +5274,11 @@ function rptTeamRevenue(){
     var billerKey=b.billedBy||'Unassigned';var m=g(billerKey);m.bills++;
     m.totalAED+=calcBillGrandTotal(b)||0;
     var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
-    var gll=(typeof computeGlobalLines==='function')?computeGlobalLines(b):[];
-    // Merge global lines into stats (AED)
-    gll.forEach(function(l){
-      if(/doctor.*consult|consult.*type|brief.*corres|standard.*consult|extended.*consult/i.test(l.label||'')){
-        var _intGLd=(b.billingData&&b.billingData.intGL&&b.billingData.intGL.doctor_gli)||{};
-        var _dname=nameMap[_intGLd.cn||'']||_intGLd.cn||billerKey;
-        var _dM=g(_dname);_dM.docConsults++;_dM.consultAED+=l.amount||0;
-      }
-      if(/half-hour increm/i.test(l.label||'')){
-        var _intGLd2=(b.billingData&&b.billingData.intGL&&b.billingData.intGL.doctor_gli)||{};
-        var _dn2=nameMap[_intGLd2.cn||'']||_intGLd2.cn||billerKey;
-        g(_dn2).consultAED+=l.amount||0;
-      }
-    });
     ukl.forEach(function(l){if((l.cur||'GBP')==='GBP'){m.totalGBP+=l.amount||0;if(/admin/i.test(l.label||''))m.adminGBP+=l.amount||0;}});
     for(var sk in SECS){
       var sd=b.billingData&&b.billingData[sk];if(!sd)continue;var reg=_skRegion(sk);
       SECS[sk].items.forEach(function(item){
         var idata=sd[item.id];if(!idata)return;
-        if(sk==='int'&&item.id==='ic'&&_hasIntUKDoc)return; // skip - handled by intUK path
         if(item.id==='ic'){
           // Consultation fee + physician admin → credited to the named doctor
           var docKey=(idata.dn&&String(idata.dn).trim())||billerKey;
@@ -5280,7 +5299,7 @@ function rptTeamRevenue(){
     var ukLW=(b.billingData&&b.billingData.extUK&&b.billingData.extUK._labworks&&b.billingData.extUK._labworks.lw)||[];
     if(ukLW.length)m.labGBP+=_labTotalFor(ukLW,'UK');
     var fus=(b.billingData&&b.billingData._followUps)||[];
-    fus.forEach(function(fu){var f=fuComputedFee(fu);if(f.amount>0){if(f.cur==='AED')m.fuAED+=f.amount;else m.fuGBP+=f.amount;}});
+    fus.forEach(function(fu){if(fu.amount&&parseFloat(fu.amount)){var fa=parseFloat(fu.amount)||0;var v=(fu.type==='Fee settlement')?Math.round(fa*(1+_settleMk(fu.cur||'AED'))*100)/100:fa;if((fu.cur||'AED')==='GBP')m.fuGBP+=v;else m.fuAED+=v;}});
   });
   var order=(CFG.team||[]).slice();
   var keys=Object.keys(M).sort(function(a,b){var ia=order.indexOf(a),ib=order.indexOf(b);if(ia<0)ia=999;if(ib<0)ib=999;return (ia-ib)||a.localeCompare(b);});
@@ -5329,11 +5348,7 @@ function rptTeamReport(){
   var teamStats={};
   // Build a normalisation map: full names → team short names
   // e.g. "Dr Jay Lakhani" → "Dr Jay", "Nurse Jasmine Smith" → "Nurse Jasmine"
-  var nameMap={
-    'Dr Jay Lakhani':'Dr Jay','Dr Cristina Goedhuis':'Dr Cristina',
-    'Dr Vaibhav Sharma':'Dr Sharma','Dr Elizabeth Thorne':'Dr Thorne',
-    'Nurse Jasmine':'Jasmine','Nurse Jasmine Castelino':'Jasmine'
-  };
+  var nameMap={};
   CFG.team.forEach(function(shortName){
     CFG.doctors.forEach(function(fullName){
       if(fullName.toLowerCase().startsWith(shortName.toLowerCase())||
@@ -5408,7 +5423,7 @@ function rptTeamReport(){
     if(_ukd){((CFG.billingStructure&&CFG.billingStructure.external_uk)||[]).forEach(function(_it){var _d=_ukd[_it.id];if(!_d)return;if(_d.adh&&(parseInt(_d.adh.h)||parseInt(_d.adh.m))){var _mins=(parseInt(_d.adh.h)||0)*60+(parseInt(_d.adh.m)||0);ts.totalAdminMins+=_mins;var _wh=_d.when||'In Hours';if(String(_wh).indexOf('Out')>=0)ts.oohMins+=_mins;else ts.inHoursMins+=_mins;ts.localMins+=_mins;}});}
     // Follow-up admin time
     var fus=b.billingData&&b.billingData._followUps||[];
-    fus.forEach(function(fu){if((fu.type==='Admin time'||fu.type==='Physician time')&&fu.duration){var hh=parseInt(fu.duration.h)||0,mm=parseInt(fu.duration.m)||0;ts.totalAdminMins+=hh*60+mm;}});
+    fus.forEach(function(fu){if(fu.adh){var hh=parseInt(fu.adh&&fu.adh.h)||0,mm=parseInt(fu.adh&&fu.adh.m)||0;ts.totalAdminMins+=hh*60+mm;}});
   });
   if(!Object.keys(teamStats).length)return'';
   var _teamOrder=(CFG.team||[]);
@@ -5640,7 +5655,7 @@ function viewPat(id){
   document.getElementById('page-patients').innerHTML=h;
 }
 var curPat=null;
-function openNewPat(){curPat={name:'',notes:'',billTo:'',region:'UAE'};document.getElementById('pmod-t').textContent='Add Patient';document.getElementById('pmod-body').innerHTML=renderPatForm();openMod('pmod');}
+function openNewPat(){if(!(_authProfile&&_authProfile.role==='admin')){toast('Only admins can add patients','er');return;}curPat={name:'',notes:'',billTo:'',region:'UAE'};document.getElementById('pmod-t').textContent='Add Patient';document.getElementById('pmod-body').innerHTML=renderPatForm();openMod('pmod');}
 function editPat(id){var p=patients.find(function(x){return x.id==id;});if(!p)return;curPat=Object.assign({},p);curPat.region=pRegion(p.name)||'UAE';document.getElementById('pmod-t').textContent='Edit Patient';document.getElementById('pmod-body').innerHTML=renderPatForm();openMod('pmod');}
 function _regionCountry(r){return r==='UK'?'United Kingdom':r==='Global'?'Global':'United Arab Emirates';}
 function _patInitials(n){return (String(n||'').trim().split(/\s+/).slice(0,2).map(function(w){return w[0]||'';}).join('')||'?').toUpperCase();}
@@ -5836,7 +5851,7 @@ function renderSettings(){
   // Category headers
   function catHead(label,icon){return'<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--bo2);"><span style="font-size:15px;">'+icon+'</span><span style="font-family:var(--serif);font-size:15px;font-style:italic;color:var(--t);">'+label+'</span></div>';}
   var secs=[
-    {id:'_cat1',cat:true,label:'Team'},
+    {id:'_cat1',cat:true,label:'People & Team'},
     {id:'auditlog',title:'Activity Log',sub:'Every change, add & delete \u2014 with who & when',fn:function(){
       _alEnsure();
       if(!CFG.auditLog.length)return '<p style="font-size:12px;color:var(--m2);">No activity recorded yet. Changes to bills, patients and settings will appear here, stamped with the team member set in \u201CActing as\u201D (top bar).</p>';
@@ -5865,7 +5880,7 @@ function renderSettings(){
       return '<div class="tag-list">'+CFG.doctors.map(function(d){return'<span class="tag-i">'+esc(d)+' <span class="tag-x" onclick="rmC(\'doctors\',\''+esc(d)+'\')">&#215;</span></span>';}).join('')+'</div>'+
         '<div class="add-row"><input class="add-inp" id="nd" placeholder="Add doctor name&#8230;" onkeydown="if(event.key===\'Enter\')addC(\'doctors\')"><button class="add-btn" onclick="addC(\'doctors\')">Add</button></div>';
     }},
-    {id:'_cat2',cat:true,label:'Lab & External'},
+    {id:'_cat2',cat:true,label:'Lab & External Services'},
     {id:'labs',title:'Internal Lab Tests',sub:CFG.labs.length+' tests — searchable in billing form',fn:function(){
       return '<p style="font-size:12px;color:var(--m2);margin-bottom:8px;line-height:1.5;">These tests appear in the Lab Work picker inside billing forms. Use the search bar in the billing form to find any test. Add custom tests below — prices are set in <strong>Fee Schedule &rarr; Internal Lab Test Prices</strong>.</p>'+
         '<input class="fi" style="margin-bottom:8px;" placeholder="Filter list..." oninput="(function(q){document.querySelectorAll(\'.lab-sett-tag\').forEach(function(el){el.style.display=(!q||el.textContent.toLowerCase().includes(q.toLowerCase()))?\'\' :\'none\';})})(this.value)">'+
@@ -5897,7 +5912,7 @@ function renderSettings(){
           '<textarea class="bulk-ta" style="min-height:36px;" oninput="ATMPLS['+i+'].t=this.value">'+esc(t.t)+'</textarea></div>';}).join('')+
         '<button class="add-btn" style="margin-top:4px;" onclick="ATMPLS.push({l:\'Custom\',t:\'\'});renderSettings();">+ Add Template</button>';
     }},
-    {id:'_cat3',cat:true,label:'Billing'},
+    {id:'_cat3',cat:true,label:'Billing & Status'},
     {id:'rollinginv',title:'Rolling Invoices',sub:'Manage rolling invoice labels, colours and patients',fn:function(){
       // Collect all unique rolling invoices from bills + patients + CFG presets
       var rolls={};
@@ -5967,7 +5982,7 @@ function renderSettings(){
         '<button class="add-btn" onclick="addStatus()">Add</button></div>';
       return h;
     }},
-    {id:'_adm1',cat:true,label:'→ Managed in Admin'},
+    {id:'_cat4',cat:true,label:'Fee Schedule'},
     {id:'fees',title:'Fee Schedule Editor',sub:'Edit consultation, admin & prescription rates',fn:function(){
       function feeRowGBP(label,key,subkey){
         var val=(FEES[key]&&FEES[key][subkey])||0;
@@ -6099,14 +6114,14 @@ function renderSettings(){
 
         '</div>'
     }},
-    
+    {id:'_cat4b',cat:true,label:'Fees & Billing Items'},
     {id:'feemgmt',title:'Fee Management',sub:'Add, edit, delete and reorder fees per region',icon:'💰',
       fn:function(){return renderFeeManagement();}
     },
     {id:'billitems',title:'Billing Item Labels',sub:'Customise display names and descriptions on bills',icon:'🏷️',
       fn:function(){return renderBillItemLabels();}
     },
-    {id:'_cat5',cat:true,label:'Data & Security'},
+    {id:'_cat5',cat:true,label:'Security & Data'},
     {id:'datasafety',title:'Data Safety & Backup',sub:'All bills saved to Supabase cloud database',fn:function(){
       return '<div style="background:var(--tb);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;border:1px solid var(--tbl);">'+
         '<div style="font-size:13px;font-weight:600;color:var(--t);margin-bottom:6px;">&#9989; Cloud Database (Primary)</div>'+
@@ -6128,70 +6143,46 @@ function renderSettings(){
         '<div><label class="fl">New PIN (4 digits)</label><input class="add-inp" type="password" id="pn" maxlength="4" placeholder="&#8226;&#8226;&#8226;&#8226;" style="width:100%;"></div>'+
         '</div><button class="ab" onclick="chgPin()">Update PIN</button>';
     }}
-  ]
-;
-
-  // ── OPTION A: Sidebar nav ──
-  // Category groups
-  var _isAdm=_authProfile&&_authProfile.role==='admin';
-  var CATS=[
-    {id:'team',    label:'Team',              icon:'&#128101;', items:['team','doctors','protpins','auditlog']},
-    {id:'lab',     label:'Lab &amp; External',icon:'&#128300;', items:['labs','labWorks','extLabs','atmpls']},
-    {id:'billing', label:'Billing',           icon:'&#128203;', items:['rollinginv','statuses']},
-    {id:'data',    label:'Data &amp; Security',icon:'&#128274;', items:['datasafety','pin']}
   ];
-  if(_isAdm)CATS.push({id:'admin',label:'Admin',icon:'&#9881;&#65039;',items:[]});
-
-  if(!window._settCat)window._settCat='team';
-  var activeCat=window._settCat;
-  if(!window._settSec)window._settSec='';
-  var activeSec=window._settSec;
-
-  // If a section is open show its detail
-  if(activeSec){
-    var sec=secs.find(function(s){return s.id===activeSec;});
+  // If a specific section is open, show its detail view
+  if(settOpen){
+    var sec=secs.find(function(s){return s.id===settOpen;});
     if(sec){
-      var cat=CATS.find(function(cat){return cat.items.indexOf(activeSec)>=0;})||CATS[0];
-      pg.innerHTML=_migBanner+
-        '<div style="display:flex;gap:18px;min-height:60vh;">'+
-          _settSidebar(CATS,activeCat,_isAdm)+
-          '<div style="flex:1;min-width:0;">'+
-            '<button class="ab" onclick="window._settSec=\'\';renderSettings();" style="margin-bottom:14px;">&#8592; '+cat.label+'</button>'+
-            '<div style="font-size:17px;font-weight:700;color:var(--tx);margin-bottom:3px;">'+sec.title+'</div>'+
-            '<div style="font-size:12px;color:var(--m2);margin-bottom:14px;">'+sec.sub+'</div>'+
-            '<div class="sett-detail">'+sec.fn()+'</div>'+
-          '</div>'+
-        '</div>';
+      pg.innerHTML=
+        '<button class="ab" onclick="settOpen=null;renderSettings();" style="margin-bottom:16px;">&#8592; Back to Settings</button>'+
+        '<div style="font-size:16px;font-weight:700;color:var(--tx);margin-bottom:4px;">'+sec.title+'</div>'+
+        '<div style="font-size:12px;color:var(--m2);margin-bottom:16px;">'+sec.sub+'</div>'+
+        '<div class="sett-detail">'+sec.fn()+'</div>';
       return;
     }
   }
-
-  // Admin category — redirect to admin page
-  if(activeCat==='admin'){showPage('admin');return;}
-
-  // Build content panel for active category
-  var catObj=CATS.find(function(ct){return ct.id===activeCat;})||CATS[0];
-  var panelSecs=catObj.items.map(function(id){return secs.find(function(s){return s.id===id;});}).filter(Boolean);
-
-  var panel='<div>';
-  panel+='<div style="font-family:var(--serif);font-size:18px;font-style:italic;color:var(--t);margin-bottom:14px;">'+catObj.label+'</div>';
-  panel+='<div style="display:flex;flex-direction:column;gap:8px;">';
-  panelSecs.forEach(function(sec){
-    panel+='<div class="sett-card" onclick="window._settSec=\''+sec.id+'\';renderSettings();" style="display:flex;align-items:center;gap:14px;padding:14px 16px;">'+
-      '<div class="sett-card-body" style="flex:1;">'+
-        '<div class="sett-card-title" style="font-size:14px;">'+sec.title+'</div>'+
-        '<div class="sett-card-sub" style="font-size:12px;margin-top:2px;">'+sec.sub+'</div>'+
-      '</div>'+
-      '<span class="sett-card-arrow" style="font-size:16px;">&#8594;</span>'+
-    '</div>';
-  });
-  panel+='</div></div>';
-
-  pg.innerHTML=_migBanner+
-    '<div style="display:flex;gap:18px;min-height:60vh;">'+
-      _settSidebar(CATS,activeCat,_isAdm)+
-      '<div style="flex:1;min-width:0;">'+panel+'</div>'+
-    '</div>';
+  // Otherwise show the card grid grouped by category
+  var h='';
+  var i=0;
+  while(i<secs.length){
+    var s=secs[i];
+    if(s.cat){
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;background:var(--wh2);border:1px solid var(--bo);border-radius:var(--r);padding:8px 14px;margin:18px 0 10px 0;">'+
+        '<span style="font-size:13px;font-weight:700;color:var(--tx);">'+s.label+'</span></div>';
+      i++;
+      h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-bottom:8px;">';
+      while(i<secs.length&&!secs[i].cat){
+        var sec=secs[i];
+        h+='<div class="sett-card" onclick="settOpen=\''+sec.id+'\';renderSettings();">'+
+          '<div class="sett-card-body">'+
+          '<div class="sett-card-title">'+sec.title+'</div>'+
+          '<div class="sett-card-sub">'+sec.sub+'</div>'+
+          '</div>'+
+          '<span class="sett-card-arrow">&#8594;</span>'+
+          '</div>';
+        i++;
+      }
+      h+='</div>';
+    } else {
+      i++;
+    }
+  }
+  pg.innerHTML=_migBanner+h;
 }
 
 // ── Region migration: bulk-fix all patient regions from Excel upload ──
@@ -6305,7 +6296,7 @@ function updateRollingName(oldName,newName){
   saveCFG();
   render();
   toast('Renamed to '+newName,'ok');
-  window._settSec='rollinginv';renderSettings();
+  settOpen='rollinginv';renderSettings();
 }
 function addRollingInvoice(){
   var nameEl=document.getElementById('new-ri-name');
@@ -6319,7 +6310,7 @@ function addRollingInvoice(){
   saveCFG();
   toast('Added: '+name,'ok');
   if(nameEl)nameEl.value='';
-  window._settSec='rollinginv';renderSettings();
+  settOpen='rollinginv';renderSettings();
 }
 function delRollingInvoice(name){
   if(!name)return;
@@ -6330,7 +6321,7 @@ function delRollingInvoice(name){
   if(CFG.rollingInvoices)CFG.rollingInvoices=CFG.rollingInvoices.filter(function(r){return r.name!==name;});
   saveCFG();
   toast('Removed from list: '+name,'ok');
-  window._settSec='rollinginv';renderSettings();
+  settOpen='rollinginv';renderSettings();
 }
 function togRptSec(btn){
   var secId=btn.getAttribute('data-sec');
@@ -6425,32 +6416,6 @@ function editStatusColor(i,prop,v){
     var bv=bills.find(function(x){return x.id===viewId;});
     if(bv)document.getElementById('vmod-body').innerHTML=buildView(bv);
   }
-}
-function _settSidebar(CATS,activeCat,isAdmin){
-  var s='<div style="width:152px;flex-shrink:0;display:flex;flex-direction:column;gap:2px;">';
-  CATS.forEach(function(cat){
-    var active=cat.id===activeCat;
-    var isAdminCat=cat.id==='admin';
-    if(isAdminCat){
-      // Admin — dark button, separated
-      s+='<div onclick="window._settCat=\'admin\';window._settSec=\'\';renderSettings();" '+
-        'style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--r);cursor:pointer;margin-top:10px;'+
-        (active?'background:var(--g);color:#FBF7EC;font-weight:700;':'background:var(--wh2);color:var(--tx);border:1px solid var(--bo2);')+
-        '" onmouseover="this.style.opacity=\'.8\'" onmouseout="this.style.opacity=\'1\'">'+
-        '<span style="font-size:15px;">'+cat.icon+'</span>'+
-        '<span style="font-size:12px;font-weight:600;">'+cat.label+'</span>'+
-      '</div>';
-    } else {
-      s+='<div onclick="window._settCat=\''+cat.id+'\';window._settSec=\'\';renderSettings();" '+
-        'style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--r);cursor:pointer;transition:all .12s;'+
-        (active?'background:var(--tb);color:var(--t);font-weight:600;"':' color:var(--m2);" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'"')+'>'+
-        '<span style="font-size:15px;">'+cat.icon+'</span>'+
-        '<span style="font-size:12px;">'+cat.label+'</span>'+
-      '</div>';
-    }
-  });
-  s+='</div>';
-  return s;
 }
 function addC(k){var ids={team:'nt',labs:'nl',extLabs:'nel',doctors:'nd'};var inp=document.getElementById(ids[k]);if(!inp)return;var v=(inp.value||'').trim();if(!v||CFG[k].includes(v))return;CFG[k].push(v);inp.value='';saveCFG();logAudit('Added','Setting: '+k,v);renderSettings();}
 function rmC(k,v){CFG[k]=CFG[k].filter(function(x){return x!==v;});saveCFG();logAudit('Deleted','Setting: '+k,v);renderSettings();}
@@ -6622,7 +6587,7 @@ function _handleQuotaErr(e){
       localStorage.removeItem('amara_draft');
       localStorage.removeItem('amara_audit');
     }catch(e2){}
-    console.warn('localStorage quota exceeded — cleared non-essential cache. Data is still safe in the cloud.');
+    console.warn('localStorage quota exceeded — cleared non-essential cache.');
   } else {
     console.error('localStorage error:',e);
   }
@@ -6671,13 +6636,7 @@ function saveCFG(){
     })
   };
   // Always write to localStorage immediately (fast, local fallback)
-  try{
-    localStorage.setItem('amara_cfg4',JSON.stringify(toSave));
-  }catch(e){
-    _handleQuotaErr(e);
-    try{localStorage.setItem('amara_cfg4',JSON.stringify(toSave));}
-    catch(e2){console.error('Storage quota exceeded even after cleanup:',e2);toast('Device storage full — settings saved to cloud only','er');}
-  }
+  localStorage.setItem('amara_cfg4',JSON.stringify(toSave));
   // Debounced cloud push (300ms — avoid hammering on rapid inline edits)
   if(_cfgSaveTimer)clearTimeout(_cfgSaveTimer);
   _cfgSaveTimer=setTimeout(function(){dbSaveSettings();},300);
@@ -6787,7 +6746,7 @@ async function dbLoadSettings(){
       if(stored.collections)CFG.collections=stored.collections;
       if(stored.billComments)CFG.billComments=stored.billComments;
       if(stored.patientMeta)CFG.patientMeta=stored.patientMeta;
-      CFG.privacyMode=false;
+      if(typeof stored.privacyMode==='boolean')CFG.privacyMode=stored.privacyMode;
       if(stored.statuses&&stored.statuses.length)CFG.statuses=stored.statuses;
       if(stored.extLabs)CFG.extLabs=stored.extLabs;
       if(stored.rollingInvoices)CFG.rollingInvoices=stored.rollingInvoices;
@@ -6805,21 +6764,21 @@ async function dbLoadSettings(){
       // Write merged to localStorage so next load is fast even offline
       ensureCoreLists();
       try{popTeam();}catch(e){}
-      try{localStorage.setItem('amara_cfg4',JSON.stringify(stored));}catch(e){_handleQuotaErr(e);}
+      localStorage.setItem('amara_cfg4',JSON.stringify(stored));
     }
     if(data.fees){
       // Merge fees
       function mergeDeep(target,src){Object.keys(src||{}).forEach(function(k){if(typeof src[k]==='object'&&src[k]!==null&&!Array.isArray(src[k])){if(!target[k])target[k]={};mergeDeep(target[k],src[k]);}else if(typeof src[k]==='number'){target[k]=src[k];}});}
       mergeDeep(FEES,data.fees);
-      try{localStorage.setItem('amara_fees4',JSON.stringify(FEES));}catch(e){_handleQuotaErr(e);}
+      localStorage.setItem('amara_fees4',JSON.stringify(FEES));
     }
     if(data.adminFees){
       ADMIN.customFees=data.adminFees;
-      try{localStorage.setItem('amara_admin_fees',JSON.stringify(data.adminFees));}catch(e){_handleQuotaErr(e);}
+      localStorage.setItem('amara_admin_fees',JSON.stringify(data.adminFees));
     }
     if(data.adminItems){
       ADMIN.billItems=data.adminItems;
-      try{localStorage.setItem('amara_admin_items',JSON.stringify(data.adminItems));}catch(e){_handleQuotaErr(e);}
+      localStorage.setItem('amara_admin_items',JSON.stringify(data.adminItems));
     }
     _cloudSettingsLoaded=true;
     setCloudStatus('synced');
@@ -7010,7 +6969,7 @@ function printList(){
       });
     }
     var fus=b.billingData&&b.billingData._followUps||[];
-    fus.forEach(function(fu){var f=fuComputedFee(fu);items.push('[Follow-up '+fdt(fu.date)+'] '+( fu.type||'')+(fu.desc?' — '+fu.desc.slice(0,60):'')+(f.amount>0?' ('+fmtMoney(f.amount,f.cur)+')':''));});
+    fus.forEach(function(fu){items.push('[Follow-up '+fdt(fu.date)+'] '+( fu.type||'')+(fu.desc?' — '+fu.desc.slice(0,60):'')+(fu.amount&&parseFloat(fu.amount)?' ('+fmtMoney(fu.amount,fu.cur||'AED')+'  settled)':''));});
     var bg=i%2===0?'#fff':'#f9f9f7';
     h+='<tr style="background:'+bg+';border-bottom:1px solid #eee;vertical-align:top;">'+
       '<td style="padding:7px 10px;color:#999;">#'+String(i+1).padStart(4,'0')+'</td>'+
@@ -7058,7 +7017,7 @@ function dlExcel(){
     }
     var fuArr=b.billingData&&b.billingData._followUps||[];
     fuArr.forEach(function(fu){
-      fus.push(fdt(fu.date)+' ['+( fu.type||'')+']'+(fu.desc?' – '+fu.desc:'')+(fu.amount&&parseFloat(fu.amount)?' ('+fmtMoney(fu.type==='Fee settlement'?Math.round((parseFloat(fu.amount)||0)*(1+_settleMk(fu.cur||'AED'))*100)/100:parseFloat(fu.amount),fu.cur||'AED')+')':""));
+      fus.push(fdt(fu.date)+' ['+( fu.type||'')+']'+(fu.desc?' – '+fu.desc:'')+(fu.amount&&parseFloat(fu.amount)?' ('+fmtMoney(fu.amount,fu.cur||'AED')+'  settled)':''));
       if(fu.adh){adminMins+=(parseInt(fu.adh.h)||0)*60+(parseInt(fu.adh.m)||0);}
     });
     var adminHrs=adminMins>0?Math.floor(adminMins/60)+'h '+(adminMins%60)+'min':'';
@@ -7237,8 +7196,7 @@ function renderAdminHome(){
     {id:'appearance',icon:'🎨',title:'Appearance & Branding',sub:'Colours, fonts, brand name, logo text and UI customisation',badge:''}
   ];
 
-  var h='<button class="ab" onclick="window._settCat=\'team\';showPage(\'settings\');" style="margin-bottom:16px;">&#8592; Back to Settings</button>';
-  h+='<div style="margin-bottom:20px;">';
+  var h='<div style="margin-bottom:20px;">';
   h+='<div style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--g);margin-bottom:4px;">Admin Settings</div>';
   h+='<div style="font-size:12px;color:var(--m2);">Full system control — fees, billing items, display, mapping and audit</div>';
   h+='</div>';
@@ -7264,156 +7222,51 @@ function renderAdminUsers(){
   var isAdmin=_authProfile&&_authProfile.role==='admin';
   var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">'+
     '<button onclick="adminBack()" style="background:none;border:none;color:var(--t);cursor:pointer;font-size:13px;">&#8592; Back</button>'+
-    '<div style="font-size:18px;font-weight:700;color:var(--tx);">&#128101; User Management</div></div>';
-  if(!isAdmin)return h+'<div class="pa-card"><p style="font-size:13px;color:var(--m2);">Only admins can manage users.</p></div>';
+    '<div style="font-size:18px;font-weight:700;color:var(--tx);">👥 User Management</div></div>';
+  if(!isAdmin){
+    return h+'<div class="pa-card"><p style="font-size:13px;color:var(--m2);">Only admins can manage users. Contact your Amara admin to change user settings.</p></div>';
+  }
   h+='<div class="pa-card">'+
-    '<div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:8px;">Team members</div>'+
-    '<div style="font-size:12px;color:var(--m2);margin-bottom:12px;">To add new members: Supabase &rarr; Auth &rarr; Users &rarr; Add user, then run the team SQL script.</div>'+
-    '<div id="users-list"><div style="color:var(--m2);font-size:12px;">Loading...</div></div></div>';
+    '<div style="font-size:12px;color:var(--m2);margin-bottom:14px;line-height:1.6;">'+
+    'Invite team members via Supabase → Authentication → Users → Invite User. Once they sign in, their profile appears here and you can assign their display name and role.</div>'+
+    '<div id="users-list"><div style="color:var(--m2);font-size:12px;">Loading users…</div></div>'+
+    '</div>'+
+    '<div class="pa-card">'+
+    '<div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:10px;">My profile</div>'+
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'+
+    '<input id="my-display-name" class="fi" style="flex:1;max-width:240px;" placeholder="Your display name…" value="'+esc(_authProfile?_authProfile.display_name:'')+'">'+
+    '<button class="ab" onclick="(function(){var n=document.getElementById(\'my-display-name\').value.trim();if(!n)return;_saveProfile(_authUser.id,n,_authProfile.role||\'user\').then(function(){toast(\'Display name updated\',\'ok\');});})()">Save</button>'+
+    '</div>'+
+    '<p style="font-size:11px;color:var(--m2);margin:8px 0 0;">This name appears on bills, reports, and the audit log.</p>'+
+    '</div>';
+  // Load users async
   setTimeout(async function(){
     var d=gDB();if(!d)return;
+    var r=await d.from('user_profiles').select('*').order('display_name');
     var el=document.getElementById('users-list');if(!el)return;
-    var r=await d.from('user_profiles_with_email').select('*').order('display_name');
-    if(r.error)r=await d.from('user_profiles').select('*').order('display_name');
     if(r.error||!r.data||!r.data.length){
-      el.innerHTML='<div style="font-size:12px;color:var(--m2);font-style:italic;">No team members yet.</div>';
+      el.innerHTML='<div style="font-size:12px;color:var(--m2);font-style:italic;">No user profiles yet. Team members appear here after their first sign-in.</div>';
       return;
     }
     var rows=r.data.map(function(u){
-      var email=u.auth_email||u.email||'';
-      var lastSeen=u.last_sign_in_at?('Last seen '+new Date(u.last_sign_in_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'})):'Never signed in';
-      var initials=((u.display_name||email||'?')[0]||'?').toUpperCase();
-      var isMe=u.id===(_authUser&&_authUser.id);
-      return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--bo);flex-wrap:wrap;">'+
-        '<div style="width:36px;height:36px;border-radius:50%;background:var(--tb);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--t);flex-shrink:0;">'+esc(initials)+'</div>'+
-        '<div style="flex:1;min-width:120px;">'+
-          '<div style="font-weight:600;font-size:13px;">'+esc(u.display_name||'(unnamed)')+(isMe?' <span style="font-size:10px;background:var(--tb);color:var(--t);padding:1px 6px;border-radius:99px;">you</span>':'')+'</div>'+
-          '<div style="font-size:11px;color:var(--m2);">'+esc(email)+(u.job_title?' &middot; '+esc(u.job_title):'')+'</div>'+
-          '<div style="font-size:10px;color:var(--m2);">'+esc(lastSeen)+'</div>'+
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bo);flex-wrap:wrap;" id="urow_'+u.id+'">'+
+        '<div style="width:32px;height:32px;border-radius:50%;background:var(--tb);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--t);flex-shrink:0;">'+esc((u.display_name||'?')[0].toUpperCase())+'</div>'+
+        '<div style="flex:1;min-width:0;">'+
+          '<div style="font-weight:600;font-size:13px;">'+esc(u.display_name||'(unnamed)')+'</div>'+
+          '<div style="font-size:11px;color:var(--m2);">'+esc(u.role||'user')+(u.id===(_authUser&&_authUser.id)?' · you':'')+'</div>'+
         '</div>'+
-        '<select data-uid="'+u.id+'" onchange="adminUpdateRole(this.dataset.uid,this.value)" style="font-size:12px;padding:5px 8px;border:1px solid var(--bo2);border-radius:6px;background:var(--wh);color:var(--tx);">'+
+        '<select onchange="(function(uid,role){var d=gDB();if(d)d.from(\'user_profiles\').update({role:role}).eq(\'id\',uid).then(function(){toast(\'Role updated\',\'ok\');});})(\''+u.id+'\',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--bo2);border-radius:6px;background:var(--wh);color:var(--tx);">'+
           '<option value="user"'+(u.role==='user'?' selected':'')+'>User</option>'+
           '<option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option>'+
         '</select>'+
-        '<input id="dn_'+u.id+'" style="font-size:12px;padding:6px 9px;border:1px solid var(--bo2);border-radius:6px;width:130px;" value="'+esc(u.display_name||'')+'" placeholder="Display name">'+
-        '<button data-uid="'+u.id+'" onclick="adminUpdateName(this.dataset.uid)" style="font-size:11px;padding:5px 10px;border:1px solid var(--bo2);border-radius:6px;background:var(--wh);cursor:pointer;">Save</button>'+
+        '<input id="dn_'+u.id+'" style="font-size:12px;padding:6px 9px;border:1px solid var(--bo2);border-radius:6px;width:140px;" value="'+esc(u.display_name||'')+'">'+
+        '<button onclick="(function(uid){var n=document.getElementById(\'dn_\'+uid).value.trim();if(!n)return;var d=gDB();if(d)d.from(\'user_profiles\').update({display_name:n}).eq(\'id\',uid).then(function(){toast(\'Updated\',\'ok\');});})(\''+u.id+'\')" style="font-size:11px;padding:5px 10px;border:1px solid var(--bo2);border-radius:6px;background:var(--wh);cursor:pointer;">Save</button>'+
       '</div>';
     }).join('');
-    el.innerHTML='<div style="font-size:11px;color:var(--m2);margin-bottom:10px;">'+r.data.length+' team member'+(r.data.length!==1?'s':'')+'</div>'+rows;
+    el.innerHTML='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);margin-bottom:8px;">'+r.data.length+' team member'+(r.data.length!==1?'s':'')+'</div>'+rows;
   },100);
   return h;
 }
-function openPasswordReset(){
-  var body=document.getElementById('acctmod-body');
-  if(!body)return;
-  body.innerHTML=
-    '<div style="text-align:center;margin-bottom:20px;">'+
-      '<div style="width:52px;height:52px;border-radius:50%;background:var(--tb);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 10px;">&#128274;</div>'+
-      '<div style="font-weight:700;font-size:16px;color:var(--tx);">Set new password</div>'+
-      '<div style="font-size:12px;color:var(--m2);margin-top:4px;">Choose a strong password for your account</div>'+
-    '</div>'+
-    '<div class="fg"><label class="fl">New password</label><input class="fi" id="acct-pw" type="password" placeholder="Minimum 6 characters" autofocus></div>'+
-    '<div class="fg"><label class="fl">Confirm new password</label><input class="fi" id="acct-pw2" type="password" placeholder="Repeat new password"></div>';
-  // Override the Save button to only do password change
-  var footer=document.querySelector('#acctmod .mfoot');
-  if(footer){
-    footer.innerHTML=
-      '<button class="btn btn-g" onclick="closeMod(\'acctmod\');logout();">Cancel</button>'+
-      '<button class="btn btn-p" onclick="saveNewPassword()">Set password</button>';
-  }
-  openMod('acctmod');
-  setTimeout(function(){var pw=document.getElementById('acct-pw');if(pw)pw.focus();},300);
-}
-async function saveNewPassword(){
-  var pw=(document.getElementById('acct-pw')||{}).value||'';
-  var pw2=(document.getElementById('acct-pw2')||{}).value||'';
-  if(!pw){toast('Enter a new password','er');return;}
-  if(pw!==pw2){toast('Passwords do not match','er');return;}
-  if(pw.length<6){toast('Password must be at least 6 characters','er');return;}
-  var d=gDB();if(!d)return;
-  var r=await d.auth.updateUser({password:pw});
-  if(r.error){toast('Failed: '+r.error.message,'er');return;}
-  toast('Password set successfully! You are now logged in.','ok');
-  closeMod('acctmod');
-  // Reload profile properly
-  if(_authUser)_loadProfile(_authUser.id);
-  // Restore normal Save button in account settings
-  var footer=document.querySelector('#acctmod .mfoot');
-  if(footer){
-    footer.innerHTML=
-      '<button class="btn btn-g" onclick="closeMod(\'acctmod\')">Close</button>'+
-      '<button class="btn btn-p" onclick="saveAccountSettings()">Save changes</button>';
-  }
-}
-function openAccountSettings(){
-  var p=_authProfile||{};
-  var email=(_authUser&&_authUser.email)||'';
-  var body=document.getElementById('acctmod-body');
-  if(!body)return;
-  body.innerHTML=
-    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">'+
-      '<div style="width:52px;height:52px;border-radius:50%;background:var(--tb);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:var(--t);">'+(p.display_name?p.display_name[0].toUpperCase():'?')+'</div>'+
-      '<div><div style="font-weight:700;font-size:16px;">'+esc(p.display_name||email)+'</div>'+
-      '<div style="font-size:12px;color:var(--m2);">'+esc(email)+'</div>'+
-      '<div style="font-size:11px;color:var(--t);margin-top:2px;font-weight:600;text-transform:capitalize;">'+esc(p.role||'user')+'</div></div>'+
-    '</div>'+
-    '<div class="fg"><label class="fl">Display name</label><input class="fi" id="acct-name" value="'+esc(p.display_name||'')+'" placeholder="e.g. Carmela, Dr Jay"></div>'+
-    '<div class="fg"><label class="fl">Job title</label><input class="fi" id="acct-title" value="'+esc(p.job_title||'')+'" placeholder="e.g. Concierge, Doctor, Nurse"></div>'+
-    '<div class="fg"><label class="fl">Phone / WhatsApp</label><input class="fi" id="acct-phone" type="tel" value="'+esc(p.phone||'')+'" placeholder="+971 50 000 0000"></div>'+
-    '<div class="divider"></div>'+
-    '<div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:10px;">Change password</div>'+
-    '<div class="fg"><label class="fl">New password</label><input class="fi" id="acct-pw" type="password" placeholder="Min 6 characters"></div>'+
-    '<div class="fg"><label class="fl">Confirm new password</label><input class="fi" id="acct-pw2" type="password" placeholder="Repeat new password"></div>';
-  openMod('acctmod');
-}
-async function saveAccountSettings(){
-  var d=gDB();if(!d)return;
-  var name=(document.getElementById('acct-name')||{}).value||'';
-  var title=(document.getElementById('acct-title')||{}).value||'';
-  var phone=(document.getElementById('acct-phone')||{}).value||'';
-  var pw=(document.getElementById('acct-pw')||{}).value||'';
-  var pw2=(document.getElementById('acct-pw2')||{}).value||'';
-  name=name.trim();title=title.trim();phone=phone.trim();
-  if(!name){toast('Display name is required','er');return;}
-  var uid=_authUser&&_authUser.id;if(!uid)return;
-  var up={id:uid,display_name:name,role:(_authProfile&&_authProfile.role)||'user'};
-  if(title)up.job_title=title;
-  if(phone)up.phone=phone;
-  var r=await d.from('user_profiles').upsert(up);
-  if(r.error){toast('Save failed: '+r.error.message,'er');return;}
-  _authProfile=Object.assign({},_authProfile||{},{display_name:name,job_title:title,phone:phone});
-  _curUser=name;_popActingAs();
-  if(pw){
-    if(pw!==pw2){toast('New passwords do not match','er');return;}
-    if(pw.length<6){toast('New password must be at least 6 characters','er');return;}
-    var pr=await d.auth.updateUser({password:pw});
-    if(pr.error){toast('Password change failed: '+pr.error.message,'er');return;}
-    // Sign out and back in so session reflects new password
-    await d.auth.signOut();
-    db=null;
-    toast('Password changed! Please log in with your new password.','ok');
-    closeMod('acctmod');
-    setTimeout(function(){_showLogin();showLoginForm();},1200);
-    return;
-  }else{
-    toast('Profile saved','ok');
-  }
-  closeMod('acctmod');
-}
-function adminUpdateRole(uid,role){
-  var d=gDB();
-  if(d)d.from('user_profiles').update({role:role}).eq('id',uid).then(function(){toast('Role updated','ok');});
-}
-function adminUpdateName(uid){
-  var n=(document.getElementById('dn_'+uid)||{}).value||'';
-  n=n.trim();if(!n)return;
-  var d=gDB();
-  if(d)d.from('user_profiles').update({display_name:n}).eq('id',uid).then(function(){
-    toast('Name updated','ok');
-    if(uid===(_authUser&&_authUser.id)){_curUser=n;_popActingAs();}
-  });
-}
-
 function adminFeeCount(){
   var n=0;
   ['docFlat','docExtUnit','physAdmin','teamAdmin','nurse','prescription','referral','nurseUK','adminUK','referralUK','prescriptionUK'].forEach(function(k){if(FEES[k]&&typeof FEES[k]==='object')n+=Object.keys(FEES[k]).length;});
@@ -9311,73 +9164,6 @@ function _seedUKInt(){
   if(!_ukIntCurrent(a))CFG.billingStructure.internal_uk=richInternalUKItems();
   return CFG.billingStructure.internal_uk;
 }
-
-function richInternalGlobalItems(){
-  // AED prices from item list — Global/International rates
-  return [
-    { id:'doctor_gli', name:"Doctor's Consultation", displayName:"Doctor's Consultation",
-      description:'Global physician consultation (AED)', category:'Doctor', color:'#185FA5', bg:'#F0F5FB', required:false, active:true, custom:true,
-      fields:[
-        {id:'cn',l:'Doctor name',t:'doctorsel'},
-        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
-        {id:'ctype',l:'Consultation type',t:'sel',byWhen:true,o:['Brief / correspondence','Standard (up to 30 min)','Extended (up to 1 hr)']},
-        {id:'mode',l:'Consultation mode',t:'sel',o:['In clinic','Home visit','Telephone','Video consultation']},
-        {id:'inc',l:'Additional half-hour increments',t:'unit'},
-        {id:'rf',l:'GP referral letter',t:'ihooh'},
-        {id:'ph',l:'Phlebotomy fee',t:'tog'},
-        {id:'lw',l:'Lab work',t:'lab'},
-        {id:'co',l:'Courier',t:'sel',o:['Standard','Custom']},
-        {id:'pfee',l:'Prescription fee',t:'ihooh'},
-        {id:'meds',l:'Medications arranged',t:'mta'},
-        {id:'docnotes',l:'Consultation notes',t:'mta'}
-      ],
-      prices:{ ctype:{
-        'Brief / correspondence|In Hours':1285,'Brief / correspondence|Out of Hours':1928,
-        'Standard (up to 30 min)|In Hours':1470,'Standard (up to 30 min)|Out of Hours':2205,
-        'Extended (up to 1 hr)|In Hours':2920,'Extended (up to 1 hr)|Out of Hours':4380
-      }, rf:{'In Hours':312,'Out of Hours':468}, ph:{'__on':195}, co:{'Standard':135}, pfee:{'In Hours':367,'Out of Hours':551} },
-      rates:{ inc:{ih:550,ooh:830} }
-    },
-    { id:'rx_gli', name:'Medications', displayName:'Medications', description:'Global prescription / medication (AED)', category:'Prescription', color:'#534AB7', bg:'#F2F1FD', required:false, active:true, custom:true,
-      fields:[
-        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
-        {id:'pfee',l:'Prescription fee',t:'ihooh'},
-        {id:'meds',l:'Medications arranged',t:'mta'}
-      ],
-      prices:{ pfee:{'In Hours':367,'Out of Hours':551} }
-    },
-    { id:'nurse_gli', name:'Nurse Visit', displayName:'Nurse Visit', description:'Global nurse visit \u2014 per hour (AED)', category:'Nurse', color:'#0F6E56', bg:'#F0F7F4', required:false, active:true, custom:true,
-      fields:[
-        {id:'nu',l:'Nurse name',t:'txt'},
-        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
-        {id:'nvt',l:'Visit type',t:'multi',o:['Sample collection','Device fitting','Medication administration']},
-        {id:'dur',l:'Time spent',t:'unit'},
-        {id:'ph',l:'Phlebotomy fee',t:'tog'},
-        {id:'lw',l:'Lab works (select tests)',t:'lab',cond:{f:'nvt',has:'Sample collection'}},
-        {id:'labfee',l:'Lab fee settled by Amara (AED)',t:'pass',cond:{f:'nvt',has:'Sample collection'}},
-        {id:'lw',l:'Lab work',t:'lab'},
-        {id:'co',l:'Courier',t:'sel',o:['Standard','Custom']},
-        {id:'nnotes',l:'Notes',t:'mta'}
-      ],
-      rates:{ dur:{ih:500,ooh:750} },
-      prices:{ ph:{'__on':195}, co:{'Standard':135} }
-    },
-    { id:'admin_gli', name:'Concierge Admin Time', displayName:'Medical Operations Admin', description:'Admin per 30-min unit (AED)', category:'Admin', color:'#6B5B8A', bg:'#F3F1F7', required:false, active:true, custom:true,
-      fields:[
-        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
-        {id:'dur',l:'Admin time',t:'unit'},
-        {id:'adesc',l:'Description of work',t:'mta'}
-      ],
-      rates:{ dur:{ih:170,ooh:255} }
-    }
-  ];
-}
-function _seedGlobalInt(){
-  if(!CFG.billingStructure)CFG.billingStructure=getDefaultBillingStructure();
-  if(!CFG.billingStructure.internal_global||!CFG.billingStructure.internal_global.some(function(x){return x.id==='doctor_gli';}))
-    CFG.billingStructure.internal_global=richInternalGlobalItems();
-  return CFG.billingStructure.internal_global;
-}
 function richRegionItems(reg){
   var uk = reg==='uk';
   var nursePrice = uk?{'In Hours':250,'Out of Hours':375}:{'In Hours':0,'Out of Hours':0};
@@ -9756,7 +9542,6 @@ function ukExternalItems(){
       fields:[
         {id:'when',l:'When',t:'when',o:['In Hours','Out of Hours']},
         {id:'cn',l:'Consultant / doctor name',t:'txt'},
-        {id:'mode',l:'Consultation type',t:'sel',o:['In clinic','Home visit','Telephone','Video consultation']},
         {id:'ref',l:'Referral letter',t:'ihooh'},
         {id:'cf',l:'Consultation fee (if settled by Amara)',t:'pass'},
         {id:'adh',l:'Administration time',t:'unit'},
@@ -9764,7 +9549,7 @@ function ukExternalItems(){
       ],
       prices:{ref:{'In Hours':75,'Out of Hours':95}},
       rates:{adh:{ih:45,ooh:75,unit:'unit30'}},
-      markup:{cf:1.10} },
+      markup:{cf:1.05} },
 
     { id:'uk_nurse', name:'Nurse — Home Visit', displayName:'Nurse — Home Visit',
       description:'UK nurse: sample collection, device fitting & medication', category:'Nurse', cur:'GBP',
@@ -9775,8 +9560,7 @@ function ukExternalItems(){
         {id:'nvt',l:'Nurse visit type',t:'multi',o:['Sample collection','Device fitting','Medication administration']},
         {id:'nurse',l:'Nurse home visit fee',t:'ihooh'},
         {id:'phleb',l:'Phlebotomy (if bloods collected)',t:'tog',cond:{f:'nvt',has:'Sample collection'}},
-        {id:'lw',l:'Lab works (select tests)',t:'lab',cond:{f:'nvt',has:'Sample collection'}},
-        {id:'labfee',l:'Lab fee settled by Amara',t:'pass',cond:{f:'nvt',has:'Sample collection'}},
+        {id:'lab',l:'Lab work (lab fee + markup)',t:'pass',cond:{f:'nvt',has:'Sample collection'}},
         {id:'ecg',l:'ECG fee (if settled by Amara)',t:'pass',cond:{f:'nvt',has:'Device fitting'}},
         {id:'bp',l:'BP monitor fee (if settled by Amara)',t:'pass',cond:{f:'nvt',has:'Device fitting'}},
         {id:'inj',l:'Injection / IV fee (if settled by Amara)',t:'pass',cond:{f:'nvt',has:'Medication administration'}},
@@ -9789,7 +9573,7 @@ function ukExternalItems(){
       ],
       prices:{nurse:{'In Hours':275,'Out of Hours':375}, phleb:{'__on':55}, padmin:{'__on':295}, presc:{'In Hours':75,'Out of Hours':95}, courier:COURIER},
       rates:{adh:{ih:45,ooh:75,unit:'unit30'}},
-      markup:{labfee:1.10, ecg:1.10, bp:1.10, inj:1.10, vac:1.10} },
+      markup:{lab:1.30, ecg:1.05, bp:1.05, inj:1.05, vac:1.05} },
 
     { id:'uk_scan', name:'Scan / Procedure', displayName:'Scan / Procedure', cur:'GBP',
       description:'UK scan or procedure arrangement', category:'Other',
@@ -9804,20 +9588,19 @@ function ukExternalItems(){
       ],
       prices:{ref:{'In Hours':75,'Out of Hours':95}, padmin:{'__on':295}},
       rates:{adh:{ih:45,ooh:75,unit:'unit30'}},
-      markup:{sf:1.10} },
+      markup:{sf:1.05} },
 
     { id:'uk_med', name:'External Medication', displayName:'External Medication', cur:'GBP',
       description:'UK external medication arrangement', category:'Medication',
       color:'#B8813A', bg:'#FBF6EE', required:false, active:true, custom:true,
       fields:[
         {id:'when',l:'When',t:'when',o:['In Hours','Out of Hours']},
-        {id:'presc',l:"Physician's prescription fee",t:'ihooh'},
         {id:'meds',l:'Medications arranged',t:'mta'},
         {id:'med',l:'Medication fee (if settled by Amara)',t:'pass'},
         {id:'courier',l:'Courier',t:'sel',o:['Standard','Custom']},
-        {id:'adh',l:'Administration time',t:'unit'}
+        {id:'adh',l:'Total time spent (including free 30 min)',t:'unit',n:'First 30 min included in logistics fee'}
       ],
-      prices:{presc:{'In Hours':75,'Out of Hours':95}, courier:COURIER},
+      prices:{courier:COURIER},
       rates:{adh:{ih:45,ooh:75,unit:'unit30'}},
       markup:{med:1.10} },
 
@@ -9842,12 +9625,9 @@ ensureRichRegions=function(){
     richRegionItems('global').forEach(function(seed){ if(!g.some(function(x){return x.id===seed.id;}))g.push(seed); });
     CFG.__globalSeededV1=true;
   }
-  if(!CFG.__ukSeededV3){
+  if(!CFG.__ukSeededV2){
     CFG.billingStructure.external_uk=ukExternalItems();
-    // Also re-seed internal_global with new items
-    CFG.billingStructure.internal_global=richInternalGlobalItems();
-    CFG.__ukSeededV3=true;
-    CFG.__ukSeededV2=true; // keep old flag set so it doesnt re-trigger
+    CFG.__ukSeededV2=true;
   }
 };
 
@@ -10132,15 +9912,12 @@ function ukItemLines(item,idata){
         if(amt2>0)lines.push({label:f.l,amount:amt2});
       }
     } else if(f.t==='pass'){
-      var fee=(v&&parseFloat(v.amount))||0;var mult2=(item.markup&&item.markup[f.id])||1;
-      if(fee>0){lines.push({label:_clnUK(f.l),amount:Math.round(fee*mult2*100)/100});}
-      // Extra fee lines
-      var extras=Array.isArray(idata[f.id+'_extra'])?idata[f.id+'_extra']:[];
-      extras.forEach(function(ex){var ef=parseFloat(ex.amount)||0;if(ef>0){lines.push({label:_clnUK(f.l)+(ex.desc?' \u2014 '+ex.desc:''),amount:Math.round(ef*mult2*100)/100});}});
+      var fee=(v&&parseFloat(v.amount))||0;
+      if(fee>0){lines.push({label:_clnUK(f.l),amount:Math.round(fee*1.10*100)/100});}
     } else if(f.t==='unit'){
       var mins=v?((parseInt(v.h)||0)*60+(parseInt(v.m)||0)):0;
       if(mins>0){
-        var units=adminUnits(mins);
+        var units=Math.ceil(mins/30);
         var rate=((R[f.id]&&(when==='Bank Holiday'?(R[f.id].bh!=null?R[f.id].bh:R[f.id].ooh):(when==='Out of Hours'?R[f.id].ooh:R[f.id].ih)))||0);
         var a=units*rate;
         if(a>0)lines.push({label:f.l+' ('+units+' \u00d7 30 min, '+when+')',amount:a});
@@ -10184,6 +9961,74 @@ function computeUKLines(b){
 }
 
 // ── Field savers (extUK) ──
+
+// ── Global internal items definition ──
+function richInternalGlobalItems(){
+  return [
+    { id:'doctor_gli', name:"Doctor's Consultation", displayName:"Doctor's Consultation",
+      description:'Global physician consultation (AED)', category:'Doctor', color:'#185FA5', bg:'#F0F5FB', required:false, active:true, custom:true, cur:'AED',
+      fields:[
+        {id:'dn',l:'Doctor name',t:'txt'},
+        {id:'ct',l:'Consultation type',t:'sel',o:['Brief','Standard','Extended'],req:1},
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
+        {id:'mode',l:'Consultation mode',t:'sel',o:['Home visit','Face to face','Zoom / video','Telephone']},
+        {id:'dur',l:'Time spent',t:'unit'},
+        {id:'rf',l:"Referral letter",t:'tog'},
+        {id:'cf',l:'Consultation fee (if paid)',t:'pass'},
+        {id:'adh',l:'Admin time',t:'unit'},
+        {id:'adesc',l:'Admin time description',t:'admintmpl'}
+      ],
+      prices:{ dur:{Brief:550,Standard:850,Extended:1200} },
+      rates:{ dur:{ih:550,ooh:830,unit:'unit30'}, adh:{ih:170,ooh:255,unit:'unit30'} }
+    },
+    { id:'nurse_gli', name:'Nurse Visit', displayName:'Nurse Visit', description:'Global nurse visit — per hour (AED)', category:'Nurse', color:'#0F6E56', bg:'#F0F7F4', required:false, active:true, custom:true, cur:'AED',
+      fields:[
+        {id:'nu',l:'Nurse name',t:'txt'},
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
+        {id:'nvt',l:'Visit type',t:'multi',o:['Sample collection','Device fitting','Medication administration']},
+        {id:'dur',l:'Time spent',t:'unit'},
+        {id:'ph',l:'Phlebotomy fee',t:'tog'},
+        {id:'stdnfee',l:'Use standard fee',t:'nursestdfee',rateKey:'nurseGL',cur:'AED',n:'Auto-fills Global nurse rate (AED) — no markup applied'},
+        {id:'lw',l:'Lab works (select tests)',t:'lab',cond:{f:'nvt',has:'Sample collection'}},
+        {id:'labfee',l:'Lab fee settled by Amara (AED)',t:'pass',cond:{f:'nvt',has:'Sample collection'}},
+        {id:'adh',l:'Admin time',t:'unit'},
+        {id:'adesc',l:'Admin time description',t:'admintmpl'}
+      ],
+      rates:{ dur:{ih:500,ooh:750,unit:'unit30'}, adh:{ih:170,ooh:255,unit:'unit30'} }
+    },
+    { id:'rx_gli', name:'Medication Logistics', displayName:'Medication Logistics', description:'Prescription + 30 min admin included (AED)', category:'Prescription', color:'#534AB7', bg:'#F2F1FD', required:false, active:true, custom:true, cur:'AED',
+      fields:[
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
+        {id:'meds',l:'Medications arranged',t:'mta'},
+        {id:'adh',l:'Total time spent (including free 30 min)',t:'unit',n:'First 30 min included in logistics fee'},
+        {id:'adesc',l:'Description',t:'admintmpl'}
+      ],
+      prices:{},
+      rates:{adh:{ih:170,ooh:255,unit:'unit15half'}}
+    },
+    { id:'admin_gli', name:'Concierge Admin Time', displayName:'Medical Operations Admin', description:'Admin per 30-min unit (AED)', category:'Admin', color:'#6B5B8A', bg:'#F3F1F7', required:false, active:true, custom:true, cur:'AED',
+      fields:[
+        {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
+        {id:'al',l:'Location',t:'sel',o:['Local','International']},
+        {id:'dur',l:'Time spent',t:'unit'},
+        {id:'adesc',l:'Description',t:'admintmpl'}
+      ],
+      rates:{ dur:{ih:170,ooh:255,unit:'unit30'} }
+    }
+  ];
+}
+function _seedGlobalInt(){
+  if(typeof CFG==='undefined')return richInternalGlobalItems();
+  if(!CFG.billingStructure)CFG.billingStructure={};
+  if(!CFG.billingStructure.internal_global||!CFG.billingStructure.internal_global.length){
+    CFG.billingStructure.internal_global=richInternalGlobalItems();
+  }
+  // Self-heal: if items missing cur:'AED', re-seed
+  if(CFG.billingStructure.internal_global.some(function(x){return !x.cur;})){
+    CFG.billingStructure.internal_global=richInternalGlobalItems();
+  }
+  return CFG.billingStructure.internal_global;
+}
 function computeGlobalLines(b){
   ensureRichRegions();_seedGlobalInt();
   var _items=_seedGlobalInt()||[];
@@ -10200,29 +10045,21 @@ function computeGlobalLines(b){
 function setUKPass(itemId,fId,val,sk){sk=sk||'extUK';
   if(!curBill.billingData[sk])curBill.billingData[sk]={};
   if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
+  var existing=curBill.billingData[sk][itemId][fId]||{};
+  curBill.billingData[sk][itemId][fId]={amount:val,cur:existing.cur||''};
+  renderBForm();
+}
+function setUKPassCur(itemId,fId,cur,sk){sk=sk||'extUK';
+  if(!curBill.billingData[sk])curBill.billingData[sk]={};
+  if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
+  var existing=curBill.billingData[sk][itemId][fId]||{};
+  curBill.billingData[sk][itemId][fId]={amount:existing.amount||'',cur:cur};
+  renderBForm();
+}
+function _OLD_setUKPass(itemId,fId,val,sk){sk=sk||'extUK';
+  if(!curBill.billingData[sk])curBill.billingData[sk]={};
+  if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
   curBill.billingData[sk][itemId][fId]={amount:val};
-  renderBForm();
-}
-function addUKPassExtra(itemId,fId,sk){sk=sk||'extUK';
-  if(!curBill.billingData[sk])curBill.billingData[sk]={};
-  if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
-  var key=fId+'_extra';
-  if(!Array.isArray(curBill.billingData[sk][itemId][key]))curBill.billingData[sk][itemId][key]=[];
-  curBill.billingData[sk][itemId][key].push({amount:'',desc:''});
-  renderBForm();
-}
-function setUKPassExtra(itemId,fId,idx,prop,val,sk){sk=sk||'extUK';
-  if(!curBill.billingData[sk])curBill.billingData[sk]={};
-  if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
-  var key=fId+'_extra';
-  if(!Array.isArray(curBill.billingData[sk][itemId][key]))curBill.billingData[sk][itemId][key]=[];
-  if(!curBill.billingData[sk][itemId][key][idx])curBill.billingData[sk][itemId][key][idx]={};
-  curBill.billingData[sk][itemId][key][idx][prop]=val;
-}
-function removeUKPassExtra(itemId,fId,idx,sk){sk=sk||'extUK';
-  var key=fId+'_extra';
-  var arr=(curBill.billingData[sk]&&curBill.billingData[sk][itemId]&&curBill.billingData[sk][itemId][key])||[];
-  arr.splice(idx,1);
   renderBForm();
 }
 function setUKNum(itemId,fId,val,sk){sk=sk||'extUK';
@@ -10240,6 +10077,64 @@ function setUKHours(itemId,fId,part,val,sk){sk=sk||'extUK';
 }
 
 // ── Editor: one configured UK field ──
+
+function toggleStdNFee(sk,itemId,fId,rateKey,cur,when){
+  if(!curBill.billingData[sk])curBill.billingData[sk]={};
+  if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
+  var cur_val=curBill.billingData[sk][itemId][fId]||{};
+  var nowOn=!cur_val.on;
+  var stdRate=(FEES[rateKey]&&FEES[rateKey][when])||0;
+  curBill.billingData[sk][itemId][fId]={on:nowOn,cur:cur,override:stdRate,rateKey:rateKey,when:when};
+  renderBForm();
+}
+function setStdNFeeOverride(sk,itemId,fId,val){
+  if(!curBill.billingData[sk]||!curBill.billingData[sk][itemId])return;
+  var cur_val=curBill.billingData[sk][itemId][fId]||{};
+  curBill.billingData[sk][itemId][fId]=Object.assign({},cur_val,{override:parseFloat(val)||0});
+}
+function buildBillingRulesPanel(b){
+  var lines=[];
+  var bd=b.billingData||{};
+  // Only show rules relevant to what's actually in this bill
+  // --- Fee settlement markup ---
+  var hasFeeSettled=false;
+  for(var _sk in bd){var _sdata=bd[_sk];if(_sdata&&typeof _sdata==='object'){for(var _id in _sdata){var _id2=_sdata[_id];if(_id2&&(_id2['feepaid']||_id2['sf']||_id2['cf']))hasFeeSettled=true;}}}
+  if(hasFeeSettled){
+    lines.push('<div style="margin-bottom:6px;"><strong>Fee settlement markup</strong></div>');
+    var _br=b.branch||'UAE';
+    lines.push('<div style="font-size:11px;line-height:1.8;color:var(--m2);">'+(_br==='UK'?'UK (GBP): +10% applied to fees settled by Amara':_br==='Global'?'Global: +10% applied to fees settled':'UAE (AED): +5% applied to fees settled by Amara')+'</div>');
+  }
+  // --- VAT ---
+  var hasVAT=_billStdTaxTotal&&_billStdTaxTotal(b)>0;
+  if(hasVAT){
+    lines.push('<div style="margin:8px 0 4px;"><strong>VAT 5% applied</strong></div>');
+    var _vatItems=[];
+    if(typeof _billStdTax==='function'){_billStdTax(b).forEach(function(v){_vatItems.push(v.label+': AED '+v.base.toLocaleString()+' → +AED '+v.tax.toLocaleString());});}
+    lines.push('<div style="font-size:11px;line-height:1.8;color:var(--m2);">UAE Local services only.<br>'+_vatItems.join('<br>')+'</div>');
+  }
+  // --- Medication Logistics ---
+  var hasMedLog=bd.ext&&(bd.ext['em']&&bd.ext['em']['ph2'])||(bd.int&&bd.int['im']&&bd.int['im']['imt']&&bd.int['im']['imt'].indexOf('OTC')<0&&bd.int['im']['imt'].indexOf('Custom')<0);
+  if(hasMedLog){
+    lines.push('<div style="margin:8px 0 4px;"><strong>Medication Logistics fee</strong></div>');
+    var _mlItem=(bd.ext&&bd.ext['em'])||{};var _mlIm=(bd.int&&bd.int['im'])||{};
+    var _mlLoc=_mlItem['pl']||_mlIm['al']||'Local';
+    var _mlWhen=_mlItem['ph2']||_mlIm['adh_h']||'In Hours';
+    var _mlAdh=_mlItem['adh']||_mlIm['adh']||{};
+    var _mlReg=(_mlLoc==='International'||_mlLoc.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';
+    if(b.branch==='UK')_mlReg='UK';
+    if(b.branch==='Global')_mlReg='Global';
+    var _mlF=calcMedLogisticsFee(_mlReg,_mlWhen,_mlAdh);
+    var _mlTotalMins=_mlF.totalMins;
+    lines.push('<div style="font-size:11px;line-height:1.8;color:var(--m2);">Prescription fee ('+_mlWhen+' · '+_mlLoc+'): '+_mlF.cur+' '+_mlF.baseFee.toLocaleString()+'<br>First 30 min admin: included (no charge)<br>'+(_mlTotalMins>30?'Additional time: '+(_mlTotalMins-30)+'min beyond free 30min = '+_mlF.extraSets+' sets × '+_mlF.cur+' '+_mlF.adminRate+' = '+_mlF.cur+' '+_mlF.extraFee.toLocaleString():'Time logged: '+_mlTotalMins+'min — within free 30 min')+'<br><strong>Total logistics fee: '+_mlF.cur+' '+_mlF.total.toLocaleString()+'</strong></div>');
+  }
+  return '<div style="margin:12px 0;border:1px solid var(--bo);border-radius:var(--rl);overflow:hidden;">'+
+    '<div onclick="var p=this.nextElementSibling;p.style.display=p.style.display===\'none\'?\'block\':\'none\'" style="padding:11px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:var(--wh2);">'+
+      '<span style="font-size:12px;font-weight:700;color:var(--m2);">&#128196; See billing rules applied</span>'+
+      '<span style="font-size:10px;color:var(--m2);">&#9660;</span>'+
+    '</div>'+
+    '<div style="display:none;padding:12px 14px;font-size:12px;color:var(--tx);">'+lines.join('')+'</div>'+
+  '</div>';
+}
 function renderUKField(item,idata,f,sk){
   sk=sk||'extUK';
   var id=item.id, fid=f.id;
@@ -10271,32 +10166,16 @@ function renderUKField(item,idata,f,sk){
   if(f.t==='pass'){
     var fee=(idata[fid]&&parseFloat(idata[fid].amount))||0;var mult=M[fid]||1;
     var bill=Math.round(fee*mult*100)/100;
-    var extras=Array.isArray(idata[fid+'_extra'])?idata[fid+'_extra']:[];
-    var extraH=extras.map(function(ex,ei){
-      var exFee=parseFloat(ex.amount)||0;var exBill=Math.round(exFee*mult*100)/100;
-      return '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;">'+
-        '<input class="fee-inp" style="flex:1;" type="text" placeholder="Description" value="'+esc(ex.desc||'')+'" onchange="setUKPassExtra(\''+id+'\',\''+fid+'\','+ei+',\'desc\',this.value,\''+sk+'\')">'+
-        '<span style="font-size:12px;color:var(--m2);padding:0 4px;">GBP</span>'+
-        '<input class="fee-inp" style="width:90px;" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc(ex.amount||'')+'" onchange="setUKPassExtra(\''+id+'\',\''+fid+'\','+ei+',\'amount\',this.value,\''+sk+'\')">'+
-        (exFee>0?'<span style="font-size:10px;color:#0C447C;font-weight:700;white-space:nowrap;">→ GBP '+exBill.toLocaleString('en-GB',{minimumFractionDigits:2})+'</span>':'')+
-        '<button onclick="removeUKPassExtra(\''+id+'\',\''+fid+'\','+ei+',\''+sk+'\')" type="button" style="font-size:14px;color:var(--re);background:none;border:none;cursor:pointer;padding:0 2px;line-height:1;" title="Remove">&times;</button>'+
-      '</div>';
-    }).join('');
-    var totalFee=fee+extras.reduce(function(s,ex){return s+(parseFloat(ex.amount)||0);},0);
-    var totalBill=Math.round(totalFee*mult*100)/100;
     return '<div class="dr"><div class="dl">'+esc(lbl)+' <span style="font-weight:400;color:var(--m2);font-style:italic;">\u2014 fee paid \u00d7 '+mult+'</span></div>'+
       '<div class="fee-w"><span style="font-size:12px;color:var(--m2);padding:0 6px;">GBP</span>'+
       '<input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc((idata[fid]&&idata[fid].amount)||'')+'" onchange="setUKPass(\''+id+'\',\''+fid+'\',this.value,\''+sk+'\')"></div>'+
       (fee>0?'<div style="font-size:11px;color:#0C447C;font-weight:700;margin-top:4px;">Bill: GBP '+bill.toLocaleString('en-GB',{minimumFractionDigits:2})+'</div>':'')+
-      extraH+
-      '<button onclick="addUKPassExtra(\''+id+'\',\''+fid+'\',\''+sk+'\')" type="button" style="margin-top:6px;font-size:11px;font-weight:600;color:var(--t);background:none;border:1px dashed var(--bo2);border-radius:6px;padding:4px 10px;cursor:pointer;">+ Add fee line</button>'+
-      (extras.length>0&&totalFee>0?'<div style="font-size:11px;color:#0C447C;font-weight:700;margin-top:5px;padding-top:5px;border-top:1px solid var(--bo);">Total bill: GBP '+totalBill.toLocaleString('en-GB',{minimumFractionDigits:2})+'</div>':'')+
       '</div>';
   }
   if(f.t==='unit'){
     var v=idata[fid]||{h:'',m:''};var mins=(parseInt(v.h)||0)*60+(parseInt(v.m)||0);
     var rate=((R[fid]&&(when==='Out of Hours'?R[fid].ooh:R[fid].ih))||0);
-    var units=adminUnits(mins);var a=units*rate;
+    var units=Math.ceil(mins/30);var a=units*rate;
     return '<div class="dr"><div class="dl">'+esc(lbl)+' <span style="font-weight:400;color:var(--m2);font-style:italic;">\u2014 GBP '+rate.toLocaleString('en-GB')+' / 30 min ('+when+')</span></div>'+
       '<div class="hrs-w">'+
       '<input class="hrs-n" type="number" min="0" max="23" placeholder="0" value="'+esc(v.h||'')+'" onchange="setUKHours(\''+id+'\',\''+fid+'\',\'h\',this.value,\''+sk+'\')"><span class="hrs-l">hrs</span>'+
@@ -10348,8 +10227,35 @@ function renderUKField(item,idata,f,sk){
     var _uma=Array.isArray(idata[fid])?idata[fid]:[];
     return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><div class="chips">'+(f.o||[]).map(function(o){var on=_uma.indexOf(o)>=0;return'<button type="button" class="chip'+(on?' on':'')+'" onclick="toggleMulti(\''+sk+'\',\''+id+'\',\''+fid+'\',\''+esc(o)+'\')">'+(on?'&#10003; ':'')+esc(o)+'</button>';}).join('')+'</div></div>';
   }
+    if(f.t==='nursestdfee'){
+    var _rk=f.rateKey||(_dc==='GBP'?'nurseUK':'nurseGL');
+    var _stdRate=(FEES[_rk]&&FEES[_rk][when])||0;
+    var _togOn=idata[fid]&&idata[fid].on===true;
+    var _overrideAmt=(idata[fid]&&idata[fid].override!=null)?idata[fid].override:_stdRate;
+    var _stdRateStr=_dc+' '+(_stdRate||0);
+    var _snOnclick='toggleStdNFee(\''+sk+'\',\''+id+'\',\''+fid+'\',\''+_rk+'\',\''+_dc+'\',\''+when+'\')';
+    var _snOnchange='setStdNFeeOverride(\''+sk+'\',\''+id+'\',\''+fid+'\',this.value)';
+    return '<div class="dr"><div class="dl">'+esc(lbl)+(f.n?' <span style="font-weight:400;font-style:italic;color:var(--m2);">— '+esc(f.n)+'</span>':'')+' </div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;">'+
+        '<button type="button" class="tog-btn" style="background:'+(_togOn?'var(--t)':'#C5BAB0')+';" onclick="'+_snOnclick+'">'+
+          '<div class="tog-thumb" style="left:'+(_togOn?'19':'3')+'px;"></div>'+
+        '</button>'+
+        '<span style="font-size:13px;font-weight:500;">'+esc(_stdRateStr)+'</span>'+
+        '<span style="font-size:11px;color:var(--m2);">'+when+'</span>'+
+        '<span style="font-size:11px;font-weight:700;color:var(--g);">No markup</span>'+
+      '</div>'+
+      (_togOn?
+        '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;">'+
+          '<span style="font-size:11px;color:var(--m2);">Override:</span>'+
+          '<span style="font-size:12px;color:var(--m2);">'+esc(_dc)+'</span>'+
+          '<input class="fee-inp" style="width:110px;" type="number" min="0" step="0.01" value="'+esc(String(_overrideAmt))+'" onchange="'+_snOnchange+'">'+
+          '<span style="font-size:11px;color:var(--m2);">default: '+esc(_stdRateStr)+'</span>'+
+        '</div>':'')+'</div>';
+  }
   if(f.t==='admintmpl'){
-    var _ucur=(idata[fid]!=null&&String(idata[fid]).trim()!=='')?idata[fid]:(typeof ukAdminDesc==='function'?ukAdminDesc(item,idata,(curBill&&curBill.createdAt)||(curBill&&curBill.billDate?curBill.billDate+'T12:00:00.000Z':null)):'');
+    var _autoBillDateGL=(curBill&&curBill.billDate)||(curBill&&curBill.createdAt);
+    var _isMedLogItem=(id==='uk_med'||id==='rx_gli');
+    var _ucur=(idata[fid]!=null&&String(idata[fid]).trim()!=='')?idata[fid]:(_isMedLogItem?fmtMedLogisticsDesc(_autoBillDateGL):(typeof ukAdminDesc==='function'?ukAdminDesc(item,idata,curBill&&curBill.createdAt):''));
     return '<div class="dr"><div class="dl">'+esc(lbl)+' <span style="font-weight:400;color:var(--m2);font-style:italic;">\u2014 auto-generated, editable</span></div><textarea class="dfta" placeholder="Admin description\u2026" data-save-key="'+sk+'|'+id+'|'+fid+'">'+esc(_ucur)+'</textarea></div>';
   }
   return '';
@@ -10357,22 +10263,22 @@ function renderUKField(item,idata,f,sk){
 
 // ── Editor: the UK section (configured items) ──
 function renderUKSec(sk,structKey){
-  sk=sk||'extUK'; structKey=structKey||'external_uk'; var _isInt=(sk!=='extUK');
+  sk=sk||'extUK'; structKey=structKey||'external_uk';
+  var _isInt=(sk!=='extUK');
   var _isGlobalInt=(sk==='intGL');
   ensureRichRegions();
-  // Always patch uk_nurse to ensure it has the lab picker field (never use cached stale version)
+  // Patch Global internal items to have cur:'AED' if cached without it
+  if(_isGlobalInt&&CFG.billingStructure&&CFG.billingStructure.internal_global){
+    if(CFG.billingStructure.internal_global.some(function(x){return !x.cur;})){
+      CFG.billingStructure.internal_global=richInternalGlobalItems();
+    }
+  }
+  // Always patch uk_nurse to have lab picker field (lw)
   if(!_isInt&&!_isGlobalInt&&CFG.billingStructure&&CFG.billingStructure.external_uk){
     var _ukNurse=CFG.billingStructure.external_uk.find(function(x){return x.id==='uk_nurse';});
-    if(_ukNurse){
-      var _hasLabPicker=_ukNurse.fields.some(function(f){return f.id==='lw'&&f.t==='lab';});
-      if(!_hasLabPicker){
-        var _freshNurse=ukExternalItems().find(function(x){return x.id==='uk_nurse';});
-        if(_freshNurse){
-          var _ni=CFG.billingStructure.external_uk.indexOf(_ukNurse);
-          CFG.billingStructure.external_uk[_ni]=_freshNurse;
-          saveCFG();
-        }
-      }
+    if(_ukNurse&&!_ukNurse.fields.some(function(f){return f.id==='lw'&&f.t==='lab';})){
+      var _freshNurse=(typeof ukExternalItems==='function'?ukExternalItems():[]).find(function(x){return x.id==='uk_nurse';});
+      if(_freshNurse){var _ni=CFG.billingStructure.external_uk.indexOf(_ukNurse);CFG.billingStructure.external_uk[_ni]=_freshNurse;}
     }
   }
   var items;
@@ -10390,8 +10296,8 @@ function renderUKSec(sk,structKey){
     var r=ukItemLines(item,idata);
     var checked=r.lines.length>0;
     var isOpen=!!openItems[sk+'_'+item.id];
-    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\',event)" >'+
-      '<div class="bl-cb'+(checked?' on bl-cb-clr':'')+'">'+( checked?'&#10003;':'')+'</div>'+
+    h+='<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\')" ondblclick="clearBI(\''+sk+'\',\''+item.id+'\')">'+
+      '<div class="bl-cb'+(checked?' on':'')+'">'+(checked?'&#10003;':'')+'</div>'+
       '<div class="bl-lbl"><div class="bl-lt">'+esc(item.displayName||item.name)+(r.total>0?' <span style="font-size:11px;color:#0C447C;font-weight:700;">\u00b7 GBP '+r.total.toLocaleString('en-GB')+'</span>':'')+'</div>'+(item.description?'<div class="bl-ls">'+esc(item.description)+'</div>':'')+'</div>'+
       '<span class="bl-cv'+(isOpen?' op':'')+'">&#9662;</span></div>';
     if(isOpen){
@@ -10472,20 +10378,17 @@ ensureRichRegions=function(){
     CFG.__ukSeededV3=true;
     CFG.__ukSeededV2=true;
   }
-  if(!CFG.__ukNurseCombinedV2){
-    // Ensure uk_nurse has the lab picker field (lw type:lab) not old pass field
-    var _ukArr2=CFG.billingStructure.external_uk||[];
-    var _nurse=_ukArr2.find(function(x){return x.id==='uk_nurse';});
-    if(_nurse){
-      // Replace if still has old 'lab' pass field instead of 'lw' lab picker
-      var _hasOldLab=_nurse.fields.some(function(f){return f.id==='lab'&&f.t==='pass';});
-      var _hasNewLab=_nurse.fields.some(function(f){return f.id==='lw'&&f.t==='lab';});
-      if(_hasOldLab||!_hasNewLab){
-        var _newNurse=ukExternalItems().find(function(x){return x.id==='uk_nurse';});
-        if(_newNurse){var _ni=_ukArr2.indexOf(_nurse);_ukArr2[_ni]=_newNurse;}
-      }
+  if(!CFG.__ukNurseCombinedV1){
+    var _ukArr=CFG.billingStructure.external_uk||[];
+    var _insAt=_ukArr.findIndex(function(x){return x.id==='uk_nurse_sample';});
+    var _hadLegacy=_ukArr.some(function(x){return['uk_nurse_sample','uk_nurse_ecg','uk_nurse_inj'].indexOf(x.id)>=0;});
+    _ukArr=_ukArr.filter(function(x){return['uk_nurse_sample','uk_nurse_ecg','uk_nurse_inj'].indexOf(x.id)<0;});
+    if(_hadLegacy&&!_ukArr.some(function(x){return x.id==='uk_nurse';})){
+      var _comb=ukExternalItems().filter(function(x){return x.id==='uk_nurse';})[0];
+      if(_comb)_ukArr.splice(_insAt>=0?_insAt:0,0,_comb);
     }
-    CFG.__ukNurseCombinedV2=true;
+    CFG.billingStructure.external_uk=_ukArr;
+    CFG.__ukNurseCombinedV1=true;
   }
   // Additive item merge — append the standalone Admin Concierge Time item if missing.
   if(CFG.billingStructure.external_uk&&!CFG.billingStructure.external_uk.some(function(x){return x.id==='uk_admin';})){
@@ -10561,7 +10464,7 @@ buildUKCard=function(item,idata,b){
         var amt=(P[f.id]&&(P[f.id][when]!=null?P[f.id][when]:P[f.id]['In Hours']))||0;
         var label;
         if(item.id==='uk_doctor'&&f.id==='ref'){label='Physician\u2019s referral sent to '+(idata.cn||'[consultant]')+' for '+(idata.mode||'[type]');}
-        if(f.id==='nurse'){label='Nurse '+(idata.nu||'[name]')+' \u2014 '+when+' \u00b7 Home visit for '+(purpose||'[purpose]');}
+        else if(f.id==='nurse'){label='Nurse '+(idata.nu||'[name]')+' \u2014 '+when+' \u00b7 Home visit for '+(purpose||'[purpose]');}
         else if(f.id==='presc'){var ph=(idata.prx_dest&&String(idata.prx_dest).trim())||'';var mn=(idata.meds&&String(idata.meds).trim().replace(/\n+/g,', '))||'';label=when+' prescription'+(mn?' \u00b7 for '+mn:'')+(ph?' \u00b7 sent to '+ph:'');}
         else label=f.l+' ('+when+')';
         rows.push({label:label,amount:amt});
@@ -10570,46 +10473,22 @@ buildUKCard=function(item,idata,b){
       if(v===true||v==='true')rows.push({label:f.l,amount:(P[f.id]&&P[f.id]['__on'])||0});
     } else if(f.t==='pass'){
       var fee=(v&&parseFloat(v.amount))||0;
-      var _passCur=(v&&v.cur)||'GBP';
-      if(fee>0){var lbl=(f.id==='lab')?'Lab work':_clnUK(f.l);rows.push({label:lbl,amount:Math.round(fee*(1+_settleMk(_passCur))*100)/100});}
+      if(fee>0){var lbl=(f.id==='lab')?'Lab work':_clnUK(f.l);rows.push({label:lbl,amount:Math.round(fee*1.10*100)/100});}
     } else if(f.t==='unit'){
       var mins=v?((parseInt(v.h)||0)*60+(parseInt(v.m)||0)):0;
       if(mins>0){
-        var units=adminUnits(mins);
+        var units=Math.ceil(mins/30);
         var ahType=idata[f.id+'_hh']||when;
-        var rate=((R[f.id]&&(when==='Bank Holiday'?(R[f.id].bh!=null?R[f.id].bh:R[f.id].ooh):(when==='Out of Hours'?R[f.id].ooh:R[f.id].ih)))||0);
+        var rate=((R[f.id]&&(ahType==='Out of Hours'?R[f.id].ooh:R[f.id].ih))||0);
         var a=units*rate;var dur=fmtUKdur(v);
-        // Use correct label: inc = consultation increment, adh/dur = admin/time
-        var unitLabel;
-        if(f.id==='inc'){unitLabel='Additional half-hour increments ('+units+' \u00d7 30 min, '+ahType+')';}
-        else if(f.id==='adh'){
-          // Doctor items use 'Physician admin time', all other items use field label or 'Concierge admin time'
-          var _isDrItem=(item.id==='doctor_uki'||item.id==='doctor_gli');
-          unitLabel=(_isDrItem?'Physician admin time':'Concierge admin time')+' \u2014 '+ahType+(dur?' \u00b7 '+dur:'')+' ('+units+' \u00d7 30 min)';descUsed=true;
-        }
-        else {unitLabel=(f.l||'Admin time')+' \u2014 '+ahType+(dur?' \u00b7 '+dur:'')+' ('+units+' \u00d7 30 min)';descUsed=true;}
-        if(a>0)rows.push({label:unitLabel,amount:a,sub:(f.id==='adh'||f.id==='dur')?desc:null});
+        rows.push({label:'Admin time \u2014 '+ahType+(dur?' \u00b7 '+dur:'')+' ('+units+' \u00d7 30 min)',amount:a,sub:desc});
+        descUsed=true;
       }
     } else if(f.t==='sel'){
       if(v){
-        var amt3;
-        if(f.byWhen){
-          amt3=(P[f.id]&&P[f.id][v+'|'+when])||0;
-        } else if(v==='Custom'){
-          amt3=parseFloat(idata[f.id+'_custom'])||0;
-        } else {
-          amt3=(P[f.id]&&P[f.id][v])||0;
-        }
-        if(f.id==='mode'){
-          // Consultation mode — show as metadata, no fee
-          rows.push({label:'Consultation type: '+v,amount:0,meta:true});
-        } else if(amt3>0){
-          var selLabel;
-          if(f.id==='co'||f.id==='courier'){selLabel='Courier ('+v+')';}
-          else if(f.id==='ctype'){selLabel='Consultation type — '+v+(f.byWhen?', '+when:'');}
-          else {selLabel=f.l+(v?' ('+v+(f.byWhen?', '+when:'')+')'  :'');}
-          rows.push({label:selLabel,amount:amt3});
-        }
+        var amt3=(v==='Custom')?(parseFloat(idata[f.id+'_custom'])||0):((P[f.id]&&P[f.id][v])||0);
+        var transport=(item.id==='uk_med')?'transport the medications for the medication arranged':'transport the sample for the lab works';
+        rows.push({label:'Courier fee \u2013 '+transport,amount:amt3});
       }
     }
   });
@@ -10621,11 +10500,6 @@ buildUKCard=function(item,idata,b){
   rows.forEach(function(r,i){
     if(r.descOnly){
       h+='<div style="padding:8px 14px;'+(i>0?'border-top:1px solid var(--bo);':'')+'font-size:11px;color:var(--m2);font-style:italic;line-height:1.5;">'+esc(r.sub).replace(/\n/g,'<br>')+'</div>';
-      return;
-    }
-    if(r.meta){
-      // Metadata row — label only, no fee amount
-      h+='<div style="padding:6px 14px;'+(i>0?'border-top:1px solid var(--bo);':'')+'font-size:11px;color:var(--m2);font-style:italic;">'+esc(r.label)+'</div>';
       return;
     }
     h+='<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;'+(i>0?'border-top:1px solid var(--bo);':'')+'">';
@@ -10696,7 +10570,16 @@ function lockProtected(){
   };
 })();
 
-// Back to Settings handled in renderAdminHome
+// Add a "Back to Settings" link at the top of the Admin page.
+(function(){
+  if(typeof renderAdmin!=='function')return;
+  var _origRA=renderAdmin;
+  renderAdmin=function(){
+    _origRA.apply(this,arguments);
+    var pg=document.getElementById('page-admin');if(!pg)return;
+    pg.insertAdjacentHTML('afterbegin','<button class="ab" onclick="showPage(\'settings\')" style="margin-bottom:14px;">&#8592; Back to Settings</button>');
+  };
+})();
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -10972,67 +10855,7 @@ function _busy(){return !!document.querySelector('.ov:not(.h)');}
 function manualRefresh(){setSS('sy','Refreshing…');dbLoad();}
 function gDBReady(){return new Promise(function(res){var n=0;(function tick(){var d=gDB();if(d)return res(d);if(++n>25)return res(null);setTimeout(tick,200);})();});}
 function stashUnsaved(bill){try{localStorage.setItem('amara_unsaved',JSON.stringify(bill));}catch(e){}}
-function clearStash(){try{localStorage.removeItem('amara_unsaved');localStorage.removeItem('amara_draft');_checkDraftBadge();}catch(e){}}
-function _billHasContent(){
-  if(!curBill)return false;
-  if(curBill.patientName)return true;
-  if(!curBill.billingData)return false;
-  return Object.keys(curBill.billingData).some(function(sk){
-    if(sk==='_followUps')return false;
-    var sec=curBill.billingData[sk]||{};
-    return Object.keys(sec).some(function(id){
-      var item=sec[id];
-      if(!item||typeof item!=='object')return false;
-      return Object.keys(item).some(function(k){var v=item[k];return v&&(Array.isArray(v)?v.length>0:v!==false&&v!=='');});
-    });
-  });
-}
-function stashDraftAndClose(){
-  if(_billHasContent()){
-    // Show confirm dialog
-    var ov=document.getElementById('bmod-confirm');
-    if(!ov){
-      var d=document.createElement('div');
-      d.id='bmod-confirm';
-      d.style.cssText='position:absolute;inset:0;background:rgba(20,20,20,.55);z-index:9999;display:flex;align-items:center;justify-content:center;border-radius:var(--rl);';
-      d.innerHTML=
-        '<div style="background:var(--wh);border-radius:var(--rl);padding:24px 28px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.18);">'+
-        '<div style="font-size:28px;margin-bottom:10px;">&#128683;</div>'+
-        '<div style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:6px;">Leave without saving?</div>'+
-        '<div style="font-size:13px;color:var(--m2);margin-bottom:20px;line-height:1.5;">Your billing items will be lost. This cannot be undone.</div>'+
-        '<div style="display:flex;gap:10px;justify-content:center;">'+
-          '<button onclick="document.getElementById(\'bmod-confirm\').remove()" style="flex:1;padding:10px;border-radius:var(--r);border:1px solid var(--bo2);background:var(--wh);font-size:13px;font-weight:600;cursor:pointer;color:var(--tx);">Keep editing</button>'+
-          '<button onclick="document.getElementById(\'bmod-confirm\').remove();closeMod(\'bmod\');" style="flex:1;padding:10px;border-radius:var(--r);border:none;background:var(--re);font-size:13px;font-weight:600;cursor:pointer;color:#fff;">Leave</button>'+
-        '</div>'+
-        '</div>';
-      var mbox=document.querySelector('#bmod .mbox');
-      if(mbox){mbox.style.position='relative';mbox.appendChild(d);}
-      else{document.getElementById('bmod').appendChild(d);}
-    }
-    return;
-  }
-  closeMod('bmod');
-}
-function restoreDraft(){
-  try{
-    var d=localStorage.getItem('amara_draft');
-    if(!d){toast('No draft found','in');return;}
-    curBill=JSON.parse(d);
-    if(!Array.isArray(curBill.followUps))curBill.followUps=curBill.billingData&&curBill.billingData._followUps||[];
-    openItems={};
-    document.getElementById('bmod-t').textContent=curBill.patientName||'Restore draft';
-    swTab('i');openMod('bmod');
-    localStorage.removeItem('amara_draft');
-    _checkDraftBadge();
-    toast('Draft restored','ok');
-  }catch(e){toast('Could not restore draft','er');}
-}
-// Show restore draft button in topbar if a draft exists
-function _checkDraftBadge(){
-  var hasDraft=!!localStorage.getItem('amara_draft');
-  var el=document.getElementById('restore-draft-btn');
-  if(el)el.style.display=hasDraft?'':'none';
-}
+function clearStash(){try{localStorage.removeItem('amara_unsaved');}catch(e){}}
 function recoverUnsaved(){
   try{
     var raw=localStorage.getItem('amara_unsaved');if(!raw)return;
@@ -11066,79 +10889,23 @@ var PA_LABELS={
   pharmacies:{t:'Pharmacies',s:'Dispensing partners \u2014 track medications arranged and cash-back due to the team.',i:'\uD83D\uDC8A',f:['Name','Contact','Cash-back %']}
 };
 
-function _dirCard(cat,reg){
-  _pcfg();var L=PA_LABELS[cat];var allList=CFG.partners[cat]||[];
-  reg=reg||'All';
-  var list=reg==='All'?allList:allList.filter(function(p){return !p.region||p.region===reg;});
-  var editId=window._pEditId&&window._pEditCat===cat?window._pEditId:'';
-  function regionBadge(p){if(!p.region)return '';return '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:'+(p.region==='UK'?'var(--bb)':'var(--tb)')+';color:'+(p.region==='UK'?'var(--b)':'var(--t)')+';">'+esc(p.region)+'</span> ';}
-  var h='<div class="pa-card"><h3>'+L.i+' '+L.t+' <span style="font-size:11px;color:var(--m2);font-weight:400;font-family:var(--sans);">('+list.length+(reg!=='All'?' in '+reg:'')+')</span></h3><div class="pa-ct">'+L.s+'</div><div class="pa-list">';
-  if(!list.length)h+='<div class="pa-empty">None added yet'+(reg!=='All'?' for '+reg:'')+'.</div>';
+function _dirCard(cat){
+  _pcfg();var L=PA_LABELS[cat];var list=CFG.partners[cat]||[];
+  var h='<div class="pa-card"><h3>'+L.i+' '+L.t+' <span style="font-size:11px;color:var(--m2);font-weight:400;font-family:var(--sans);">('+list.length+')</span></h3><div class="pa-ct">'+L.s+'</div><div class="pa-list">';
+  if(!list.length)h+='<div class="pa-empty">None added yet.</div>';
   list.forEach(function(p){
-    if(p.id===editId){
-      // Inline edit row
-      var regOpts=['UAE','UK','Global'].map(function(r){return '<option'+(p.region===r?' selected':'')+'>'+r+'</option>';}).join('');
-      h+='<div class="pa-row" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px;background:var(--wh2);">'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+
-          '<input class="pa-in" id="pe_name_'+p.id+'" value="'+esc(p.name)+'" placeholder="Name" style="flex:2;min-width:120px;">'+
-          '<select class="pa-in" id="pe_reg_'+p.id+'" style="max-width:90px;">'+regOpts+'</select>'+
-        '</div>'+
-        '<input class="pa-in" id="pe_contact_'+p.id+'" value="'+esc(p.contact||'')+'" placeholder="Contact / phone">'+
-        '<input class="pa-in" id="pe_address_'+p.id+'" value="'+esc(p.address||'')+'" placeholder="Address">'+
-        '<input class="pa-in" id="pe_note_'+p.id+'" value="'+esc(cat==='pharmacies'?p.cashback||'':p.note||'')+'" placeholder="'+(cat==='pharmacies'?'Cash-back %':'Note')+'">'+
-        '<div style="display:flex;gap:6px;margin-top:2px;">'+
-          '<button class="pa-btn sm" onclick="pSave(\''+cat+'\',\''+p.id+'\')">Save</button>'+
-          '<button class="pa-link" onclick="window._pEditId=\'\';window._pEditCat=\'\';renderPartners();">Cancel</button>'+
-        '</div>'+
-      '</div>';
-    } else {
-      var meta=[];
-      if(p.contact)meta.push(esc(p.contact));
-      if(p.address)meta.push('<span style="font-size:10px;color:var(--m2);">&#128205; '+esc(p.address)+'</span>');
-      if(cat==='pharmacies'&&p.cashback)meta.push('cash-back '+esc(p.cashback)+'%');
-      if(p.note)meta.push(esc(p.note));
-      h+='<div class="pa-row">'+regionBadge(p)+
-        '<span class="nm">'+esc(p.name)+'</span>'+
-        '<span class="meta" style="flex:1;">'+meta.join(' \u00B7 ')+'</span>'+
-        '<span style="display:flex;gap:4px;flex-shrink:0;">'+
-          '<span class="pa-edit" onclick="window._pEditId=\''+p.id+'\';window._pEditCat=\''+cat+'\';renderPartners();" title="Edit" style="cursor:pointer;font-size:12px;padding:2px 7px;border:1px solid var(--bo2);border-radius:4px;color:var(--m2);">Edit</span>'+
-          '<span class="pa-x" onclick="pDel(\''+cat+'\',\''+p.id+'\')" title="Remove">\u00D7</span>'+
-        '</span>'+
-      '</div>';
-    }
+    var meta=[];if(p.contact)meta.push(esc(p.contact));if(cat==='pharmacies'&&p.cashback)meta.push('cash-back '+esc(p.cashback)+'%');if(p.note)meta.push(esc(p.note));
+    h+='<div class="pa-row"><span class="nm">'+esc(p.name)+'</span><span class="meta">'+meta.join(' \u00B7 ')+'</span><span class="sp"></span><span class="pa-x" onclick="pDel(\''+cat+'\',\''+p.id+'\')" title="Remove">\u00D7</span></div>';
   });
   h+='</div>';
-  var third=cat==='pharmacies'?'<input class="pa-in" id="padd_c_'+cat+'" placeholder="Cash-back %" style="max-width:100px;">':'<input class="pa-in" id="padd_c_'+cat+'" placeholder="'+esc(L.f[2])+'">';
-  var regionSel='<select class="pa-in" id="padd_r_'+cat+'" style="max-width:90px;"><option value="UAE"'+(reg==='UAE'||reg==='All'?' selected':'')+'>UAE</option><option value="UK"'+(reg==='UK'?' selected':'')+'>UK</option><option value="Global">Global</option></select>';
-  h+='<div class="pa-addrow">'+regionSel+
-    '<input class="pa-in" id="padd_n_'+cat+'" placeholder="'+esc(L.f[0])+'">'+
-    '<input class="pa-in" id="padd_x_'+cat+'" placeholder="'+esc(L.f[1])+'">'+
-    '<input class="pa-in" id="padd_a_'+cat+'" placeholder="Address (optional)">'+
-    third+
-    '<button class="pa-btn" onclick="pAdd(\''+cat+'\')">Add</button>'+
-    '<button class="pa-link" onclick="document.getElementById(\'pbulk_'+cat+'\').classList.toggle(\'open\')">Bulk add</button>'+
-  '</div>';
-  h+='<div class="pa-bulk" id="pbulk_'+cat+'"><div class="hint">One per line: <b>Name | contact | note | UAE or UK</b></div>'+
-    '<textarea id="pbulk_t_'+cat+'" placeholder="Cleveland Clinic | 04-123-4567 | partner | UAE"></textarea>'+
-    '<div style="margin-top:8px;"><button class="pa-btn sm" onclick="pBulk(\''+cat+'\')">Import lines</button></div></div></div>';
+  var third=cat==='pharmacies'?'<input class="pa-in" id="padd_c_'+cat+'" placeholder="Cash-back %" style="max-width:120px;">':'<input class="pa-in" id="padd_c_'+cat+'" placeholder="'+esc(L.f[2])+'">';
+  h+='<div class="pa-addrow"><input class="pa-in" id="padd_n_'+cat+'" placeholder="'+esc(L.f[0])+'"><input class="pa-in" id="padd_x_'+cat+'" placeholder="'+esc(L.f[1])+'">'+third+'<button class="pa-btn" onclick="pAdd(\''+cat+'\')">Add</button><button class="pa-link" onclick="document.getElementById(\'pbulk_'+cat+'\').classList.toggle(\'open\')">Bulk add</button></div>';
+  h+='<div class="pa-bulk" id="pbulk_'+cat+'"><div class="hint">One per line. Add details with a vertical bar: <b>Name | contact'+(cat==='pharmacies'?' | cash-back %':' | note')+'</b></div><textarea id="pbulk_t_'+cat+'" placeholder="Acme Hospital | 04-123-4567 | preferred for cardiology&#10;City Clinic | 04-987-6543"></textarea><div style="margin-top:8px;"><button class="pa-btn sm" onclick="pBulk(\''+cat+'\')">Import lines</button></div></div></div>';
   return h;
 }
-
-function pAdd(cat){_pcfg();var n=_v('padd_n_'+cat);if(!n){toast('Enter a name','error');return;}var p={id:_uid(),name:n,contact:_v('padd_x_'+cat),region:_v('padd_r_'+cat)||'UAE',address:_v('padd_a_'+cat)};var c=_v('padd_c_'+cat);if(cat==='pharmacies')p.cashback=c;else p.note=c;CFG.partners[cat].push(p);saveCFG();renderPartners();toast('Added','ok');}
+function pAdd(cat){_pcfg();var n=_v('padd_n_'+cat);if(!n){toast('Enter a name','error');return;}var p={id:_uid(),name:n,contact:_v('padd_x_'+cat)};var c=_v('padd_c_'+cat);if(cat==='pharmacies')p.cashback=c;else p.note=c;CFG.partners[cat].push(p);saveCFG();renderPartners();toast('Added','success');}
 function pBulk(cat){_pcfg();var raw=_v('pbulk_t_'+cat);if(!raw){return;}var n=0;raw.split('\n').forEach(function(line){line=line.trim();if(!line)return;var parts=line.split('|').map(function(x){return x.trim();});var p={id:_uid(),name:parts[0],contact:parts[1]||''};if(cat==='pharmacies')p.cashback=parts[2]||'';else p.note=parts[2]||'';if(p.name){CFG.partners[cat].push(p);n++;}});saveCFG();renderPartners();toast(n+' imported','success');}
 function pDel(cat,id){_pcfg();CFG.partners[cat]=CFG.partners[cat].filter(function(p){return p.id!==id;});saveCFG();renderPartners();}
-function pSave(cat,id){
-  _pcfg();
-  var p=CFG.partners[cat].find(function(x){return x.id===id;});if(!p)return;
-  p.name=(document.getElementById('pe_name_'+id)||{}).value||p.name;
-  p.contact=(document.getElementById('pe_contact_'+id)||{}).value||'';
-  p.address=(document.getElementById('pe_address_'+id)||{}).value||'';
-  p.region=(document.getElementById('pe_reg_'+id)||{}).value||p.region;
-  var noteVal=(document.getElementById('pe_note_'+id)||{}).value||'';
-  if(cat==='pharmacies')p.cashback=noteVal;else p.note=noteVal;
-  window._pEditId='';window._pEditCat='';
-  saveCFG();renderPartners();toast('Saved','ok');
-}
 
 function _ledger(){
   _pcfg();var L=CFG.referralLedger||[];
@@ -11205,24 +10972,7 @@ function ledBulk(){_pcfg();var raw=_v('pbulk_led_t');if(!raw)return;var n=0;raw.
 function ledPaid(id){_pcfg();CFG.referralLedger=CFG.referralLedger.map(function(e){return e.id===id?Object.assign({},e,{status:e.status==='paid'?'pending':'paid'}):e;});saveCFG();renderPartners();}
 function ledDel(id){_pcfg();CFG.referralLedger=CFG.referralLedger.filter(function(e){return e.id!==id;});saveCFG();renderPartners();}
 
-function renderPartners(){
-  _pcfg();
-  var pg=document.getElementById('page-fees');if(!pg)return;
-  if(!window._partRegion)window._partRegion='UAE';
-  var reg=window._partRegion;
-  var tabs=['UAE','UK','All'].map(function(r){
-    return '<button onclick="window._partRegion=\''+r+'\';renderPartners();" style="font-size:12px;font-weight:600;padding:7px 16px;border-radius:99px;border:none;cursor:pointer;transition:all .15s;'+(reg===r?'background:var(--g);color:#FBF7EC;':'background:var(--wh);color:var(--m2);border:1px solid var(--bo2);')+'">'+r+'</button>';
-  }).join('');
-  var h='<div class="pa-wrap">'+
-    '<div class="pa-head">Partners &amp; Referrals</div>'+
-    '<div class="pa-sub">Your directory of hospitals, clinicians and pharmacies, plus the referral &amp; payment ledger.</div>'+
-    '<div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center;">'+
-      '<span style="font-size:12px;font-weight:600;color:var(--m2);margin-right:4px;">Region:</span>'+tabs+
-    '</div>';
-  // Filter partners by region tag if not 'All'
-  h+=_dirCard('hospitals',reg)+_dirCard('clinicians',reg)+_dirCard('pharmacies',reg)+_ledger()+'</div>';
-  pg.innerHTML=h;
-}
+function renderPartners(){_pcfg();var pg=document.getElementById('page-fees');if(!pg)return;var h='<div class="pa-wrap"><div class="pa-head">Partners &amp; Referrals</div><div class="pa-sub">Your directory of hospitals, clinicians and pharmacies, plus the referral &amp; payment ledger.</div>';h+=_dirCard('hospitals')+_dirCard('clinicians')+_dirCard('pharmacies')+_ledger()+'</div>';pg.innerHTML=h;}
 
 /* ──────── ACCOUNTS · invoice collection tracking ──────── */
 function _colData(id){_pcfg();if(!CFG.collections[id])CFG.collections[id]={paid:false,log:[]};if(!Array.isArray(CFG.collections[id].log))CFG.collections[id].log=[];return CFG.collections[id];}
@@ -11513,7 +11263,7 @@ function pRegion(name){
 }
 function pCode(name){_pcfg3();var m=CFG.patientMeta[_pnorm(name)];return m?m.code:'';}
 function maskName(name){name=(name||'').trim();if(!name)return '';var p=name.split(/\s+/);if(p.length===1)return p[0];return p[0]+' '+p[p.length-1].charAt(0).toUpperCase()+'.';}
-function pLabel(name){_pcfg3();if(!name)return '';var code=pCode(name);return (code?code+' \u00B7 ':'')+name;}
+function pLabel(name){_pcfg3();if(!name)return '';var code=pCode(name);var base=CFG.privacyMode?maskName(name):name;return (code?code+' \u00B7 ':'')+base;}
 function assignPatCodesAll(){
   _pcfg3();var changed=false;
   (typeof patients!=='undefined'?patients:[]).forEach(function(p){
@@ -11544,10 +11294,7 @@ function togglePrivacy(){_pcfg3();CFG.privacyMode=!CFG.privacyMode;if(typeof sav
   if(typeof toast==='function')toast(CFG.privacyMode?'Privacy on — names masked':'Showing full names','in');}
 
 
-function _edgeColorFor(b){
-  if(b.invoiceNo&&String(b.invoiceNo).trim())return '#0F6E56';
-  try{var l=billArrangementLines(b);var m={consult:'--code-consult',med:'--code-med',nurse:'--code-nurse',lab:'--code-bloods',scan:'--code-scan',admin:'--code-admin'};var ic=(l&&l[0]&&l[0].ic)||'';return 'var('+(m[ic]||'--t')+')';}catch(e){return 'var(--t)';}
-}
+function _edgeColorFor(b){try{var l=billArrangementLines(b);var m={consult:'--code-consult',med:'--code-med',nurse:'--code-nurse',lab:'--code-bloods',scan:'--code-scan',admin:'--code-admin'};var ic=(l&&l[0]&&l[0].ic)||'';return 'var('+(m[ic]||'--t')+')';}catch(e){return 'var(--t)';}}
 
 /* Standard Rate (5%) tax — applies to: referral letters, prescription sent, concierge (team) admin, couriers */
 function _itemStdTax(it,d,sk){var out=[];if(!it||!d)return out;
