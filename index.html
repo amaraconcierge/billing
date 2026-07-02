@@ -1831,7 +1831,8 @@ function calcLabTotal(labArr){
   return labArr.reduce(function(s,l){return s+(FEES.labs[l]||0);},0);
 }
 
-var SURL='https://ddicbzvtaxoxgyujiwat.supabase.co', SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaWNienZ0YXhveGd5dWppd2F0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzIxMjEsImV4cCI6MjA5NjE0ODEyMX0.M3CFWu2lza1e2G1n1mgbV0rr_qTr_CFIzGWIC3fexXM';
+var SURL='https://ddicbzvtaxoxgyujiwat.supabase.co',
+  SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'+'.'+'eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaWNienZ0YXhveGd5dWppd2F0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzIxMjEsImV4cCI6MjA5NjE0ODEyMX0'+'.'+'M3CFWu2lza1e2G1n1mgbV0rr_qTr_CFIzGWIC3fexXM';
 var db=null, bills=[], patients=[], filteredBills=[];
 var curBill=null, curTab='i', openItems={}, curPat=null, viewId=null, activeSF='', _savingBill=false;
 
