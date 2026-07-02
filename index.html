@@ -1167,7 +1167,7 @@ var FEES={
   prescription:{
     'In Hours-Inside UAE':250, 'Out of Hours-Inside UAE':375,
     'In Hours-Outside UAE':250,'Out of Hours-Outside UAE':375,
-    'In Hours-International':367.25,'Out of Hours-International':550.875
+    'In Hours-International':367,'Out of Hours-International':551
   },
   referral:{
     'In Hours-Inside UAE':220,'Out of Hours-Inside UAE':330,
@@ -1643,8 +1643,10 @@ function calcMedLogisticsFee(region, when, dur, baseFeeOverride){
   var adminRate = 0;
   if(region==='UK'){
     adminRate = (FEES.adminUK&&FEES.adminUK[when])||45;
-  } else if(region==='Global'||region==='UAE-International'){
+  } else if(region==='UAE-International'){
     adminRate = when==='Out of Hours'?255:170;
+  } else if(region==='Global'){
+    adminRate = when==='Out of Hours'?415:275;
   } else {
     adminRate = (FEES.teamAdmin&&FEES.teamAdmin[when+'-Inside UAE'])||220;
   }
@@ -3229,12 +3231,6 @@ function renderBForm(){
 }
 
 /* Attach text listeners — fires on change/blur, not on every keystroke */
-function attachTextListeners(body,ctx){
-  body.querySelectorAll('[data-save-key]').forEach(function(el){
-    el.addEventListener('change',function(){saveFromEl(el,ctx);});
-    el.addEventListener('blur',function(){saveFromEl(el,ctx);});
-  });
-}
 function saveFromEl(el,ctx){
   var key=el.getAttribute('data-save-key');
   if(!key)return;
@@ -4043,7 +4039,6 @@ function addFU(){
   curBill.followUps.push({date:new Date().toISOString().slice(0,10),type:'Admin time',desc:'',amount:'',cur:_fuReg==='UK'?'GBP':'AED',labs:[],labwhere:'',duration:{h:'',m:''},fuWhen:'In Hours',fuLoc:'Inside UAE',region:_fuReg,addedBy:(_authProfile&&_authProfile.name)||''});
   renderBForm();
 }
-function setFUDur(idx,part,val){if(!curBill.followUps||!curBill.followUps[idx])return;if(!curBill.followUps[idx].duration)curBill.followUps[idx].duration={h:'',m:''};curBill.followUps[idx].duration[part]=val;renderBForm();}
 function removeFU(idx){var _f=curBill.followUps[idx];var _l=(_f&&_f.type?_f.type:'this follow-up')+(_f&&_f.date?' ('+_f.date+')':'');if(!confirm('Delete '+_l+'?'))return;curBill.followUps.splice(idx,1);renderBForm();toast('Follow-up deleted','in');}
 function setFUDur(idx,part,val){if(!curBill.followUps||!curBill.followUps[idx])return;if(!curBill.followUps[idx].duration)curBill.followUps[idx].duration={h:'',m:''};curBill.followUps[idx].duration[part]=val;renderBForm();}
 function setFU(idx,k,v){if(!curBill.followUps[idx])return;curBill.followUps[idx][k]=v;if(k==='type')renderBForm();}
@@ -6340,15 +6335,6 @@ function updateLabFee(labName,val){
   saveFEES();
   toast('Lab price updated: '+labName,'ok');
 }
-function saveFEES(){
-  // Keep phlebotomy.UAE in sync with phlebotomyAED
-  if(FEES.phlebotomyAED)FEES.phlebotomy['UAE']=FEES.phlebotomyAED;
-  // Keep internalMedOTC/Prescription in sync
-  if(FEES.internalMedOTC)FEES.medicationOTC=FEES.internalMedOTC;
-  if(FEES.internalMedPrescription)FEES.medicationPrescription=FEES.internalMedPrescription;
-  // Persist fee overrides to localStorage
-  try{localStorage.setItem('amara_fees4',JSON.stringify(FEES));}catch(e){}
-}
 function loadFEES(){
   // Load persisted fee overrides (only numeric overrides, not structure)
   try{
@@ -8232,7 +8218,7 @@ function renderAdminAudit(){
   var h=adminPageHeader('📜 Audit Log','Complete history of all admin changes — '+log.length+' entries');
 
   h+='<div style="display:flex;gap:8px;margin-bottom:12px;">';
-  h+='<button class="ab" onclick="if(confirm(\'Clear audit log?\')){{ADMIN.auditLog=[];try{localStorage.removeItem(\'amara_audit\');}catch(e){}renderAdmin();}}">Clear Log</button>';
+  h+='<button class="ab" onclick="if(confirm(\'Clear audit log?\')){ADMIN.auditLog=[];try{localStorage.removeItem(\'amara_audit\');}catch(e){}renderAdmin();}}">Clear Log</button>';
   h+='<button class="ab" onclick="adminExportAudit()">&#8595; Export</button>';
   h+='</div>';
 
@@ -9980,7 +9966,7 @@ function richInternalGlobalItems(){
         {id:'adh',l:'Admin time',t:'unit'},
         {id:'adesc',l:'Admin time description',t:'admintmpl'}
       ],
-      prices:{ ctype:{'Brief|In Hours':1285,'Brief|Out of Hours':1285,'Standard|In Hours':1469,'Standard|Out of Hours':2204,'Extended (up to 1 hr)|In Hours':1469,'Extended (up to 1 hr)|Out of Hours':2204}, co:{Standard:0}, rf:{ih:312,ooh:468,unit:'flat'}, ph:{ih:275,ooh:275,unit:'flat'}, inc:{ih:368,ooh:551,unit:'per'} },
+      prices:{ ctype:{'Brief|In Hours':1285,'Brief|Out of Hours':1285,'Standard|In Hours':1469,'Standard|Out of Hours':2204,'Extended (up to 1 hr)|In Hours':1469,'Extended (up to 1 hr)|Out of Hours':2204}, co:{Standard:0}, rf:{ih:312,ooh:468,unit:'flat'}, ph:{ih:275,ooh:275,unit:'flat'}, inc:{ih:1469,ooh:2204,unit:'per'} },
       rates:{ adh:{ih:275,ooh:415,unit:'unit30'} }
     },
     { id:'nurse_gli', name:'Nurse Visit', displayName:'Nurse Visit', description:'Global nurse visit — per hour (AED)', category:'Nurse', color:'#0F6E56', bg:'#F0F7F4', required:false, active:true, custom:true, cur:'AED',
