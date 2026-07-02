@@ -5013,6 +5013,7 @@ function buildView(b){
   }
   if(typeof buildUKCard==='function'){ensureRichRegions();var _ukItems=(CFG.billingStructure&&CFG.billingStructure.external_uk)||[];var _uksd=(b.billingData&&b.billingData.extUK)||{};_ukItems.forEach(function(item){var _id=_uksd[item.id];if(!_id)return;var _c=buildUKCard(item,_id,b);if(_c){var _d=_sectionDivider('UK External Arrangements','#0C447C','#B5D4F4',_itemCategoryLabel(item));ukCards+=_d+_c;}});}
   if(typeof buildUKCard==='function'){var _iuk=_seedUKInt()||[];var _isdv=(b.billingData&&b.billingData.intUK)||{};_iuk.forEach(function(item){var _id=_isdv[item.id];if(!_id)return;var _c=buildUKCard(item,_id,b);if(_c){var _d=_sectionDivider('UK Internal Arrangements','#0C447C','#B5D4F4',_itemCategoryLabel(item));ukCards+=_d+_c;}});}
+  if(typeof buildUKCard==='function'){var _iglItems=(typeof _seedGlobalInt==='function'?_seedGlobalInt():[])||[];var _iglsd=(b.billingData&&b.billingData.intGL)||{};_iglItems.forEach(function(item){var _id=_iglsd[item.id];if(!_id)return;var _c=buildUKCard(item,_id,b);if(_c){var _d=_sectionDivider('Global Internal Arrangements','#854F0B','#FAC775',_itemCategoryLabel(item));globalCards+=_d+_c;}});}
   // Section blocks with label
   var secHtml='';
   if(intCards){secHtml+='<div style="margin-bottom:4px;">'+intCards+'</div>';}
@@ -9942,14 +9943,16 @@ function ukItemLines(item,idata){
       }
     } else if(f.t==='sel'){
       if(v){
+        // Normalize values like 'Standard (up to 30 min)' -> 'Standard' for price lookup
+        var _vn=v.replace(/\s*\(.*?\)/g,'').trim();
         var amt3=0;
         if(v==='Custom'||(f.feeFor&&f.feeFor.indexOf(v)>=0))amt3=parseFloat(idata[f.id+'_custom'])||0;
-        else amt3=(P[f.id]&&(f.byWhen?P[f.id][v+'|'+when]:P[f.id][v]))||0;
-        if(amt3>0)lines.push({label:f.l+' ('+v+(f.byWhen?', '+when:'')+')',amount:amt3});
+        else amt3=(P[f.id]&&(f.byWhen?(P[f.id][v+'|'+when]||P[f.id][_vn+'|'+when]):(P[f.id][v]||P[f.id][_vn])))||0;
+        if(amt3>0)lines.push({label:f.l+' ('+_vn+(f.byWhen?', '+when:'')+')',amount:amt3});
       }
     } else if(f.t==='lab'){
       var labs=Array.isArray(v)?v:[];
-      if(labs.length){var lt=_labTotalFor(labs,'UK');lines.push({label:'Lab work \u2014 '+labs.join(', '),amount:lt});}
+      if(labs.length){var _labReg=(item.cur==='GBP')?'UK':'Global';var lt=_labTotalFor(labs,_labReg);lines.push({label:'Lab work \u2014 '+labs.join(', '),amount:lt});}
     }
   });
   var total=lines.reduce(function(s,l){return s+l.amount;},0);
@@ -9986,18 +9989,20 @@ function richInternalGlobalItems(){
     { id:'doctor_gli', name:"Doctor's Consultation", displayName:"Doctor's Consultation",
       description:'Global physician consultation (AED)', category:'Doctor', color:'#185FA5', bg:'#F0F5FB', required:false, active:true, custom:true, cur:'AED',
       fields:[
-        {id:'dn',l:'Doctor name',t:'txt'},
-        {id:'ct',l:'Consultation type',t:'sel',o:['Brief','Standard','Extended'],req:1},
+        {id:'cn',l:'Doctor name',t:'doctorsel'},
         {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
-        {id:'mode',l:'Consultation mode',t:'sel',o:['Home visit','Face to face','Zoom / video','Telephone']},
-        {id:'dur',l:'Time spent',t:'unit'},
-        {id:'rf',l:"Referral letter",t:'tog'},
-        {id:'cf',l:'Consultation fee (if paid)',t:'pass'},
+        {id:'ctype',l:'Consultation type',t:'sel',byWhen:true,o:['Brief','Standard','Extended (up to 1 hr)'],req:1},
+        {id:'mode',l:'Consultation mode',t:'sel',o:['In clinic','Home visit','Telephone','Video consultation']},
+        {id:'inc',l:'Additional half-hour increments',t:'unit'},
+        {id:'rf',l:'GP referral',t:'ihooh'},
+        {id:'ph',l:'Phlebotomy fee',t:'tog'},
+        {id:'lw',l:'Lab work',t:'lab'},
+        {id:'co',l:'Courier',t:'sel',o:['Standard','Custom']},
         {id:'adh',l:'Admin time',t:'unit'},
         {id:'adesc',l:'Admin time description',t:'admintmpl'}
       ],
-      prices:{ dur:{Brief:550,Standard:850,Extended:1200} },
-      rates:{ dur:{ih:550,ooh:830,unit:'unit30'}, adh:{ih:170,ooh:255,unit:'unit30'} }
+      prices:{ ctype:{'Brief|In Hours':550,'Brief|Out of Hours':830,'Standard|In Hours':850,'Standard|Out of Hours':1280,'Extended (up to 1 hr)|In Hours':1200,'Extended (up to 1 hr)|Out of Hours':1800}, co:{Standard:0}, rf:{ih:275,ooh:0,unit:'flat'}, ph:{ih:75,ooh:75,unit:'flat'}, inc:{ih:275,ooh:415,unit:'per'} },
+      rates:{ adh:{ih:170,ooh:255,unit:'unit30'} }
     },
     { id:'nurse_gli', name:'Nurse Visit', displayName:'Nurse Visit', description:'Global nurse visit — per hour (AED)', category:'Nurse', color:'#0F6E56', bg:'#F0F7F4', required:false, active:true, custom:true, cur:'AED',
       fields:[
@@ -10469,112 +10474,68 @@ ukAdminDesc=function(item,idata,billDateISO){
 // Saved-view card — descriptive lines, right-aligned prices, admin desc under admin time.
 buildUKCard=function(item,idata,b){
   var when=idata.when||'In Hours';
-  var _condF=(typeof _condOK==='function')?_condOK:function(){return true;};
-  var P=item.prices||{},R=item.rates||{},M=item.markup||{};
-  var purpose=item.id==='uk_nurse_sample'?'sample collection':(item.id==='uk_nurse_ecg'?'ECG / BP monitor fitting':(item.id==='uk_nurse_inj'?'injection / IV drip':(item.id==='uk_nurse'?((Array.isArray(idata.nvt)?idata.nvt:[]).join(', ').toLowerCase()||'home visit'):'')));
-  var desc=(idata.adesc&&String(idata.adesc).trim())?idata.adesc:ukAdminDesc(item,idata,b&&b.createdAt);
-  var rows=[];var descUsed=false;
-  // ── Rich first row: Hours · Type/Purpose · Mode · Name ──
+  var _cur=item.cur||'GBP';
+  var desc=(idata.adesc&&String(idata.adesc).trim())?idata.adesc:'';
+  // Use ukItemLines for ALL pricing (handles sel byWhen, lab, ihooh, tog, unit, pass)
+  var r=ukItemLines(item,idata);
+  // Collect text info rows (name, notes etc)
+  var info=[];
+  (item.fields||[]).forEach(function(f){
+    if((f.t==='txt'||f.t==='mta'||f.t==='doctorsel')&&idata[f.id]&&String(idata[f.id]).trim())
+      info.push({l:f.l,v:String(idata[f.id]).trim()});
+  });
+  if(!r.lines.length&&!info.length)return '';
+  // ── Rich header row: Hours · Type · Mode · Name ──
   var _richParts=[];
   if(when)_richParts.push(when);
-  if(item.id==='doctor_uki'||item.id==='uk_doctor'||item.id==='uec'){
-    if(idata.ctype)_richParts.push(idata.ctype);
+  if(item.id==='doctor_uki'||item.id==='uk_doctor'||item.id==='uec'||item.id==='doctor_gli'){
+    var _ct=idata.ctype?idata.ctype.replace(/\s*\(.*?\)/g,'').trim():'';
+    if(_ct)_richParts.push(_ct);
     if(idata.mode)_richParts.push(idata.mode);
-    var _docName=idata.cn||idata.dn||'';
-    if(_docName)_richParts.push(_docName);
-  } else if(item.id==='nurse_uki'||item.id==='uk_nurse'){
+    var _dn=idata.cn||idata.dn||'';
+    if(_dn)_richParts.push(_dn);
+  } else if(item.id==='nurse_uki'||item.id==='uk_nurse'||item.id==='nurse_gli'){
     var _nvt=Array.isArray(idata.nvt)?idata.nvt.join(', '):'';
     if(_nvt)_richParts.push(_nvt);
-    var _nu=idata.nu||idata.nu||'';
+    var _nu=idata.nu||idata.nn||'';
     if(_nu)_richParts.push(_nu);
     var _dur=idata.dur?(parseInt(idata.dur.h||0)*60+parseInt(idata.dur.m||0)):0;
-    if(_dur>0){var _dh=parseInt(idata.dur.h||0),_dm=parseInt(idata.dur.m||0);_richParts.push((_dh?_dh+'h ':'')+(_dm?_dm+'min':''));}
-  } else if(item.id==='admin_uki'){
+    if(_dur>0)_richParts.push((_dur>=60?Math.floor(_dur/60)+'h ':'')+(_dur%60?_dur%60+'min':''));
+  } else if(item.id==='admin_uki'||item.id==='admin_gli'){
     var _adur=idata.dur?(parseInt(idata.dur.h||0)*60+parseInt(idata.dur.m||0)):0;
-    if(_adur>0){var _units2=Math.ceil(_adur/30);var _dh2=parseInt(idata.dur.h||0),_dm2=parseInt(idata.dur.m||0);_richParts.push((_dh2?_dh2+'h ':'')+(_dm2?_dm2+'min':'')+' → '+_units2+' set'+(+_units2!==1?'s':''));}
-  } else if(item.id==='uk_med'||item.id==='rx_uki'){
-    var _meds=idata.meds||idata.meds_txt||'';
+    if(_adur>0){var _us=Math.ceil(_adur/30);_richParts.push((_adur>=60?Math.floor(_adur/60)+'h ':'')+(_adur%60?_adur%60+'min':'')+' → '+_us+' set'+(_us!==1?'s':''));}
+  } else if(item.id==='uk_med'||item.id==='rx_gli'){
+    var _meds=idata.meds||'';
     if(_meds)_richParts.push(String(_meds).split('\n')[0].slice(0,60));
   }
-  if(_richParts.length>1){
-    // First row shows the rich label with no fee (fee comes from field rows below)
-    rows.push({label:_richParts.join(' · '),amount:0,_headerRow:true});
+  // Build HTML
+  var itemColor=item.color||'#185FA5';
+  var itemBg=item.bg||'#F0F5FB';
+  var h='<div style="background:var(--wh);border:1px solid var(--bo);border-left:3px solid '+itemColor+';border-radius:var(--rl);margin-bottom:10px;overflow:hidden;">';
+  // Section header
+  h+='<div style="padding:9px 13px 6px;background:'+itemBg+'40;border-bottom:1px solid var(--bo);">';
+  h+='<div style="font-size:12px;font-weight:700;color:'+itemColor+';text-transform:uppercase;letter-spacing:.04em;">'+esc(item.displayName||item.name)+'</div>';
+  if(_richParts.length>1)h+='<div style="font-size:11px;color:var(--m2);margin-top:2px;">'+esc(_richParts.join(' · '))+'</div>';
+  h+='</div>';
+  // Fee rows
+  r.lines.forEach(function(l,i){
+    h+='<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 13px;'+(i>0?'border-top:1px solid var(--bo);':'')+'">';
+    h+='<span style="color:'+itemColor+';font-size:12px;font-weight:700;flex-shrink:0;margin-top:1px;">✓</span>';
+    h+='<div style="flex:1;font-size:12px;color:var(--tx);">'+esc(l.label)+'</div>';
+    h+='<span style="font-size:12px;font-weight:700;color:'+itemColor+';white-space:nowrap;">'+_cur+' '+(l.amount||0).toLocaleString('en-GB',{minimumFractionDigits:2})+'</span>';
+    h+='</div>';
+  });
+  // Subtotal
+  if(r.lines.length){
+    h+='<div style="display:flex;justify-content:space-between;padding:8px 13px;border-top:1px solid var(--bo);background:'+itemBg+'30;">';
+    h+='<span style="font-size:12px;font-weight:700;">Subtotal</span>';
+    h+='<span style="font-size:13px;font-weight:700;color:'+itemColor+';">'+_cur+' '+r.total.toLocaleString('en-GB',{minimumFractionDigits:2})+'</span>';
+    h+='</div>';
   }
-  (item.fields||[]).forEach(function(f){
-    var v=idata[f.id];
-    if(f.cond&&!_condF(f,idata))return;
-    if(f.t==='ihooh'){
-      if(v===true||v==='true'){
-        var amt=(P[f.id]&&(P[f.id][when]!=null?P[f.id][when]:P[f.id]['In Hours']))||0;
-        var label;
-        if(item.id==='uk_doctor'&&f.id==='ref'){label='Physician\u2019s referral sent to '+(idata.cn||'[consultant]')+' for '+(idata.mode||'[type]');}
-        else if(f.id==='nurse'){label='Nurse '+(idata.nu||'[name]')+' \u2014 '+when+' \u00b7 Home visit for '+(purpose||'[purpose]');}
-        else if(f.id==='presc'){var ph=(idata.prx_dest&&String(idata.prx_dest).trim())||'';var mn=(idata.meds&&String(idata.meds).trim().replace(/\n+/g,', '))||'';label=when+' prescription'+(mn?' \u00b7 for '+mn:'')+(ph?' \u00b7 sent to '+ph:'');}
-        else label=f.l+' ('+when+')';
-        rows.push({label:label,amount:amt});
-      }
-    } else if(f.t==='tog'){
-      if(v===true||v==='true')rows.push({label:f.l,amount:(P[f.id]&&P[f.id]['__on'])||0});
-    } else if(f.t==='pass'){
-      var fee=(v&&parseFloat(v.amount))||0;
-      if(fee>0){var lbl=(f.id==='lab')?'Lab work':_clnUK(f.l);rows.push({label:lbl,amount:Math.round(fee*1.10*100)/100});}
-    } else if(f.t==='unit'){
-      var mins=v?((parseInt(v.h)||0)*60+(parseInt(v.m)||0)):0;
-      if(mins>0){
-        var units=Math.ceil(mins/30);
-        var ahType=idata[f.id+'_hh']||when;
-        var rate=((R[f.id]&&(ahType==='Out of Hours'?R[f.id].ooh:R[f.id].ih))||0);
-        var a=units*rate;var dur=fmtUKdur(v);
-        rows.push({label:'Admin time \u2014 '+ahType+(dur?' \u00b7 '+dur:'')+' ('+units+' \u00d7 30 min)',amount:a,sub:desc});
-        descUsed=true;
-      }
-    } else if(f.t==='sel'){
-      if(v){
-        var amt3sel=0;
-        if(v==='Custom'||(f.feeFor&&f.feeFor.indexOf(v)>=0)){amt3sel=parseFloat(idata[f.id+'_custom'])||0;}
-        else if(f.byWhen){amt3sel=(P[f.id]&&P[f.id][v+'|'+when])||0;}
-        else{amt3sel=(P[f.id]&&P[f.id][v])||0;}
-        if(amt3sel>0){
-          var selLabel3;
-          if(f.id==='co'||f.id==='courier'){
-            var transport=(item.id==='uk_med')?'transport the medications arranged':'transport the sample for the lab works';
-            selLabel3='Courier fee – '+transport;
-          } else if(f.id==='ctype'){
-            selLabel3='Consultation type ('+v+', '+when+')';
-          } else {
-            selLabel3=f.l+(f.byWhen?' ('+v+', '+when+')':' ('+v+')');
-          }
-          rows.push({label:selLabel3,amount:amt3sel});
-        }
-      }
-    }
-  });
-  if(!rows.length)return '';
-  if(desc&&!descUsed)rows.push({descOnly:true,sub:desc});
-  var total=rows.reduce(function(s,r){return s+(r._headerRow?0:(r.amount||0));},0);
-  var h='<div style="background:var(--wh);border:1px solid var(--bo);border-left:3px solid '+(item.color||'#185FA5')+';border-radius:var(--rl);margin-bottom:10px;overflow:hidden;">';
-  h+='<div style="background:'+(item.bg||'var(--wh2)')+';padding:9px 14px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:'+(item.color||'#0C447C')+';">'+esc(item.displayName||item.name)+'</span></div>';
-  rows.forEach(function(r,i){
-    if(r.descOnly){
-      h+='<div style="padding:8px 14px;'+(i>0?'border-top:1px solid var(--bo);':'')+'font-size:11px;color:var(--m2);font-style:italic;line-height:1.5;">'+esc(r.sub).replace(/\n/g,'<br>')+'</div>';
-      return;
-    }
-    if(r._headerRow){
-      // Rich descriptor row — no fee shown
-      h+='<div style="padding:8px 14px 4px;'+(i>0?'border-top:1px solid var(--bo);':'')+' background:'+(item.bg||'var(--wh2)')+'20;">';
-      h+='<div style="font-size:11px;font-weight:600;color:var(--m2);">'+esc(r.label)+'</div>';
-      h+='</div>';
-      return;
-    }
-    h+='<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;'+(i>0?'border-top:1px solid var(--bo);':'')+'">';
-    h+='<span style="color:'+(item.color||'#0C447C')+';font-size:12px;font-weight:700;margin-top:2px;">\u2713</span>';
-    h+='<div style="flex:1;min-width:0;"><div style="font-size:12px;color:var(--tx);">'+esc(r.label)+'</div>';
-    if(r.sub)h+='<div style="font-size:11px;color:var(--m2);font-style:italic;line-height:1.5;margin-top:4px;">'+esc(r.sub).replace(/\n/g,'<br>')+'</div>';
-    h+='</div>';
-    h+='<span style="font-size:12px;font-weight:700;color:#0C447C;white-space:nowrap;">GBP '+(r.amount||0).toLocaleString('en-GB',{minimumFractionDigits:2})+'</span>';
-    h+='</div>';
-  });
-  h+='<div style="display:flex;justify-content:space-between;padding:9px 14px;border-top:2px solid var(--bo);"><span style="font-size:12px;font-weight:700;">Subtotal</span><span style="font-size:13px;font-weight:700;color:#0C447C;">GBP '+(Math.round(total*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2})+'</span></div>';
+  // Description
+  if(desc){
+    h+='<div style="padding:8px 13px;border-top:1px solid var(--bo);font-size:11px;color:var(--m2);font-style:italic;line-height:1.6;">'+esc(desc)+'</div>';
+  }
   h+='</div>';
   return h;
 };
@@ -11445,7 +11406,7 @@ function lwExportExcel(){_lwEnsure();_loadXLSX(function(){var rows=[['Test name'
 function _skRegion(sk){return sk==='extUK'?'UK':sk==='extGlobal'?'Global':'UAE';}
 function _labCur(region){return region==='UK'?'GBP':'AED';}
 function _labListFor(region){_lwEnsure();var extra=(CFG.labWorks[region]||[]).slice();if(region==='UAE'){var out=CFG.labs.map(function(n){return {name:n,fee:(FEES&&FEES.labs&&FEES.labs[n])||0};});var have={};out.forEach(function(o){have[(o.name||'').toLowerCase()]=1;});extra.forEach(function(o){if(o.name&&!have[(o.name||'').toLowerCase()])out.push(o);});return out.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});}return extra.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});}
-function _labFeeFor(name,region){_lwEnsure();if(region==='UAE'&&FEES&&FEES.labs&&FEES.labs[name]!=null)return FEES.labs[name]||0;var f=(CFG.labWorks[region]||[]).find(function(x){return (x.name||'')===name;});return f?(Number(f.fee)||0):0;}
+function _labFeeFor(name,region){_lwEnsure();if((region==='UAE'||region==='Global')&&FEES&&FEES.labs&&FEES.labs[name]!=null)return FEES.labs[name]||0;var f=(CFG.labWorks[region]||CFG.labWorks['UAE']||[]).find(function(x){return (x.name||'')===name;});return f?(Number(f.fee)||0):0;}
 function _labTotalFor(arr,region){if(!arr||!arr.length)return 0;return arr.reduce(function(s,n){return s+_labFeeFor(n,region);},0);}
 function lwEdit(reg,idx,field,val){_lwEnsure();var L=CFG.labWorks[reg];if(!L||!L[idx])return;if(field==='fee')L[idx].fee=parseFloat(val)||0;else L[idx].name=String(val).trim();saveCFG();}
 function _plEnsure(){if(!CFG.patientLinks||typeof CFG.patientLinks!=='object'||Array.isArray(CFG.patientLinks))CFG.patientLinks={};}
