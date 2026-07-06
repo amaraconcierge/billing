@@ -1661,6 +1661,7 @@ function calcMedLogisticsFee(region, when, dur, baseFeeOverride){
     adminRate = (FEES.teamAdmin&&FEES.teamAdmin[when+'-Inside UAE'])||220;
   }
   var extraFee = Math.round(extraSets * adminRate * 100)/100;
+  baseFee=Math.round(baseFee);
   return {baseFee:baseFee, extraSets:extraSets, extraFee:extraFee, total:baseFee+extraFee, cur:cur, totalMins:totalMins, adminRate:adminRate};
 }
 function fmtMedLogisticsDesc(billDate){
@@ -1779,14 +1780,16 @@ function calcBillGrandTotal(b){
         else{_imMF=FEES.internalMedPrescription||195;}
         total+=_imMF;
         // Medication Logistics fee (same as em — prescription rate + 30 min free + extra time)
-        if(idata['ph2']){
+        if(idata['ph2']||idata['pl']){
+          if(!idata['ph2'])idata['ph2']='In Hours';
           var _imLoc=idata['pl']||'Local';
           var _imReg=(_imLoc==='International'||_imLoc.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';
           total+=calcMedLogisticsFee(_imReg,idata['ph2'],idata['adh']).total||0;
         }
       }      // Prescription on medication items — em ONLY uses FEES.prescription (AED 250/375/367.25/550.875)
       // im uses imt selector (OTC AED 75 / Prescription AED 195) — NOT FEES.prescription
-      if(item.id==='em'&&idata['ph2']){
+      if(item.id==='em'&&(idata['ph2']||idata['pl'])){
+        if(!idata['ph2'])idata['ph2']='In Hours';
         var _emLocGT=idata['pl']||'Local';
         var _emWhenGT=idata['ph2']||'In Hours';
         var _emRegGT=(_emLocGT==='International'||_emLocGT.toLowerCase().indexOf('international')>=0||_emLocGT==='Global')?'UAE-International':'UAE-Local';
@@ -2698,6 +2701,46 @@ function ensureCoreLists(){
   if(!Array.isArray(CFG.team))CFG.team=[];
   if(CFG.team.indexOf('Dr Elizabeth Thorne')<0&&CFG.team.indexOf('Dr Elizabeth')<0&&CFG.team.indexOf('Dr Thorne')<0)CFG.team.push('Dr Thorne');
 }
+
+// ── FML Lab Tests seed — injected from CSV 2026-07-06 ──
+function _seedFMLLabs(){
+  _lwEnsure();
+  // Pre-seed known billedBy aliases (login name -> display name)
+  if(!CFG.billedByAliases)CFG.billedByAliases={};
+  var _knownAliases={'aca':'Ari','aldrina':'Aldrin','dr.thorne':'Dr Elizabeth Thorne'};
+  Object.keys(_knownAliases).forEach(function(k){
+    if(!CFG.billedByAliases[k])CFG.billedByAliases[k]=_knownAliases[k];
+  });
+  var tests=[
+    {name:'FML - Androstenedione',fee:210},
+    {name:'FML - DHEA-S (Dehydroepiandosterone-sulfate)',fee:98},
+    {name:'FML - Blood Film',fee:26},
+    {name:'FML - von Willebrand Antigen',fee:312},
+    {name:'FML - von Willebrand factor (vWF) activity',fee:312},
+    {name:'FML - Protein/Creatinine Ratio in Urine',fee:42},
+    {name:"FML - Allergy Screening: f2 Cow's milk",fee:78},
+    {name:'FML - Allergy Screening: f76-alpha-lactalbumin (nBos d4)',fee:78},
+    {name:'FML - Allergy Screening: f77-beta-lactoglobulin (nBos d5)',fee:78},
+    {name:'FML - Allergy Screening: f78-Casein (nBos d8)',fee:78},
+    {name:'FML - Allergy Screening: f81 Cheese Cheddar type',fee:78},
+    {name:'FML - Allergy Screening: f82 Cheese mould type',fee:78},
+    {name:'FML - Allergy Screening: f231 milk boiled',fee:78},
+    {name:'FML - Allergy Screening: f236 Whey',fee:78},
+    {name:"FML - Allergy Screening: f286 Mare's milk",fee:78},
+    {name:'FML - Allergy Screening: f300 Goat Milk',fee:78},
+    {name:'FML - Allergy Screening: f325 Sheep milk',fee:78},
+    {name:'FML - Allergy Screening: f326 Sheep whey',fee:78},
+    {name:'FML - Allergy Screening: f1 Egg white',fee:78},
+    {name:'FML - Allergy Screening: f75 Egg Yolk',fee:78}
+  ];
+  ['UAE','UK','Global'].forEach(function(reg){
+    tests.forEach(function(t){
+      if(!CFG.labWorks[reg].some(function(x){return (x.name||'').toLowerCase()===t.name.toLowerCase();})){
+        CFG.labWorks[reg].push({name:t.name,fee:t.fee});
+      }
+    });
+  });
+}
 function APP_INIT(){
   // Load stored config but MERGE carefully:
   // User customisations (team, doctors, statuses, extLabs) come from storage.
@@ -2779,7 +2822,8 @@ function APP_INIT(){
   }
   popTeam();popStatuses();popBillTo();
   // Always render empty state immediately so buttons work even before DB responds
-  renderStats();render();renderPats();
+  try{var _sf=localStorage.getItem('amaraSF');if(_sf){activeSF=_sf;}}catch(e){}
+    _seedFMLLabs();renderStats();render();renderPats();
   dbLoad().catch(function(e){setSS('er','Offline');render();});
   try{var d=gDB();if(d)d.channel('chg').on('postgres_changes',{event:'*',schema:'public',table:'bills'},function(){if(!_busy())dbLoad();}).subscribe();}catch(e){}
   // Resilience: polling fallback + reconnect-aware refresh + crash recovery
@@ -2793,7 +2837,47 @@ function APP_INIT(){
   document.addEventListener('click',function(e){if(!e.target.closest('.fwrap'))document.getElementById('fpop').classList.remove('open');});
   document.addEventListener('click',function(e){var m=document.getElementById('pat-more-menu');if(m&&!e.target.closest('#pat-more-wrap'))m.style.display='none';});
 }
-function popTeam(){var s=document.getElementById('fTm');s.innerHTML='<option value="">All Team</option>';CFG.team.forEach(function(t){var o=document.createElement('option');o.textContent=t;s.appendChild(o);});}
+function _resolveAlias(raw){
+  // Map email/username to display name via CFG.billedByAliases
+  if(!raw)return raw;
+  var aliases=CFG.billedByAliases||{};
+  return aliases[raw.trim().toLowerCase()]||aliases[raw.trim()]||raw;
+}
+
+function addBilledAlias(){
+  var raw=(_v('alias_raw')||'').trim().toLowerCase();
+  var display=(_v('alias_display')||'').trim();
+  if(!raw||!display){toast('Enter both the login name and display name','er');return;}
+  if(!CFG.billedByAliases)CFG.billedByAliases={};
+  CFG.billedByAliases[raw]=display;
+  saveCFG();popTeam();renderSettings();toast(raw+' → '+display+' saved','in');
+}
+function delBilledAlias(raw){
+  if(!CFG.billedByAliases||!CFG.billedByAliases[raw])return;
+  delete CFG.billedByAliases[raw];
+  saveCFG();popTeam();renderSettings();toast('Alias removed','in');
+}
+function popTeam(){
+  var s=document.getElementById('fTm');if(!s)return;
+  s.innerHTML='<option value="">All Team</option>';
+  // Use actual billedBy values from bills, resolved through alias map
+  var rawNames=[...new Set((typeof bills!=='undefined'?bills:[]).map(function(b){return (b.billedBy||'').trim();}).filter(Boolean))];
+  // Build display->rawValues map (multiple raw names may map to same display)
+  var displayMap={};
+  rawNames.forEach(function(raw){
+    var display=_resolveAlias(raw);
+    if(!displayMap[display])displayMap[display]=[];
+    displayMap[display].push(raw);
+  });
+  // Sort by display name
+  Object.keys(displayMap).sort().forEach(function(display){
+    var o=document.createElement('option');
+    o.textContent=display;
+    // Store all raw values that map here so filtering still works
+    o.value=displayMap[display].join('||');
+    s.appendChild(o);
+  });
+}
 function popBillTo(){
   var s=document.getElementById('fBto');if(!s)return;
   s.innerHTML='<option value="">All</option>';
@@ -2846,7 +2930,7 @@ function getFiltered(){
   var br=document.getElementById('fBr').value,tm=document.getElementById('fTm').value,st=document.getElementById('fSt').value||activeSF,so=document.getElementById('fSo').value,bto=(document.getElementById('fBto')?document.getElementById('fBto').value:''),fRoll=(document.getElementById('fRoll')?document.getElementById('fRoll').value:'');
   var list=bills.filter(function(b){
     if(q&&!(b.patientName+' '+(b.billedBy||'')+' '+(b.notes||'')).toLowerCase().includes(q))return false;
-    if(br&&b.branch!==br)return false;if(tm&&b.billedBy!==tm)return false;var M_NAMES_F=["M - M's rolling invoice","M - Sh Hamdan A.M","M - Family"];
+    if(br&&b.branch!==br)return false;if(tm){var _tmVals=tm.split('||');if(!_tmVals.some(function(v){return b.billedBy===v;}))return false;}var M_NAMES_F=["M - M's rolling invoice","M - Sh Hamdan A.M","M - Family"];
     if(activeSF==='__M_GROUP__'){if(!M_NAMES_F.includes(b.status))return false;}
     else if(st&&b.status!==st)return false;if(bto&&(b.notes||'').toLowerCase().indexOf(bto.toLowerCase())<0)return false;if(fRoll&&(b.rollingInvoice||(b.billingData&&b.billingData._rollingInvoice)||'').toLowerCase().indexOf(fRoll.toLowerCase())<0)return false;
     var _dfFrom=document.getElementById('fDateFrom');var _dfTo=document.getElementById('fDateTo');
@@ -3026,7 +3110,6 @@ function render(){
   try{assignPatCodesAll();_updPrivBtn();}catch(e){}
   try{_popActingAs();}catch(e){}
   try{filteredBills=getFiltered();}catch(e){filteredBills=[];}
-  try{var _sf=localStorage.getItem('amaraSF');if(_sf){activeSF=_sf;}}catch(e){}
   renderStats();
   var g=document.getElementById('bg');
   g.style.display=''; // reset any inline override from date-grouped views
@@ -3157,7 +3240,8 @@ function render(){
           if(item.id==='im'&&idata['imt']){var _rptMF=0;if(idata['imt'].indexOf('OTC')>=0){_rptMF=FEES.internalMedOTC||75;}else if(idata['imt'].indexOf('Custom')>=0){var _mfr=idata['mfee'];_rptMF=(_mfr&&parseFloat(_mfr.amount))||0;}else{_rptMF=FEES.internalMedPrescription||195;}rptTotal+=_rptMF;if(idata['ph2']){var _rptImLoc=idata['pl']||'Local';var _rptImReg=(_rptImLoc==='International'||_rptImLoc.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';rptTotal+=calcMedLogisticsFee(_rptImReg,idata['ph2'],idata['adh']).total||0;}}
           if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true'))rptTotal+=FEES.externalMedMin||75;
           if(item.id==='ic'&&idata['ptype']){var prxLocIC=idata['al']||'Inside UAE';var prxHIC=idata['ch']||'In Hours';var prxKIC=prxHIC+'-'+(prxLocIC==='International'?'International':prxLocIC.startsWith('Inside')?'Inside UAE':'Outside UAE');rptTotal+=FEES.prescription&&FEES.prescription[prxKIC]?FEES.prescription[prxKIC]:0;}
-          if(item.id==='em'&&idata['ph2']){var _emLR=idata['pl']||'Local';var _emWR=idata['ph2']||'In Hours';var _emRegR=(_emLR==='International'||_emLR.toLowerCase().indexOf('international')>=0||_emLR==='Global')?'UAE-International':'UAE-Local';var _emFR=calcMedLogisticsFee(_emRegR,_emWR,idata['adh']);rptTotal+=_emFR.total||0;}
+          if(item.id==='em'&&(idata['ph2']||idata['pl'])){
+            if(!idata['ph2'])idata['ph2']='In Hours';var _emLR=idata['pl']||'Local';var _emWR=idata['ph2']||'In Hours';var _emRegR=(_emLR==='International'||_emLR.toLowerCase().indexOf('international')>=0||_emLR==='Global')?'UAE-International':'UAE-Local';var _emFR=calcMedLogisticsFee(_emRegR,_emWR,idata['adh']);rptTotal+=_emFR.total||0;}
           ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv.amount)&&(fv.cur||'AED')==='AED')rptTotal+=parseFloat(fv.amount)||0;});
           if(idata['adh']&&item.id!=='em'){rptTotal+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
           if(Array.isArray(idata['lw'])&&idata['lw'].length)rptTotal+=_labTotalFor(idata['lw'],_skRegion(sk));
@@ -3844,7 +3928,7 @@ function renderDF(sk,itemId,f,val){
     var _pvReg2=(_pvPl2==='International'||_pvPl2.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';
     var _pvFee2=calcMedLogisticsFee(_pvReg2,_pvWhen2,_pvAdh2);
     var _pvLines2=[];
-    _pvLines2.push('<div style="display:flex;justify-content:space-between;font-weight:600;"><span>Medication Logistics fee</span><span>AED '+_pvFee2.baseFee.toLocaleString()+'</span></div>');
+    _pvLines2.push('<div style="display:flex;justify-content:space-between;font-weight:600;"><span>Medication Logistics fee</span><span>AED '+Math.round(_pvFee2.baseFee)+'</span></div>');
     _pvLines2.push('<div style="font-size:10px;color:var(--m2);margin-bottom:4px;">'+_pvWhen2+' · '+(_pvPl2||'Local')+' · Prescription + 30 min included</div>');
     var _pvMins2=(parseInt(_pvAdh2.h||0)*60+parseInt(_pvAdh2.m||0));
     if(_pvMins2>0&&_pvMins2<=30){
@@ -4006,6 +4090,7 @@ function sBF(sk,itemId,fId,val){
   renderBForm();
 }
 function setH(sk,itemId,fId,part,v){
+  if(!curBill||!curBill.billingData)return;
   if(!curBill.billingData[sk])curBill.billingData[sk]={};
   if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
   var cur=curBill.billingData[sk][itemId][fId]||{h:'',m:''};cur[part]=v;
@@ -4242,7 +4327,18 @@ async function delBill(id){
 // ═══════════════════════════════════════════════════════════════
 // BILL VIEW — clean, formatted
 // ═══════════════════════════════════════════════════════════════
-function viewBill(id){viewId=id;var b=bills.find(function(x){return x.id==id;});if(!b)return;document.getElementById('vmod-body').innerHTML=buildView(b);openMod('vmod');}
+function viewBill(id){
+  viewId=id;
+  var b=bills.find(function(x){return x.id==id;});
+  if(!b)return;
+  try{
+    document.getElementById('vmod-body').innerHTML=buildView(b);
+  }catch(e){
+    document.getElementById('vmod-body').innerHTML='<div style="padding:20px;color:var(--re);">Error loading bill: '+esc(String(e.message||e))+'</div>';
+    console.error('buildView error for bill',id,e);
+  }
+  openMod('vmod');
+}
 function editFromView(){closeMod('vmod');openEdit(viewId);}
 function addFromView(){closeMod('vmod');openEdit(viewId);setTimeout(function(){swTab('f');addFU();},200);}
 
@@ -4488,7 +4584,8 @@ function buildBillTotal(b){
         if(lt>0){lines.push({label:'Lab tests ('+idata['lw'].length+')',amount:lt});grandTotal+=lt;}
       }
       // Prescription fee on external medication only (em) — internal uses imt selector
-      if(item.id==='em'&&idata['ph2']){
+      if(item.id==='em'&&(idata['ph2']||idata['pl'])){
+        if(!idata['ph2'])idata['ph2']='In Hours';
         var _emBTLoc=idata['pl']||'Local';
         var _emBTWhen=idata['ph2']||'In Hours';
         var _emBTReg=(_emBTLoc==='International'||_emBTLoc.toLowerCase().indexOf('international')>=0||_emBTLoc==='Global')?'UAE-International':'UAE-Local';
@@ -4874,8 +4971,9 @@ summaryRows.push({title:'Physician Admin Time',desc:(idata['padh_h']||'In Hours'
     // Determine fees and labels based on item type
     var _isUKMed=itemId==='uem';var _isGlobalMed=itemId==='gem';var _isExtMed=itemId==='em';
     // Medication Logistics fee (replaces prescription + admin for em)
-    if(_isExtMed&&ph2){
+    if(_isExtMed&&(ph2||pl)){
       var _emSumLoc=pl||'Local';
+      if(!ph2)ph2='In Hours'; // default if not set
       var _emSumRegion=(_emSumLoc==='International'||_emSumLoc.toLowerCase().indexOf('international')>=0||_emSumLoc==='Global')?'UAE-International':'UAE-Local';
       var _emSumFee=calcMedLogisticsFee(_emSumRegion,ph2,idata['adh']);
       // Build single clean Medication Logistics row
@@ -5756,7 +5854,10 @@ function viewPat(id){
   h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--m2);margin-bottom:9px;">🧾 Bills ('+pb.length+')</div>';
   h+='<div class="bg">';
   if(!pb.length){h+='<div class="empty" style="padding:28px 0;"><div class="et">No bills</div><div class="es">No bills for this patient yet.</div></div>';}
-  else{pb.forEach(function(b){ h+=billCardHtml(b,bills.indexOf(b)); });}
+  else{pb.forEach(function(b){
+    try{h+=billCardHtml(b,bills.indexOf(b));}
+    catch(e){h+='<div style="padding:10px 14px;border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:8px;color:var(--re);font-size:12px;">Bill #'+bills.indexOf(b)+1+' could not be rendered: '+esc(String(e.message||e))+'</div>';}
+  });}
   h+='</div>';
   document.getElementById('page-patients').innerHTML=h;
 }
@@ -5979,7 +6080,25 @@ function renderSettings(){
         '<button class="add-btn" onclick="saveProtPins()">Save PINs</button>';
     }},
     {id:'team',title:'Team Members',sub:CFG.team.length+' members',fn:function(){
-      return '<div class="tag-list">'+CFG.team.map(function(t){return'<span class="tag-i">'+esc(t)+' <span class="tag-x" onclick="rmC(\'team\',\''+esc(t)+'\')">&#215;</span></span>';}).join('')+'</div>'+
+      // Build aliases section
+      var aliases=CFG.billedByAliases||{};
+      var aliasRows=Object.keys(aliases).map(function(k){
+        return '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bo);">'+
+          '<span style="flex:1;font-size:12px;color:var(--m2);">'+esc(k)+'</span>'+
+          '<span style="font-size:12px;color:var(--mu);">→</span>'+
+          '<span style="flex:1;font-size:12px;font-weight:600;">'+esc(aliases[k])+'</span>'+
+          '<button type="button" onclick="delBilledAlias("+k+")"yle="background:none;border:none;cursor:pointer;color:var(--re);font-size:14px;padding:0 4px;">×</button>'+
+          '</div>';
+      }).join('');
+      var aliasSection=(Object.keys(aliases).length?
+        '<div style="margin:12px 0 6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--m2);">Billed-by name aliases</div>'+
+        '<div style="max-height:160px;overflow-y:auto;margin-bottom:8px;">'+aliasRows+'</div>':'<p style="font-size:12px;color:var(--m2);margin-bottom:8px;">No aliases yet. Use the form below to map login names (e.g. aca) to display names (e.g. Ari).</p>')+
+        '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">'+
+        '<input class="add-inp" id="alias_raw" placeholder="Login/email (e.g. aca)" style="flex:1;min-width:100px;">'+
+        '<span style="align-self:center;color:var(--m2);">→</span>'+
+        '<input class="add-inp" id="alias_display" placeholder="Display name (e.g. Ari)" style="flex:1;min-width:100px;">'+
+        '<button class="add-btn" onclick="addBilledAlias()">Add</button></div>';
+      return aliasSection+'<div class="tag-list">'+CFG.team.map(function(t){return'<span class="tag-i">'+esc(t)+' <span class="tag-x" onclick="rmC(\'team\',\''+esc(t)+'\')">&#215;</span></span>';}).join('')+'</div>'+
         '<div class="add-row"><input class="add-inp" id="nt" placeholder="Add team member&#8230;" onkeydown="if(event.key===\'Enter\')addC(\'team\')"><button class="add-btn" onclick="addC(\'team\')">Add</button></div>';
     }},
     {id:'doctors',title:'Doctors',sub:CFG.doctors.length+' doctors',fn:function(){
@@ -5993,20 +6112,87 @@ function renderSettings(){
         '<div class="tag-list" style="max-height:220px;overflow-y:auto;">'+CFG.labs.map(function(l){var p=FEES.labs&&FEES.labs[l]?'  AED '+FEES.labs[l]:'';return'<span class="tag-i lab-sett-tag" style="border-radius:5px;">'+esc(l)+(p?'<span style="font-size:9px;color:var(--m2);margin-left:4px;">'+p+'</span>':'')+' <span class="tag-x" onclick="rmC(\'labs\',\''+esc(l)+'\')">&#215;</span></span>';}).join('')+'</div>'+
         '<div class="add-row"><input class="add-inp" id="nl" placeholder="Add lab test&#8230;" onkeydown="if(event.key===\'Enter\')addC(\'labs\')"><button class="add-btn" onclick="addC(\'labs\')">Add</button></div>';
     }},
-    {id:'labWorks',title:'Lab Works',sub:'Add / edit / delete per-region \u00b7 used in billing',fn:function(){
-      _lwEnsure();var reg=_lwReg||'UAE';var list=CFG.labWorks[reg]||[];var cur=(reg==='UK')?'GBP':'AED';
-      var tabs=['UAE','UK','Global'].map(function(r){return '<button class="sub-pill'+(r===reg?' on':'')+'" onclick="lwTab(\''+r+'\')">'+r+' ('+((CFG.labWorks[r]||[]).length)+')</button>';}).join('');
-      var rows=list.length?list.map(function(it,i){return '<div style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--bo);">'+
-        '<input class="add-inp" style="flex:2;font-size:13px;" value="'+esc(it.name)+'" onchange="lwEdit(\''+reg+'\','+i+',\'name\',this.value)">'+
-        '<input class="add-inp" type="number" min="0" step="0.01" style="flex:1;max-width:108px;font-size:13px;" value="'+(Number(it.fee)||0)+'" onchange="lwEdit(\''+reg+'\','+i+',\'fee\',this.value)">'+
-        '<span style="font-size:10px;color:var(--mu);min-width:28px;">'+cur+'</span>'+
-        '<span style="cursor:pointer;color:var(--re);font-size:16px;padding:0 4px;" onclick="lwDel(\''+reg+'\','+i+')" title="Delete">&#215;</span>'+
-        '</div>';}).join(''):'<p style="font-style:italic;color:var(--m2);font-size:12px;padding:6px 2px;">No lab works for '+reg+' yet.</p>';
-      return '<p style="font-size:12px;color:var(--m2);margin-bottom:10px;line-height:1.5;">Add, edit and delete lab works &amp; fees for each region. UK and Global lists appear in their billing forms; UAE entries are added on top of your built-in Internal Lab Tests. Edit inline, or use bulk Excel import / delete-all.</p>'+
-        '<div class="sub-nav" style="margin-bottom:12px;">'+tabs+'</div>'+
-        '<div style="max-height:360px;overflow-y:auto;margin-bottom:10px;">'+rows+'</div>'+
-        '<div class="add-row" style="gap:6px;"><input class="add-inp" id="lw_name" placeholder="Lab work name\u2026" style="flex:2;"><input class="add-inp" id="lw_fee" type="number" min="0" step="0.01" placeholder="Fee ('+cur+')" style="flex:1;min-width:90px;"><button class="add-btn" onclick="lwAdd()">Add</button></div>'+
-        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button class="ab" onclick="lwBulkExcel()">&#8595; Bulk Import (Excel)</button><button class="ab" onclick="lwExportExcel()">Export Excel</button><button class="ab" style="border-color:rgba(150,48,48,.22);color:var(--re);" onclick="lwClear(\''+reg+'\')">Delete All ('+reg+')</button></div>';
+    {id:'labWorks',title:'Lab Tests',sub:'UAE · UK · Global — one place to manage all test lists',fn:function(){
+      _lwEnsure();
+      var reg=_lwReg||'UAE';
+      var srch=(_v('lw_srch')||'').toLowerCase();
+      var cur=reg==='UK'?'GBP':'AED';
+
+      // ── Tab counts ──
+      var uaeCount=_labListFor('UAE').length;
+      var ukCount=(CFG.labWorks.UK||[]).length;
+      var tabs=['UAE','UK','Global'].map(function(r){
+        var cnt=r==='UAE'?uaeCount:r==='UK'?ukCount:'UAE: '+(CFG.labWorks.UAE||[]).length+' + UK: '+(CFG.labWorks.UK||[]).length;
+        return '<button class="sub-pill'+(r===reg?' on':'')+'" onclick="_lwReg=\''+r+'\';renderSettings();">'+r+(r!=='Global'?' ('+cnt+')':' (both)')+'</button>';
+      }).join('');
+
+      // ── Table header ──
+      var hdr='<div style="display:flex;align-items:center;gap:6px;padding:4px 2px 6px;border-bottom:2px solid var(--bo);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--m2);">'+
+        (reg==='Global'?
+          '<span style="flex:1;">Test Name</span><span style="min-width:60px;text-align:right;">AED</span><span style="min-width:8px;"></span><span style="min-width:60px;text-align:right;">GBP</span><span style="min-width:28px;"></span>':
+          '<span style="flex:1;">Test Name</span><span style="min-width:80px;text-align:right;">Fee ('+cur+')</span><span style="min-width:28px;"></span>')+
+        '</div>';
+
+      var rows='';
+      if(reg==='Global'){
+        // Show merged UAE+UK list with both prices
+        var uaeList=_labListFor('UAE');var ukMap={};
+        (CFG.labWorks.UK||[]).forEach(function(x){ukMap[(x.name||'').toLowerCase()]={name:x.name,fee:x.fee};});
+        // Build combined: UAE tests + UK-only tests
+        var combined=[];var have={};
+        uaeList.forEach(function(x){have[(x.name||'').toLowerCase()]=true;combined.push({name:x.name,aed:x.fee,gbp:(ukMap[(x.name||'').toLowerCase()]||{}).fee||0,both:!!ukMap[(x.name||'').toLowerCase()]});});
+        (CFG.labWorks.UK||[]).forEach(function(x){if(!have[(x.name||'').toLowerCase()])combined.push({name:x.name,aed:0,gbp:x.fee,both:false});});
+        combined.sort(function(a,b){return a.name.localeCompare(b.name);});
+        var filtered=srch?combined.filter(function(x){return x.name.toLowerCase().includes(srch);}):combined;
+        rows=filtered.length?filtered.map(function(it){
+          var badge=it.both?'<span style="font-size:9px;background:#e8f4ec;color:#1a7a40;border-radius:3px;padding:1px 5px;margin-left:4px;">Both</span>':
+            (it.aed?'<span style="font-size:9px;background:#f0f5fb;color:#185FA5;border-radius:3px;padding:1px 5px;margin-left:4px;">UAE</span>':
+             '<span style="font-size:9px;background:#fff3e0;color:#e65100;border-radius:3px;padding:1px 5px;margin-left:4px;">UK</span>');
+          return '<div style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--bo);">'+
+            '<span style="flex:1;font-size:12px;">'+esc(it.name)+badge+'</span>'+
+            '<span style="min-width:60px;text-align:right;font-size:12px;color:var(--tx);">'+(it.aed?it.aed:'<span style="color:var(--bo)">—</span>')+'</span>'+
+            '<span style="font-size:10px;color:var(--m2);min-width:8px;">|</span>'+
+            '<span style="min-width:60px;text-align:right;font-size:12px;color:#0C447C;">'+(it.gbp?it.gbp:'<span style="color:var(--bo)">—</span>')+'</span>'+
+            '<span style="min-width:28px;"></span>'+
+            '</div>';}).join(''):'<p style="font-style:italic;color:var(--m2);font-size:12px;padding:10px 2px;">No tests yet. Add tests in the UAE and UK tabs.</p>';
+      } else {
+        // UAE or UK — editable table
+        var list=_labListFor(reg);
+        var filtered=srch?list.filter(function(x){return (x.name||'').toLowerCase().includes(srch);}):list;
+        // For UAE, need to know if item is in CFG.labs (built-in) or CFG.labWorks.UAE (custom)
+        var builtinSet={};if(reg==='UAE')(CFG.labs||[]).forEach(function(n){builtinSet[n.toLowerCase()]=true;});
+        rows=filtered.length?filtered.map(function(it){
+          // Find the actual index in the correct backing store
+          var isBuiltin=reg==='UAE'&&builtinSet[(it.name||'').toLowerCase()];
+          var srcIdx=isBuiltin?-1:(CFG.labWorks[reg]||[]).findIndex(function(x){return (x.name||'').toLowerCase()===(it.name||'').toLowerCase();});
+          var tag=isBuiltin?'<span style="font-size:9px;background:#f0f5fb;color:#185FA5;border-radius:3px;padding:1px 4px;">built-in</span>':'';
+          return '<div style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--bo);">'+
+            '<span style="flex:1;font-size:12px;">'+tag+' '+esc(it.name)+'</span>'+
+            '<input type="number" min="0" step="0.01" style="width:80px;padding:3px 6px;font-size:12px;border:1px solid var(--bo);border-radius:4px;text-align:right;" value="'+(Number(it.fee)||0)+'" '+
+            'onchange="lwEditByName(\''+reg+'\',\''+esc(it.name)+'\',this.value)" title="Edit fee">'+
+            '<span style="font-size:10px;color:var(--mu);min-width:28px;">'+cur+'</span>'+
+            (srcIdx>=0?'<span style="cursor:pointer;color:var(--re);font-size:16px;padding:0 2px;" onclick="lwDel(\''+reg+'\','+srcIdx+')" title="Delete">×</span>':
+              '<span style="min-width:20px;"></span>')+
+            '</div>';}).join(''):'<p style="font-style:italic;color:var(--m2);font-size:12px;padding:10px 2px;">No tests yet.</p>';
+      }
+
+      return '<div style="margin-bottom:10px;">'+
+        '<div class="sub-nav" style="margin-bottom:10px;">'+tabs+'</div>'+
+        '<input class="fi" id="lw_srch" placeholder="Search tests…" oninput="renderSettings()" value="'+esc(srch)+'" style="margin-bottom:8px;">'+
+        (reg!=='Global'?
+          '<div style="display:flex;gap:6px;margin-bottom:6px;">'+
+          '<input class="add-inp" id="lw_name" placeholder="Test name…" style="flex:2;">'+
+          '<input class="add-inp" id="lw_fee" type="number" min="0" step="0.01" placeholder="Fee ('+cur+')" style="width:90px;">'+
+          '<button class="add-btn" onclick="lwAdd()">+ Add</button></div>':'') +
+        hdr+
+        '<div style="max-height:400px;overflow-y:auto;">'+rows+'</div>'+
+        (reg!=='Global'?
+          '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'+
+          '<button class="ab" onclick="lwBulkExcel()">↕ Bulk Import (Excel)</button>'+
+          '<button class="ab" onclick="lwExportExcel()">Export Excel</button>'+
+          '<button class="ab" style="border-color:rgba(150,48,48,.22);color:var(--re);" onclick="lwClear(\''+reg+'\')">Delete All Custom ('+reg+')</button>'+
+          '</div>':'<p style="font-size:11px;color:var(--m2);margin-top:8px;">Global billing uses both UAE (AED) and UK (GBP) test prices. Edit tests in their respective tabs.</p>')+
+        '</div>';
     }},
     {id:'extLabs',title:'External Laboratories',sub:CFG.extLabs.length+' labs',fn:function(){
       return '<div class="tag-list">'+CFG.extLabs.map(function(l){return'<span class="tag-i" style="border-radius:5px;">'+esc(l)+' <span class="tag-x" onclick="rmC(\'extLabs\',\''+esc(l)+'\')">&#215;</span></span>';}).join('')+'</div>'+
@@ -6182,10 +6368,11 @@ function renderSettings(){
         '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t);padding:6px 10px;background:var(--tb);border-radius:6px;margin:12px 0 8px;">Lab Test Prices (AED)</div>'+
         '<input id="fee-lab-search" class="fi" placeholder="Search lab tests..." style="margin-bottom:8px;" oninput="filterFeeLabList(this.value)">'+
         '<div id="fee-lab-list" style="max-height:320px;overflow-y:auto;">'+
-        CFG.labs.slice().sort(function(a,b){return a.localeCompare(b);}).map(function(l){var p=FEES.labs&&FEES.labs[l]?FEES.labs[l]:0;return'<div class="fee-lab-row" data-lbl="'+esc(l).toLowerCase()+'" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bo);">'+
-          '<span style="flex:1;font-size:12px;">'+esc(l)+'</span>'+
+        CFG.labs.slice().sort(function(a,b){return a.localeCompare(b);}).map(function(l){var p=FEES.labs&&FEES.labs[l]?FEES.labs[l]:0;return'<div class="fee-lab-row" data-lbl="'+esc(l).toLowerCase()+'" style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bo);">'+
+          '<span style="flex:1;font-size:12px;cursor:pointer;" onclick="renameLabItem(\'UAE\',\''+esc(l)+'\')" title="Rename">'+esc(l)+'</span>'+
           '<span style="font-size:11px;color:var(--m2);">AED</span>'+
-          '<input type="number" min="0" step="0.01" style="width:90px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+p+'" data-lab="'+esc(l)+'" onchange="updateLabFee(this.dataset.lab,this.value)">'+
+          '<input type="number" min="0" step="0.01" style="width:80px;padding:4px 8px;font-size:12px;border:1px solid var(--bo);border-radius:5px;text-align:right;" value="'+p+'" data-lab="'+esc(l)+'" onchange="updateLabFee(this.dataset.lab,this.value)">'+
+          '<button type="button" onclick="deleteLabItem(\'UAE\',\''+esc(l)+'\')" style="background:none;border:none;cursor:pointer;color:var(--re);font-size:16px;padding:0 2px;" title="Delete">×</button>'+
           '</div>';}).join('')+
         '</div>')+
 
@@ -6447,6 +6634,47 @@ function updateLabFee(labName,val){
   FEES.labs[labName]=parseFloat(val)||0;
   saveFEES();
   toast('Lab price updated: '+labName,'ok');
+}
+
+function addLabItem(reg){
+  var name=(prompt('New lab test name:')||'').trim();
+  if(!name)return;
+  var fee=parseFloat(prompt('Fee ('+(reg==='UK'?'GBP':'AED')+'):','0')||'0')||0;
+  if(reg==='UK'){
+    if(!CFG.labWorks)CFG.labWorks={};
+    if(!CFG.labWorks.UK)CFG.labWorks.UK=[];
+    if(CFG.labWorks.UK.some(function(x){return x.name===name;})){toast('Already exists','er');return;}
+    CFG.labWorks.UK.push({name:name,fee:fee});
+  } else {
+    if(!CFG.labs)CFG.labs=[];
+    if(CFG.labs.includes(name)){toast('Already exists','er');return;}
+    CFG.labs.push(name);
+    if(!FEES.labs)FEES.labs={};
+    if(fee>0)FEES.labs[name]=fee;
+  }
+  saveCFG();renderSettings();toast(name+' added','in');
+}
+function renameLabItem(reg,oldName){
+  var newName=(prompt('Rename:',oldName)||'').trim();
+  if(!newName||newName===oldName)return;
+  if(reg==='UK'){
+    var item=(CFG.labWorks&&CFG.labWorks.UK||[]).find(function(x){return x.name===oldName;});
+    if(item)item.name=newName;
+  } else {
+    var idx=(CFG.labs||[]).indexOf(oldName);
+    if(idx>=0){CFG.labs[idx]=newName;if(FEES.labs&&FEES.labs[oldName]!=null){FEES.labs[newName]=FEES.labs[oldName];delete FEES.labs[oldName];}}
+  }
+  saveCFG();renderSettings();toast('Renamed','in');
+}
+function deleteLabItem(reg,name){
+  if(!confirm('Delete '+name+' from lab list?'))return;
+  if(reg==='UK'){
+    if(CFG.labWorks&&CFG.labWorks.UK)CFG.labWorks.UK=CFG.labWorks.UK.filter(function(x){return x.name!==name;});
+  } else {
+    if(CFG.labs)CFG.labs=CFG.labs.filter(function(x){return x!==name;});
+    if(FEES.labs)delete FEES.labs[name];
+  }
+  saveCFG();renderSettings();toast('Deleted','in');
 }
 function loadFEES(){
   // Load persisted fee overrides (only numeric overrides, not structure)
@@ -11073,8 +11301,16 @@ function _ledger(){
 }
 function ledAdd(){_pcfg();var amt=_v('led_amount');var partner=_v('led_partner');if(!partner&&!amt){toast('Enter a partner and amount','error');return;}CFG.referralLedger.push({id:_uid(),date:_v('led_date')||_today(),partner:partner,patient:_v('led_patient'),region:_v('led_region')||'UAE',type:(document.getElementById('led_type')||{}).value||'referral',amount:parseFloat(amt)||0,status:'pending'});saveCFG();renderPartners();toast('Entry added','success');}
 function ledBulk(){_pcfg();var raw=_v('pbulk_led_t');if(!raw)return;var n=0;raw.split('\n').forEach(function(line){line=line.trim();if(!line)return;var p=line.split('|').map(function(x){return x.trim();});CFG.referralLedger.push({id:_uid(),date:p[0]||_today(),partner:p[1]||'',patient:p[2]||'',region:(['UAE','UK','Global'].indexOf(p[3])>=0?p[3]:'UAE'),type:(['referral','payment','cashback'].indexOf(p[4])>=0?p[4]:'referral'),amount:parseFloat(p[5])||0,status:(p[6]==='paid'?'paid':'pending')});n++;});saveCFG();renderPartners();toast(n+' imported','success');}
-function ledPaid(id){_pcfg();CFG.referralLedger=CFG.referralLedger.map(function(e){return e.id===id?Object.assign({},e,{status:e.status==='paid'?'pending':'paid'}):e;});saveCFG();renderPartners();}
-function ledDel(id){_pcfg();CFG.referralLedger=CFG.referralLedger.filter(function(e){return e.id!==id;});saveCFG();renderPartners();}
+function ledPaid(id){_pcfg();CFG.referralLedger=CFG.referralLedger.map(function(e){return e.id===id?Object.assign({},e,{status:e.status==='paid'?'pending':'paid'}):e;});saveCFG();
+  var _lp=_v('led_partner'),_la=_v('led_amount'),_lpt=_v('led_patient'),_ld=_v('led_date');
+  renderPartners();
+  try{if(_lp){var ep=document.getElementById('led_partner');if(ep)ep.value=_lp;}if(_la){var ea=document.getElementById('led_amount');if(ea)ea.value=_la;}if(_lpt){var ept=document.getElementById('led_patient');if(ept)ept.value=_lpt;}if(_ld){var ed=document.getElementById('led_date');if(ed)ed.value=_ld;}}catch(e){}
+}
+function ledDel(id){if(!confirm('Delete this entry?'))return;_pcfg();CFG.referralLedger=CFG.referralLedger.filter(function(e){return e.id!==id;});saveCFG();
+  var _lp=_v('led_partner'),_la=_v('led_amount'),_lpt=_v('led_patient'),_ld=_v('led_date');
+  renderPartners();
+  try{if(_lp){var ep=document.getElementById('led_partner');if(ep)ep.value=_lp;}if(_la){var ea=document.getElementById('led_amount');if(ea)ea.value=_la;}if(_lpt){var ept=document.getElementById('led_patient');if(ept)ept.value=_lpt;}if(_ld){var ed=document.getElementById('led_date');if(ed)ed.value=_ld;}}catch(e){}
+}
 
 function renderPartners(){_pcfg();var pg=document.getElementById('page-fees');if(!pg)return;var h='<div class="pa-wrap"><div class="pa-head">Partners &amp; Referrals</div><div class="pa-sub">Your directory of hospitals, clinicians and pharmacies, plus the referral &amp; payment ledger.</div>';h+=_dirCard('hospitals')+_dirCard('clinicians')+_dirCard('pharmacies')+_ledger()+'</div>';pg.innerHTML=h;}
 
@@ -11320,21 +11556,36 @@ function _renderCmtThread(){
   var l=_bcom(_cmtCur);
   if(!l.length){th.innerHTML='<div class="cmtmod-empty">No notes yet.<br>Add the first internal note below.</div>';return;}
   th.innerHTML=l.map(function(c){return '<div class="cmtmod-c"><div class="cmtmod-cav">'+esc(ini(c.by||'?'))+'</div>'
-    +'<div class="cmtmod-cbody"><div class="cmtmod-cmeta"><span class="cmtmod-cby">'+esc(c.by||'Team')+'</span><span class="cmtmod-cdt">'+esc(c.date||'')+'</span></div>'
+    +'<div class="cmtmod-cbody"><div class="cmtmod-cmeta"><span class="cmtmod-cby">'+esc(c.by||'Team')+'</span><span class="cmtmod-cdt">'+esc(c.date||'')+'</span>'+'<button type="button" onclick="cmtDelete(\''+esc(c.id||'')+'\'" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:13px;color:var(--m2);padding:0 4px;" title="Delete">×</button></div>'
     +'<div class="cmtmod-cbub">'+esc(c.text||'')+'</div></div></div>';}).join('');
   th.scrollTop=th.scrollHeight;
 }
+var _cmtPosting=false;
 function cmtPost(){
-  if(!_cmtCur)return; var t=_v('cmtmod-in'); if(!t)return;
+  if(!_cmtCur||_cmtPosting)return;
+  var t=_v('cmtmod-in'); if(!t)return;
+  _cmtPosting=true;
   var now=new Date();
   var _cmtAuthor=(_authProfile&&(_authProfile.name||_authProfile.email))||(_v('cmtmod-by'))||((CFG.team&&CFG.team[0])||'Team');
   _bcom(_cmtCur).push({id:_uid(),by:_cmtAuthor,
-    date:now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' \u00B7 '+now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),text:t});
-  saveCFG();
+    date:now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' · '+now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),text:t});
   var i=document.getElementById('cmtmod-in'); if(i)i.value='';
   _renderCmtThread();
   var cnt=document.getElementById('cmtn_'+_cmtCur); if(cnt)cnt.textContent=_bcom(_cmtCur).length;
-  if(typeof toast==='function')toast('Note added','success');
+  saveCFG();
+  setTimeout(function(){_cmtPosting=false;},800);
+  if(typeof toast==='function')toast('Note added','in');
+}
+function cmtDelete(noteId){
+  if(!_cmtCur)return;
+  var arr=_bcom(_cmtCur);
+  var idx=arr.findIndex(function(x){return x.id===noteId;});
+  if(idx<0)return;
+  if(!confirm('Delete this note?'))return;
+  arr.splice(idx,1);
+  saveCFG();
+  _renderCmtThread();
+  var cnt=document.getElementById('cmtn_'+_cmtCur);if(cnt)cnt.textContent=arr.length;
 }
 function closeComments(){var ov=document.getElementById('cmtmod');if(ov)ov.classList.add('h');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){var ov=document.getElementById('cmtmod');if(ov&&!ov.classList.contains('h'))closeComments();}});
@@ -11486,10 +11737,38 @@ function lwBulkExcel(){var inp=document.createElement('input');inp.type='file';i
 function lwExportExcel(){_lwEnsure();_loadXLSX(function(){var rows=[['Test name','Fee','Region']];['UAE','UK','Global'].forEach(function(r){CFG.labWorks[r].forEach(function(it){rows.push([it.name,it.fee,r]);});});var ws=XLSX.utils.aoa_to_sheet(rows);var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Lab Works');XLSX.writeFile(wb,'amara-lab-works.xlsx');});}
 function _skRegion(sk){return sk==='extUK'?'UK':sk==='extGlobal'?'Global':'UAE';}
 function _labCur(region){return region==='UK'?'GBP':'AED';}
-function _labListFor(region){_lwEnsure();var extra=(CFG.labWorks[region]||[]).slice();if(region==='UAE'){var out=CFG.labs.map(function(n){return {name:n,fee:(FEES&&FEES.labs&&FEES.labs[n])||0};});var have={};out.forEach(function(o){have[(o.name||'').toLowerCase()]=1;});extra.forEach(function(o){if(o.name&&!have[(o.name||'').toLowerCase()])out.push(o);});return out.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});}return extra.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});}
+function _labListFor(region){
+  _lwEnsure();
+  if(region==='UAE'){
+    var out=CFG.labs.map(function(n){return{name:n,fee:(FEES&&FEES.labs&&FEES.labs[n])||0};});
+    var have={};out.forEach(function(o){have[(o.name||'').toLowerCase()]=1;});
+    (CFG.labWorks.UAE||[]).forEach(function(o){if(o.name&&!have[(o.name||'').toLowerCase()])out.push(o);});
+    return out.sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+  }
+  if(region==='UK'){return(CFG.labWorks.UK||[]).slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});}
+  if(region==='Global'){
+    // Merge UAE+UK — both available in Global billing
+    var uae=_labListFor('UAE');var uk=(CFG.labWorks.UK||[]);
+    var merged=[];var have2={};
+    uae.forEach(function(x){have2[(x.name||'').toLowerCase()]=true;merged.push({name:x.name,fee:x.fee,source:'UAE'});});
+    uk.forEach(function(x){if(!have2[(x.name||'').toLowerCase()])merged.push({name:x.name,fee:x.fee,source:'UK'});});
+    return merged.sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+  }
+  return(CFG.labWorks[region]||[]).slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+}
 function _labFeeFor(name,region){_lwEnsure();if((region==='UAE'||region==='Global')&&FEES&&FEES.labs&&FEES.labs[name]!=null)return FEES.labs[name]||0;var f=(CFG.labWorks[region]||CFG.labWorks['UAE']||[]).find(function(x){return (x.name||'')===name;});return f?(Number(f.fee)||0):0;}
 function _labTotalFor(arr,region){if(!arr||!arr.length)return 0;return arr.reduce(function(s,n){return s+_labFeeFor(n,region);},0);}
-function lwEdit(reg,idx,field,val){_lwEnsure();var L=CFG.labWorks[reg];if(!L||!L[idx])return;if(field==='fee')L[idx].fee=parseFloat(val)||0;else L[idx].name=String(val).trim();saveCFG();}
+
+function lwEditByName(reg,name,val){
+  _lwEnsure();
+  var fee=parseFloat(val)||0;
+  // Try CFG.labWorks first
+  var item=(CFG.labWorks[reg]||[]).find(function(x){return (x.name||'').toLowerCase()===name.toLowerCase();});
+  if(item){item.fee=fee;saveCFG();return;}
+  // For UAE built-in tests, update FEES.labs
+  if(reg==='UAE'){if(!FEES.labs)FEES.labs={};FEES.labs[name]=fee;saveCFG();return;}
+}
+function lwEdit(reg,idx,field,val){_lwEnsure();var L=CFG.labWorks[reg];if(!L||!L[idx])return;if(field==='fee')L[idx].fee=parseFloat(val)||0;else L[idx].name=String(val).trim();saveCFG();renderSettings();}
 function _plEnsure(){if(!CFG.patientLinks||typeof CFG.patientLinks!=='object'||Array.isArray(CFG.patientLinks))CFG.patientLinks={};}
 function pLinks(name){
   _plEnsure();
