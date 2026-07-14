@@ -38,6 +38,12 @@ document.addEventListener('keydown',function(e){var lf=document.getElementById('
   --r:10px;--rl:14px;
   --sh:0 1px 2px rgba(26,26,26,.04),0 8px 24px rgba(26,26,26,.06);
   --shm:0 1px 2px rgba(26,26,26,.06),0 14px 32px rgba(26,26,26,.10);
+  /* aliases used by the bills report table — map onto the tokens above so its row/column lines render */
+  --text-primary:var(--tx);--text-secondary:var(--m2);--text-muted:var(--m2);
+  --text-accent:var(--oc);--text-success:var(--t);
+  --border:var(--bo);--border-strong:var(--bo2);
+  --surface-0:var(--wh2);--surface-1:var(--wh2);--surface-2:var(--wh);
+  --bg-warning:var(--ocb);--radius:var(--r);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--sans);background-color:var(--bg);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='wa'><feTurbulence type='fractalNoise' baseFrequency='0.04 0.95' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.30 0 0 0 0 0.22 0 0 0 0.18 0'/></filter><filter id='we'><feTurbulence type='fractalNoise' baseFrequency='0.95 0.04' numOctaves='2' seed='9'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.30 0 0 0 0 0.22 0 0 0 0.16 0'/></filter><rect width='180' height='180' filter='url(%23wa)'/><rect width='180' height='180' filter='url(%23we)'/></svg>");background-size:180px 180px;color:var(--tx);min-height:100vh;font-size:13px;-webkit-font-smoothing:antialiased;}
@@ -361,6 +367,21 @@ button{cursor:pointer;}
 .rpt-num{font-family:var(--serif);font-size:28px;font-style:italic;color:var(--tx);margin-bottom:2px;}
 .rpt-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--m2);}
 .rpt-sub{font-size:11px;color:var(--m2);margin-top:2px;}
+
+/* ── REPORT TILE LAYOUT (arrange/hide) ── */
+.rpt-restore-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--wh2);border:1px solid var(--bo);border-radius:var(--rl);padding:10px 12px;margin-bottom:14px;}
+.rpt-restore-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--m2);white-space:nowrap;}
+.rpt-restore-chip{font-size:11px;font-weight:600;padding:5px 11px;border-radius:100px;border:1px solid var(--bo2);background:var(--wh);color:var(--tx);cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent;}
+.rpt-restore-chip:hover{background:var(--bg);box-shadow:var(--sh);}
+.rpt-tile{margin-bottom:16px;}
+.rpt-tile.arranging{border:1px dashed var(--bo2);border-radius:var(--rl);padding:8px;background:rgba(26,26,26,.015);}
+.rpt-tile.drag-over{border-color:var(--t);background:rgba(15,110,86,.05);}
+.rpt-tile-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.rpt-tile-handle{cursor:grab;color:var(--m2);display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;}
+.rpt-tile-hide{font-size:10px;font-weight:600;padding:3px 9px;border-radius:100px;border:1px solid var(--bo2);background:var(--wh);color:var(--m2);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.rpt-tile-hide:hover{background:var(--bg);}
+.rpt-bills-tbl th,.rpt-bills-tbl td{border-right:1px solid var(--bo);}
+.rpt-bills-tbl th:last-child,.rpt-bills-tbl td:last-child{border-right:none;}
 
 /* ── PRINT ── */
 @media print{body{background:#fff;}#ls,#app>.topbar,.nav-tabs,.no-print{display:none!important;}.page{display:block!important;padding:0;}.ov,.ov.h{display:none!important;}}
@@ -1361,6 +1382,7 @@ var FEES={
     'Physician Review of Genetic Testing':596,
     'Food Intolerance IGG Immupro 300':2184,
     'Food Allergy IgE MADX Comprehensive Molecular':1638,
+    'FML - Inhalant Allergy Screening (20 antigens)':260,
     'Fibromax':1200,
     'Mineral Profile (25 Elements)':1092,
     'IPM1 Profile (FML)':2730,
@@ -2036,6 +2058,7 @@ var CFG={
     'Physician Review of Genetic Testing',
     'Food Intolerance IGG Immupro 300',
     'Food Allergy IgE MADX Comprehensive Molecular',
+    'FML - Inhalant Allergy Screening (20 antigens)',
     'Fibromax',
     'Mineral Profile (25 Elements)',
     'IPM1 Profile (FML)',
@@ -5388,9 +5411,55 @@ function renderReports(){
   var byBranch={};bills.forEach(function(b){var s=b.branch||'UAE';byBranch[s]=(byBranch[s]||0)+1;});
   var thisMonth=bills.filter(function(b){var d=new Date(b.createdAt);var n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).length;
 
-  var h='<div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 16px;">'+
+  var h; try{
+    // ── Tile content (same calculations/markup as before — only the container changed) ──
+    var tileContent={
+      'rpt-t-overview':'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">'+
+        rptCard('Total Bills',bills.length,null,'#2C4A6E')+
+        rptCard('In Progress',bills.filter(function(b){return b.status==='In progress';}).length,null,'#5A7A55')+
+        rptCard('Final',bills.filter(function(b){return b.status==='Final';}).length,null,'#8B6914')+
+        rptCard('Patients',Object.keys(byPatient).length,null,'#5A4F8A')+
+        '</div>',
+      'rpt-t-status':'<div id="rpt-bystatus">'+rptTable('Bills by Status',byStatus,'status')+'</div>',
+      'rpt-t-branchteam':'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'+
+        '<div id="rpt-bybranch">'+rptTable('By Branch',byBranch,'branch')+'</div>'+
+        '<div id="rpt-byteam">'+rptTable('By Team Member',byTeam,'team')+'</div>'+
+        '</div>',
+      'rpt-t-teamrev':rptTeamRevenue(),
+      'rpt-t-doctors':rptDoctorArrangements(),
+      'rpt-t-bills':rptBillsTable()
+    };
+    var TILE_LABELS={
+      'rpt-t-overview':'Overview',
+      'rpt-t-status':'Bills by Status',
+      'rpt-t-branchteam':'By Branch &amp; Team',
+      'rpt-t-teamrev':'Team Performance &amp; Revenue',
+      'rpt-t-doctors':'Doctor Arrangements',
+      'rpt-t-bills':'All Bills'
+    };
+    var layout=rptLoadLayout();
+    var arranging=!!rptArrangeMode;
+    var order=layout.order.filter(function(id){return tileContent.hasOwnProperty(id);});
+    var tilesHtml=order.map(function(id){
+      if(layout.hidden.indexOf(id)>=0)return '';
+      var c=tileContent[id];
+      if(!c)return '';
+      var bar=arranging?('<div class="rpt-tile-bar"><span class="rpt-tile-handle">&#9776; '+(TILE_LABELS[id]||id)+'</span><button class="rpt-tile-hide" onclick="rptHideTile(\''+id+'\')">Hide</button></div>'):'';
+      var dragAttrs=arranging?(' draggable="true" ondragstart="rptTileDragStart(event,\''+id+'\')" ondragover="rptTileDragOver(event,\''+id+'\')" ondrop="rptTileDrop(event,\''+id+'\')" ondragend="rptTileDragEnd(event)"'):'';
+      return '<div class="rpt-tile'+(arranging?' arranging':'')+'" data-tile-id="'+id+'"'+dragAttrs+'>'+bar+c+'</div>';
+    }).join('');
+    var hiddenChips=layout.hidden.filter(function(id){return tileContent.hasOwnProperty(id);}).map(function(id){
+      return '<button class="rpt-restore-chip" onclick="rptRestoreTile(\''+id+'\')">+ '+(TILE_LABELS[id]||id)+'</button>';
+    }).join('');
+    var restoreBar=hiddenChips?('<div class="rpt-restore-bar"><span class="rpt-restore-lbl">Hidden — click to restore:</span>'+hiddenChips+'</div>'):'';
+    var arrangeBtns=arranging?
+      ('<button class="ab" onclick="rptToggleArrange()">&#10003; Done arranging</button>'+
+       '<button class="ab" onclick="rptResetLayout()">&#8635; Reset layout</button>'):
+      '<button class="ab" onclick="rptToggleArrange()">&#9776; Arrange</button>';
+    h='<div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 16px;flex-wrap:wrap;gap:8px;">'+
     '<span style="font-family:var(--serif);font-size:22px;font-style:italic;">Reports</span>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+    arrangeBtns+
     '<button class="ab" onclick="findPadhOrphans()" style="background:rgba(184,129,58,.1);color:var(--oc);">&#9654; Audit: Unattributed Physician Time</button>'+
     '<button class="ab" onclick="dlExcel()">&#8595; Export Excel</button>'+
     '<button class="ab" onclick="exportJSON()">&#8595; Export JSON Backup</button>'+
@@ -5398,23 +5467,75 @@ function renderReports(){
     rptPinBtn()+
     '</div></div>'+
     rptPinStatus()+
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">'+
-    rptCard('Total Bills',bills.length,null,'#2C4A6E')+
-    rptCard('In Progress',bills.filter(function(b){return b.status==='In progress';}).length,null,'#5A7A55')+
-    rptCard('Final',bills.filter(function(b){return b.status==='Final';}).length,null,'#8B6914')+
-    rptCard('Patients',Object.keys(byPatient).length,null,'#5A4F8A')+
-    '</div>'+
-    '<div id="rpt-bystatus" style="margin-bottom:16px;">'+
-    rptTable('Bills by Status',byStatus,'status')+
-    '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">'+
-    '<div id="rpt-bybranch">'+rptTable('By Branch',byBranch,'branch')+'</div>'+
-    '<div id="rpt-byteam">'+rptTable('By Team Member',byTeam,'team')+'</div>'+
-    '</div>'+
-    rptTeamRevenue()+
-    rptDoctorArrangements()+
-    rptBillsTable()
+    (arranging?'<div class="no-print" style="font-size:11px;color:var(--m2);margin-bottom:12px;">Drag any tile to rearrange. Hide tiles you don\'t need — you can bring them back any time.</div>':'')+
+    restoreBar+
+    tilesHtml;
+  }catch(err){h='<div style="padding:20px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;margin:20px 0;font-size:12px;color:#991B1B;"><strong>Reports error:</strong> '+esc(String(err&&err.message||err))+'<br><br><button class="ab" onclick="renderReports()">Retry</button></div>';}
 pg.innerHTML=h;
+}
+// ── Report tile layout: persisted order + hidden state, drag-to-reorder ──
+var RPT_DEFAULT_TILE_ORDER=['rpt-t-overview','rpt-t-status','rpt-t-branchteam','rpt-t-teamrev','rpt-t-doctors','rpt-t-bills'];
+var rptArrangeMode=false;
+var _rptDragTileId=null;
+function rptLoadLayout(){
+  var def={order:RPT_DEFAULT_TILE_ORDER.slice(),hidden:[]};
+  try{
+    var raw=localStorage.getItem('amara_rpt_layout');
+    if(!raw)return def;
+    var parsed=JSON.parse(raw)||{};
+    var order=(Array.isArray(parsed.order)?parsed.order:[]).filter(function(id){return RPT_DEFAULT_TILE_ORDER.indexOf(id)>=0;});
+    RPT_DEFAULT_TILE_ORDER.forEach(function(id){if(order.indexOf(id)<0)order.push(id);});
+    var hidden=(Array.isArray(parsed.hidden)?parsed.hidden:[]).filter(function(id){return RPT_DEFAULT_TILE_ORDER.indexOf(id)>=0;});
+    return {order:order,hidden:hidden};
+  }catch(e){return def;}
+}
+function rptSaveLayout(layout){try{localStorage.setItem('amara_rpt_layout',JSON.stringify(layout));}catch(e){}}
+function rptToggleArrange(){rptArrangeMode=!rptArrangeMode;renderReports();}
+function rptResetLayout(){
+  if(!confirm('Reset report layout to default? This restores the default tile order and un-hides everything.'))return;
+  try{localStorage.removeItem('amara_rpt_layout');}catch(e){}
+  toast('Report layout reset','ok');
+  renderReports();
+}
+function rptHideTile(id){
+  var l=rptLoadLayout();
+  if(l.hidden.indexOf(id)<0)l.hidden.push(id);
+  rptSaveLayout(l);
+  renderReports();
+}
+function rptRestoreTile(id){
+  var l=rptLoadLayout();
+  l.hidden=l.hidden.filter(function(x){return x!==id;});
+  rptSaveLayout(l);
+  renderReports();
+}
+function rptTileDragStart(e,id){
+  _rptDragTileId=id;
+  e.dataTransfer.effectAllowed='move';
+  e.currentTarget.style.opacity='0.45';
+}
+function rptTileDragOver(e,id){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  if(id!==_rptDragTileId)e.currentTarget.classList.add('drag-over');
+}
+function rptTileDrop(e,id){
+  e.preventDefault();
+  document.querySelectorAll('.rpt-tile').forEach(function(el){el.classList.remove('drag-over');});
+  if(!_rptDragTileId||_rptDragTileId===id)return;
+  var l=rptLoadLayout();
+  var from=l.order.indexOf(_rptDragTileId),to=l.order.indexOf(id);
+  if(from<0||to<0)return;
+  l.order.splice(from,1);
+  l.order.splice(to,0,_rptDragTileId);
+  rptSaveLayout(l);
+  _rptDragTileId=null;
+  renderReports();
+}
+function rptTileDragEnd(e){
+  e.currentTarget.style.opacity='';
+  document.querySelectorAll('.rpt-tile').forEach(function(el){el.classList.remove('drag-over');});
+  _rptDragTileId=null;
 }
 function rptUnifiedTable(){
   if(!bills.length)return '';
@@ -5558,6 +5679,7 @@ function rptTeamRevenue(){
   var conciergeRows=Object.keys(M).filter(function(k){return M[k].cat==='concierge';}).sort(function(a,b){return M[b].bills-M[a].bills;});
   var nurseRows=Object.keys(M).filter(function(k){return M[k].cat==='nurse';}).sort(function(a,b){return M[b].bills-M[a].bills;});
   var doctorRows=Object.keys(M).filter(function(k){return M[k].cat==='doctor';}).sort(function(a,b){return(M[b].consultAED||0)-(M[a].consultAED||0);});
+  var mgmtRows=Object.keys(M).filter(function(k){return M[k].cat==='management';}).sort(function(a,b){return M[b].bills-M[a].bills;});
   function catDiv(label,color){return '<tr><td colspan="9" style="padding:6px 11px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:'+color+';background:var(--wh2);border-bottom:1px solid var(--bo);">'+label+'</td></tr>';}
   var allRows='';
   if(conciergeRows.length){
@@ -5727,41 +5849,247 @@ function rptTeamReport(){
     '</tr></thead><tbody>'+tableRows+'</tbody></table></div>';
 }
 function rptBillsTable(){
-  if(!bills.length)return'';
-  var rows=bills.map(function(b,i){
-    var itemNames=[];
+  if(!bills.length)return '';
+
+  // ── Read filters ──
+  function _fv(id){try{var e=document.getElementById(id);return e?e.value:'';}catch(x){return '';}}
+  var fPat=_fv('rpt-bp'),fFrom=_fv('rpt-bf'),fTo=_fv('rpt-bt'),fType=_fv('rpt-btype');
+
+  // ── Filter bills ──
+  var filtered=bills.filter(function(b){
+    if(fPat&&(b.patientName||'')!==fPat)return false;
+    if(fFrom&&new Date(b.createdAt)<new Date(fFrom))return false;
+    if(fTo&&new Date(b.createdAt)>new Date(fTo+'T23:59:59'))return false;
+    return true;
+  });
+
+  // ── Collect patient names for dropdown ──
+  var patNames=[];var seen={};
+  bills.forEach(function(b){var n=b.patientName||'';if(n&&!seen[n]){seen[n]=true;patNames.push(n);}});
+  patNames.sort();
+
+  // ── Helpers ──
+  function cur2(n,cur){
+    if(!n||n<=0)return '';
+    var rounded=Math.round(n*100)/100;
+    return(cur||'AED')+' '+rounded.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function pill(t,bg,col){return '<span style="font-size:9px;font-weight:500;padding:1px 7px;border-radius:99px;background:'+bg+';color:'+col+';white-space:nowrap;">'+esc(t)+'</span>';}
+  function statusPill(s){return '<span style="font-size:9px;font-weight:500;padding:1px 7px;border-radius:99px;background:'+getSB(s)+';color:'+getSC(s)+';white-space:nowrap;">'+esc(s||'Draft')+'</span>';}
+  function fuPill(type){
+    var m={'Fee settlement':['#FFF3CD','#856404'],'Admin time':['#DBEAFE','#1E40AF'],'Physician time':['#EDE9FE','#5B21B6'],'Additional tests':['#D1FAE5','#065F46'],'Nurse follow-up':['#FCE7F3','#9D174D'],'Medication follow-up':['#FFF7ED','#C2410C']};
+    var p=m[type]||['#F3F4F6','#374151'];
+    return pill(type,p[0],p[1]);
+  }
+
+  // ── Compute per-bill line items ──
+  function getBillLines(b){
+    var lines=[];
     for(var sk in SECS){
-      var sdata=b.billingData&&b.billingData[sk];if(!sdata)continue;
+      var sd=b.billingData&&b.billingData[sk];if(!sd)continue;
+      var reg=_skRegion(sk);var cur=reg==='UK'?'GBP':'AED';
       SECS[sk].items.forEach(function(item){
-        var idata=sdata[item.id];if(!idata)return;
-        var has=item.fields.some(function(f){var v=idata[f.id];return v&&(Array.isArray(v)?v.length>0:typeof v==='object'&&v&&v.amount?parseFloat(v.amount)>0:v!==false&&v!=='');});
-        if(!has)return;
-        itemNames.push((sk==='ext'?'[Ext] ':'')+item.label);
+        var idata=sd[item.id];if(!idata)return;
+        var hasData=item.fields.some(function(f){
+          var v=idata[f.id];
+          if(!v)return false;
+          if(Array.isArray(v))return v.length>0;
+          if(typeof v==='object')return !!(v.h||v.m||v.amount);
+          return v!==false&&v!=='';
+        });
+        if(!hasData)return;
+        // Consultation type line
+        var ctypeLine='';
+        if(idata.ctype)ctypeLine=idata.ctype;
+        else if(idata.ct)ctypeLine=idata.ct;
+        if(idata.ch||idata.when)ctypeLine+=(ctypeLine?' · ':'')+( idata.ch||idata.when||'');
+        if(idata.mode)ctypeLine+=' · '+idata.mode;
+        if(ctypeLine)lines.push({type:'Consultation',item:item.label||item.id,detail:ctypeLine,cur:cur,amt:0,isFU:false});
+        // Lab work
+        var lw=idata.lw;
+        if(Array.isArray(lw)&&lw.length){
+          lw.forEach(function(lab){
+            var fee=_labFeeFor(lab,reg);
+            if(fType&&fType!=='Lab work')return;
+            lines.push({type:'Lab work',item:lab,detail:'',cur:cur,amt:fee,isFU:false});
+          });
+        }
+        // Phlebotomy
+        if(idata.ph&&idata.ph!==false&&idata.ph!==''){
+          var phAmt=idata.ph==='UAE — AED 75'?75:idata.ph==='Global — AED 275'?275:(idata.ph===true||idata.ph==='true'||idata.ph==='GBP 55 (standard)')?55:0;
+          if(phAmt>0&&(!fType||fType==='Phlebotomy'))lines.push({type:'Phlebotomy',item:'Phlebotomy fee',detail:'',cur:cur,amt:phAmt,isFU:false});
+        }
+        // Medications
+        if(idata.meds&&(!fType||fType==='Medication'))lines.push({type:'Medication',item:'Medication',detail:String(idata.meds).slice(0,80),cur:cur,amt:0,isFU:false});
+        // Admin / Physician time
+        if(idata.padh){var pm=(parseInt((idata.padh||{}).h)||0)*60+(parseInt((idata.padh||{}).m)||0);if(pm>0){var pr=_fuRegionRate('phys',reg,idata.pal||'Inside UAE',idata.padh_h||'In Hours');if(!fType||fType==='Admin time')lines.push({type:'Physician time',item:'Physician Admin Time',detail:Math.ceil(pm/30)+' units · '+(idata.padh_h||'In Hours'),cur:cur,amt:Math.ceil(pm/30)*pr,isFU:false});}}
+        if(idata.adh){var am2=(parseInt((idata.adh||{}).h)||0)*60+(parseInt((idata.adh||{}).m)||0);if(am2>0){var ar=_fuRegionRate('admin',reg,idata.al||'Inside UAE',idata.adh_h||'In Hours');if(!fType||fType==='Admin time')lines.push({type:'Admin time',item:'Concierge Admin Time',detail:Math.ceil(am2/30)+' units · '+(idata.adh_h||'In Hours'),cur:cur,amt:Math.ceil(am2/30)*ar,isFU:false});}}
       });
     }
-    // Include follow-up items
+    // Follow-ups
     var fus=(b.billingData&&b.billingData._followUps)||[];
-    fus.forEach(function(fu){if(fu.type||fu.desc)itemNames.push('[Follow-up] '+(fu.type||fu.desc||'').slice(0,40));});
-    // Use unified total calculator
-    var rptTotal=calcBillGrandTotal(b);
-    var bg=i%2===0?'var(--wh)':'var(--wh2)';
-    return '<tr style="border-bottom:1px solid var(--bo);vertical-align:top;background:'+bg+'">'+
-      '<td style="padding:7px 10px;font-size:11px;color:var(--m2);">#'+String(i+1).padStart(4,'0')+'</td>'+
-      '<td style="padding:7px 10px;font-size:12px;font-weight:600;">'+esc(pLabel(b.patientName))+'</td>'+
-      '<td style="padding:7px 10px;font-size:11px;">'+esc(b.branch)+'</td>'+
-      '<td style="padding:7px 10px;"><span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:99px;background:'+(SB[b.status]||'#eee')+';color:'+(SC[b.status]||'#888')+'">'+esc(b.status)+'</span></td>'+
-      '<td style="padding:7px 10px;font-size:11px;">'+itemNames.map(function(n){return'<div style="margin-bottom:2px;">'+esc(n)+'</div>';}).join('')+'</td>'+
-      '<td style="padding:7px 10px;font-size:12px;font-weight:700;color:var(--oc);">'+(rptTotal>0?'AED '+( Math.round(rptTotal*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2}):'—')+'</td>'+
-      '<td style="padding:7px 10px;font-size:11px;color:var(--m2);">'+fdt(b.createdAt,true)+'</td>'+
-      '</tr>';
+    fus.forEach(function(fu){
+      if(fType&&fType!=='Follow-up')return;
+      var fee=fuComputedFee(fu);
+      var fuLabs=Array.isArray(fu.labs)&&fu.labs.length?' · Labs: '+fu.labs.join(', '):'';
+      lines.push({type:'Follow-up',fuType:fu.type||'Follow-up',item:fu.desc||fu.type||'Follow-up',detail:(fu.date?fdt(fu.date,false):'')+fuLabs,cur:fee.cur||'AED',amt:fee.amount||0,isFU:true});
+    });
+    return lines;
+  }
+
+  // ── Group by patient ──
+  var patGroups={};var patOrder=[];
+  filtered.forEach(function(b){
+    var pat=b.patientName||'Unknown';
+    if(!patGroups[pat]){patGroups[pat]=[];patOrder.push(pat);}
+    patGroups[pat].push(b);
+  });
+  patOrder.sort();
+
+  // ── Filtered totals ──
+  var filtAED=0,filtGBP=0,filtBills=filtered.length,filtItems=0;
+  filtered.forEach(function(b){
+    filtAED+=calcBillGrandTotal(b)||0;
+    var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
+    filtGBP+=ukl.reduce(function(s,l){return s+(l.amount||0);},0);
+    filtItems+=getBillLines(b).length;
+  });
+
+  // ── Build filter bar ──
+  var patOpts='<option value="">All patients</option>'+patNames.map(function(n){
+    return '<option value="'+esc(n)+'"'+(fPat===n?' selected':'')+'>'+esc(pLabel(n))+'</option>';
   }).join('');
-  return '<div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 10px;">'+'<span style="font-size:15px;font-weight:700;color:var(--tx);">Recent Bills</span>'+'<button onclick="togRptSec(\'rpt-bills\')" style="font-size:10px;padding:2px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);color:var(--m2);cursor:pointer;">hide</button>'+'</div>'+
-    '<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:10px;">'+
-    '<table style="width:100%;border-collapse:collapse;">'+
-    '<thead><tr style="background:var(--g);color:#FBF7EC;">'+
-    ['No.','Patient','Branch','Status','Items Billed','Est. Charge','Date'].map(function(c){return'<th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">'+c+'</th>';}).join('')+
-    '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+  var typeOpts=['All types','Consultation','Lab work','Phlebotomy','Medication','Admin time','Physician time','Follow-up'].map(function(t){
+    return '<option value="'+(t==='All types'?'':esc(t))+'"'+(fType===(t==='All types'?'':t)?' selected':'')+'>'+esc(t)+'</option>';
+  }).join('');
+  var selStyle='padding:5px 8px;font-size:11px;border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--text-primary);';
+  var hasFilter=!!(fPat||fFrom||fTo||fType);
+
+  var filterBar='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:12px;">'+
+    '<select id="rpt-bp" onchange="renderReports()" style="'+selStyle+'">'+patOpts+'</select>'+
+    '<select id="rpt-btype" onchange="renderReports()" style="'+selStyle+'">'+typeOpts+'</select>'+
+    '<input type="date" id="rpt-bf" value="'+esc(fFrom)+'" onchange="renderReports()" style="'+selStyle+'">'+
+    '<span style="font-size:11px;color:var(--text-secondary);">to</span>'+
+    '<input type="date" id="rpt-bt" value="'+esc(fTo)+'" onchange="renderReports()" style="'+selStyle+'">'+
+    (hasFilter?'<button onclick="[\'rpt-bp\',\'rpt-bf\',\'rpt-bt\',\'rpt-btype\'].forEach(function(id){var e=document.getElementById(id);if(e)e.value=\'\';});renderReports();" style="'+selStyle+';cursor:pointer;color:var(--text-secondary);">Clear</button>':'')+
+    '<span style="font-size:11px;color:var(--text-secondary);margin-left:auto;">'+filtBills+' bill'+(filtBills!==1?'s':'')+' · '+filtItems+' line items</span>'+
+    '</div>';
+
+  // ── Filtered summary cards ──
+  var summaryCards='';
+  if(hasFilter){
+    summaryCards='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">'+
+      rptCard('Bills shown',filtBills,null,'#2C4A6E')+
+      (filtAED>0?rptCard('AED total','AED '+(Math.round(filtAED*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2}),null,'#5A7A55'):'')+
+      (filtGBP>0?rptCard('GBP total','GBP '+(Math.round(filtGBP*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2}),null,'#0C447C'):'')+
+      '</div>';
+  }
+
+  // ── No results ──
+  if(!filtered.length)return '<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px;">'+
+    '<span style="font-size:15px;font-weight:500;color:var(--text-primary);">All Patient Bills</span></div>'+filterBar+'<div style="padding:20px;color:var(--text-secondary);font-size:13px;font-style:italic;">No bills match the selected filters.</div>';
+
+  // ── Table ──
+  var thStyle='padding:7px 10px;text-align:left;font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--text-secondary);border-bottom:0.5px solid var(--border);white-space:nowrap;background:var(--surface-1);';
+  var thead='<thead><tr>'+
+    ['Bill #','Date','Billed by','Status','Type','Item','Detail','Cur','Amount'].map(function(h){return'<th style="'+thStyle+'">'+h+'</th>';}).join('')+
+    '</tr></thead>';
+
+  var tbody='<tbody>';
+  patOrder.forEach(function(pat){
+    var bs=patGroups[pat];
+    // Patient group header
+    var patAED=0,patGBP=0,patLabCount=0,patFUCount=0;
+    bs.forEach(function(b){
+      patAED+=calcBillGrandTotal(b)||0;
+      var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
+      patGBP+=ukl.reduce(function(s,l){return s+(l.amount||0);},0);
+      var lines=getBillLines(b);
+      patLabCount+=lines.filter(function(l){return l.type==='Lab work';}).length;
+      patFUCount+=lines.filter(function(l){return l.isFU;}).length;
+    });
+    var patTotStr='';
+    if(patAED>0.005)patTotStr+='AED '+(Math.round(patAED*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2});
+    if(patGBP>0.005)patTotStr+=(patTotStr?' · ':'')+'GBP '+(Math.round(patGBP*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2});
+    var patMeta=[];
+    if(bs.length>1)patMeta.push(bs.length+' bills');
+    if(patLabCount)patMeta.push(patLabCount+' lab test'+(patLabCount!==1?'s':''));
+    if(patFUCount)patMeta.push(patFUCount+' follow-up'+(patFUCount!==1?'s':''));
+
+    tbody+='<tr style="background:var(--surface-1);border-bottom:0.5px solid var(--border);">'+
+      '<td colspan="7" style="padding:8px 10px;font-weight:500;font-size:13px;">'+
+      esc(pLabel(pat))+
+      (patMeta.length?'<span style="font-size:11px;font-weight:400;color:var(--text-secondary);margin-left:8px;">'+patMeta.join(' · ')+'</span>':'')+
+      '</td>'+
+      '<td colspan="2" style="padding:8px 10px;text-align:right;font-weight:500;font-size:12px;color:var(--text-accent);">'+esc(patTotStr)+'</td>'+
+      '</tr>';
+
+    bs.forEach(function(b,bi){
+      var lines=getBillLines(b);
+      if(!lines.length)return;
+      var billNo=_billNo(b);
+      var billedBy=_resolveAlias(b.billedBy||'');
+      var branchBadge=b.branch&&b.branch!=='UAE'?' '+pill(b.branch,b.branch==='UK'?'#DCEEFF':'#FFF3E0',b.branch==='UK'?'#0C447C':'#E65100'):'';
+      var rowBg=bi%2===0?'var(--surface-2)':'var(--surface-0)';
+
+      lines.forEach(function(line,li){
+        var isFU=line.isFU;
+        var bg=isFU?'color-mix(in srgb, var(--bg-warning) 40%, var(--surface-2))':rowBg;
+        var amtStr=line.amt>0?cur2(line.amt,line.cur):'—';
+        tbody+='<tr style="background:'+bg+';border-bottom:0.5px solid var(--border);vertical-align:top;">';
+        // Bill # and date only on first line of bill
+        if(li===0){
+          tbody+='<td style="padding:6px 10px;font-size:11px;font-weight:500;color:var(--text-accent);white-space:nowrap;" rowspan="'+lines.length+'">'+
+            '<span style="cursor:pointer;" onclick="viewBill(\''+b.id+'\')">'+esc(billNo)+'</span>'+branchBadge+'</td>';
+          tbody+='<td style="padding:6px 10px;font-size:11px;color:var(--text-secondary);white-space:nowrap;" rowspan="'+lines.length+'">'+fdt(b.createdAt,true)+'</td>';
+          tbody+='<td style="padding:6px 10px;font-size:11px;color:var(--text-secondary);" rowspan="'+lines.length+'">'+esc(billedBy)+'</td>';
+          tbody+='<td style="padding:6px 10px;" rowspan="'+lines.length+'">'+statusPill(b.status)+'</td>';
+        }
+        // Type
+        var typeLabel=isFU?fuPill(line.fuType||line.type):pill(
+          line.type,
+          line.type==='Consultation'?'#E6F1FB':line.type==='Lab work'?'#EAF3DE':line.type==='Phlebotomy'?'#F3E8FF':line.type==='Medication'?'#FFF7ED':line.type==='Physician time'?'#EDE9FE':'#F3F4F6',
+          line.type==='Consultation'?'#0C447C':line.type==='Lab work'?'#27500A':line.type==='Phlebotomy'?'#6B21A8':line.type==='Medication'?'#C2410C':line.type==='Physician time'?'#5B21B6':'#374151'
+        );
+        tbody+='<td style="padding:6px 10px;">'+typeLabel+'</td>';
+        tbody+='<td style="padding:6px 10px;font-size:11px;color:var(--text-primary);">'+esc(line.item)+'</td>';
+        tbody+='<td style="padding:6px 10px;font-size:11px;color:var(--text-secondary);">'+esc(line.detail)+'</td>';
+        tbody+='<td style="padding:6px 10px;font-size:10px;color:var(--text-muted);">'+esc(line.cur)+'</td>';
+        tbody+='<td style="padding:6px 10px;font-size:11px;font-weight:500;text-align:right;white-space:nowrap;color:'+(isFU&&line.type==='Fee settlement'?'var(--text-success)':'var(--text-primary)')+';">'+esc(amtStr)+'</td>';
+        tbody+='</tr>';
+      });
+    });
+  });
+  tbody+='</tbody>';
+
+  // ── Grand total row ──
+  var grandAED=0,grandGBP=0;
+  filtered.forEach(function(b){
+    grandAED+=calcBillGrandTotal(b)||0;
+    var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
+    grandGBP+=ukl.reduce(function(s,l){return s+(l.amount||0);},0);
+  });
+  var grandStr='';
+  if(grandAED>0.005)grandStr+='AED '+(Math.round(grandAED*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2});
+  if(grandGBP>0.005)grandStr+=(grandStr?' · ':'')+'GBP '+(Math.round(grandGBP*100)/100).toLocaleString('en-GB',{minimumFractionDigits:2});
+
+  var tfoot='<tfoot><tr style="background:var(--surface-1);border-top:0.5px solid var(--border-strong);">'+
+    '<td colspan="7" style="padding:8px 10px;font-size:12px;font-weight:500;">Total — '+filtBills+' bill'+(filtBills!==1?'s':'')+', '+patOrder.length+' patient'+(patOrder.length!==1?'s':'')+'</td>'+
+    '<td colspan="2" style="padding:8px 10px;font-size:13px;font-weight:500;text-align:right;color:var(--text-accent);">'+esc(grandStr)+'</td>'+
+    '</tr></tfoot>';
+
+  var tableHtml='<div style="overflow-x:auto;border:0.5px solid var(--border);border-radius:var(--radius);">'+
+    '<table class="rpt-bills-tbl" style="width:100%;border-collapse:collapse;font-size:11px;min-width:900px;">'+thead+tfoot+tbody+'</table></div>';
+
+  return '<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px;">'+
+    '<span style="font-size:15px;font-weight:500;color:var(--text-primary);">All Patient Bills</span>'+
+    '<button data-sec="rpt-allbills" onclick="togRptSec(this)" style="font-size:10px;padding:2px 8px;border:0.5px solid var(--border);border-radius:4px;background:var(--surface-2);color:var(--text-secondary);cursor:pointer;">hide</button>'+
+    '</div>'+
+    '<div id="rpt-allbills">'+
+    filterBar+summaryCards+tableHtml+
+    '</div>';
 }
+
 function rptCard(num,lbl,sub){
   return '<div class="rpt-card" onclick="showPage(\'bills\')"><div class="rpt-num" style="font-style:normal;font-family:var(--sans);">'+num+'</div><div class="rpt-lbl">'+lbl+'</div>'+(sub?'<div class="rpt-sub">'+sub+'</div>':'')+' </div>';
 }
