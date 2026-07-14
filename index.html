@@ -1620,7 +1620,12 @@ function calcAdminFee(hVal,mVal,hoursType,location,type){
   var totalMins=(parseInt(hVal)||0)*60+(parseInt(mVal)||0);
   if(totalMins<=0)return 0;
   var units=adminUnits(totalMins);
-  var key=(hoursType||'In Hours')+'-'+(location||'Inside UAE');
+  // Location dropdowns across the app use 'Local'/'International' — normalize to the
+  // rate table's 'Inside UAE'/'International' keys so 'Local' (and any other non-
+  // international value) doesn't silently miss the lookup and price at AED 0.
+  var loc=location||'';
+  var intl=loc.indexOf('International')>=0||loc.indexOf('Global')>=0;
+  var key=(hoursType||'In Hours')+'-'+(intl?'International':'Inside UAE');
   var rate=(FEES[type]&&FEES[type][key])||0;
   return units*rate;
 }
@@ -1735,7 +1740,9 @@ function fuComputedFee(fu){
   if(!fu)return{amount:0,cur:'AED'};
   if(fu.type==='Admin time'||fu.type==='Physician time'){
     var dur=fu.duration||{};
-    var mins=(parseInt(dur.h)||0)*60+(parseInt(dur.m)||0);
+    var durH=(dur.h!=null&&dur.h!=='')?dur.h:fu.durH;
+    var durM=(dur.m!=null&&dur.m!=='')?dur.m:fu.durM;
+    var mins=(parseInt(durH)||0)*60+(parseInt(durM)||0);
     if(mins<=0)return{amount:0,cur:_fuRegionCur(fu.region||'UAE')};
     var units=adminUnits(mins);
     var rate=_fuRegionRate(fu.type==='Physician time'?'phys':'admin',fu.region||'UAE',fu.fuLoc||'Inside UAE',fu.fuWhen||'In Hours');
@@ -1747,7 +1754,13 @@ function fuComputedFee(fu){
     var mkr=_settleMk(fu.cur||'AED');
     return{amount:Math.round(amt*(1+mkr)*100)/100,cur:fu.cur||'AED'};
   }
-  // Other types (Additional tests, Medication follow-up, Nurse follow-up, Other) carry no auto-fee
+  if(fu.type==='Additional tests'){
+    var labs=Array.isArray(fu.labs)?fu.labs:[];
+    if(!labs.length)return{amount:0,cur:_fuRegionCur(fu.region||'UAE')};
+    var labTotal=_labTotalFor(labs,fu.region||'UAE');
+    return{amount:Math.round(labTotal*100)/100,cur:_fuRegionCur(fu.region||'UAE')};
+  }
+  // Other types (Medication follow-up, Nurse follow-up, Other) carry no auto-fee
   return{amount:0,cur:fu.cur||'AED'};
 }
 function calcBillGrandTotal(b){
@@ -4149,7 +4162,24 @@ function renderFUTab(){
       ATMPLS.map(function(t,ti){return'<div class="tmpl-it" onclick="applyFUTmpl('+idx+','+ti+')">'+esc(t.l)+'</div>';}).join('')+
       '</div></div>'+
       '<textarea class="dfta" placeholder="Description of follow-up action&#8230;" data-fu-idx="'+idx+'" data-fu-key="desc" data-save-key="FU">'+esc(fu.desc||'')+'</textarea></div>'+
-      (fu.type==='Additional tests'?renderFULabPicker(idx,fu)+'':'')+
+      (fu.type==='Additional tests'?renderFULabPicker(idx,fu)+
+        (function(){var _fee=fuComputedFee(fu);return _fee.amount>0?'<div style="font-size:11px;color:var(--oc);font-weight:700;margin-bottom:8px;">Fee: '+_fee.cur+' '+_fee.amount.toLocaleString('en-GB',{minimumFractionDigits:2})+'</div>':'';})()
+        :'')+
+      (fu.type==='Admin time'?
+        '<div class="dr2" style="margin-bottom:8px;">'+
+        '<div><span class="dl">Time spent</span><div class="hrs-w">'+
+        '<input class="hrs-n" type="number" min="0" max="23" placeholder="0" value="'+esc(fu.durH||'')+'" data-fu-idx="'+idx+'" data-fu-key="durH" data-save-key="FU"><span class="hrs-l">hrs</span>'+
+        '<input class="hrs-n" type="number" min="0" max="59" placeholder="0" value="'+esc(fu.durM||'')+'" data-fu-idx="'+idx+'" data-fu-key="durM" data-save-key="FU"><span class="hrs-l">min</span>'+
+        '</div></div>'+
+        '<div><span class="dl">Location</span><select class="fse" onchange="setFU('+idx+',\'fuLoc\',this.value);renderBForm()">'+
+        ['Local','International'].map(function(o){return'<option'+(fu.fuLoc===o?' selected':'')+'>'+o+'</option>';}).join('')+
+        '</select></div>'+
+        '</div>'+
+        '<div class="dr" style="margin-bottom:8px;"><span class="dl">Hours type</span><select class="fse" onchange="setFU('+idx+',\'fuWhen\',this.value);renderBForm()">'+
+        ['In Hours','Out of Hours'].map(function(o){return'<option'+(fu.fuWhen===o?' selected':'')+'>'+o+'</option>';}).join('')+
+        '</select></div>'+
+        (function(){var _fee=fuComputedFee(fu);return _fee.amount>0?'<div style="font-size:11px;color:var(--oc);font-weight:700;margin-bottom:8px;">Fee: '+_fee.cur+' '+_fee.amount.toLocaleString('en-GB',{minimumFractionDigits:2})+'</div>':'';})()
+        :'')+
       (fu.type==='Fee settlement'?
         '<div class="dr"><span class="dl">Amount Settled</span><div class="fee-w">'+
         '<select class="fee-cur-sel" onchange="setFU('+idx+',\'cur\',this.value)">'+
@@ -4579,13 +4609,14 @@ function buildBillTotal(b){
       }
     });
   }
-  // Follow-up fees settled
+  // Follow-up fees (Admin time, Fee settlement, Additional tests — all use the same calculator)
   var fus=b.billingData&&b.billingData._followUps||[];
   fus.forEach(function(fu){
-    if(fu.type==='Fee settlement'&&fu.amount&&parseFloat(fu.amount)){
-      var _fmk=_settleMk(fu.cur||'AED');var famt=Math.round((parseFloat(fu.amount)||0)*(1+_fmk)*100)/100;
-      lines.push({label:'Follow-up: '+fdt(fu.date)+' fee settled',amount:famt,cur:fu.cur||'AED',external:true});
-      if((fu.cur||'AED')==='AED')grandTotal+=famt;
+    var _ffee=fuComputedFee(fu);
+    if(_ffee.amount>0){
+      var _flabel='Follow-up ('+fdt(fu.date)+'): '+(fu.type||'Follow-up');
+      lines.push({label:_flabel,amount:_ffee.amount,cur:_ffee.cur,external:fu.type==='Fee settlement'});
+      if(_ffee.cur==='AED')grandTotal+=_ffee.amount;
     }
   });
   // Apply discount if set
@@ -5135,10 +5166,11 @@ function buildView(b){
     fus.forEach(function(fu,fi){
       var fuLabs=Array.isArray(fu.labs)&&fu.labs.length?fu.labs.join(', '):'';
       var fuLabWhere=fu.labwhere&&fu.labwhere!=='others'?fu.labwhere:(fu.labwhereCustom||'');
+      var fuFee=fuComputedFee(fu);
       fuHtml+='<div class="bv-fu-e">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+
         '<div class="bv-fu-dt">'+fdt(fu.date)+(fu.time?' at '+esc(fu.time):'')+(fu.type?' — '+esc(fu.type):'')+'</div>'+
-        (fu.amount&&parseFloat(fu.amount)?'<div style="font-size:13px;font-weight:600;color:var(--tx);">'+fmtMoney(fu.amount,fu.cur||'AED')+'</div>':'')+
+        (fuFee.amount>0?'<div style="font-size:13px;font-weight:600;color:var(--tx);">'+fmtMoney(fuFee.amount,fuFee.cur)+'</div>':'')+
         '</div>'+
         (fu.type==='Additional tests'&&fuLabs?
           '<div style="font-size:12px;font-weight:500;color:var(--b);margin-bottom:3px;">'+esc(fuLabs)+(fuLabWhere?' — sent to '+esc(fuLabWhere):'')+'</div>':'')+
@@ -6201,7 +6233,7 @@ function renderPats(){
       '<span style="font-size:11px;color:var(--m2);">'+patLetters[letter].length+' patient'+(patLetters[letter].length!==1?'s':'')+'</span></div>'+
       '<div class="pats-grid">';
     patLetters[letter].forEach(function(p){
-      var pb=bills.filter(function(b){return b.patientName.toLowerCase()===p.name.toLowerCase();});
+      var pb=bills.filter(function(b){return (b.patientName||'').toLowerCase()===(p.name||'').toLowerCase();});
       h+='<div class="pcard" onclick="viewPat(\''+p.id+'\')">'+
         '<div class="bc-edge" style="background:var('+_regEdge(p)+')"></div>'+
         '<div class="pc-r1"><span class="pc-reg">'+esc(_regName(p))+'</span><span class="pc-tag" style="color:var('+_regEdge(p)+')">Patient</span></div>'+
@@ -6216,7 +6248,7 @@ function renderPats(){
 }
 function viewPat(id){
   var p=patients.find(function(x){return x.id==id;});if(!p)return;
-  var pb=bills.filter(function(b){return b.patientName.toLowerCase()===p.name.toLowerCase();});
+  var pb=bills.filter(function(b){return (b.patientName||'').toLowerCase()===(p.name||'').toLowerCase();});
   var secs=typeof getDefaultPatientSections==='function'?CFG.patientSections||getDefaultPatientSections():[];
   var h='<div class="arow"><button class="ab" onclick="renderPats()">&#8592; All Patients</button>'+
     '<button class="ab" onclick="editPat(\''+p.id+'\')">Edit</button>'+
