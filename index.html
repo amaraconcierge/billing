@@ -1930,6 +1930,10 @@ function calcBillGrandTotal(b){
         var _emFeeGT=calcMedLogisticsFee(_emRegGT,_emWhenGT,idata['adh']);
         total+=_emFeeGT.total||0;
       }
+      // External medication minimum fee — was already correctly counted in the bill's own
+      // total (buildBillTotal) but missing here, so every report/total using this function
+      // (Team Performance & Revenue, patient totals, _billAmt) was silently undercounting it.
+      if(item.id==='em'&&(idata['emf']===true||idata['emf']==='true'))total+=FEES.externalMedMin||75;
       // Prescription on doctor's consultation (ptype field = in/out of hours selected)
       if(item.id==='ic'&&idata['ptype']){var loc=idata['al']||'Inside UAE';var ch=idata['ch']||'In Hours';var pk=ch+'-'+(loc==='International'?'International':loc.startsWith('Inside')?'Inside UAE':'Outside UAE');total+=FEES.prescription&&FEES.prescription[pk]?FEES.prescription[pk]:0;}
       // Courier
@@ -2584,7 +2588,7 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'rf',l:'Diagnostic Referral Fee',t:'tog',n:'Applies to scans & procedures arranged',grp:'g2'},
   {id:'rr',l:'Medical Report Review & Re-reporting Fee (UK)',t:'tog',n:'If re-reported in the UK',grp:'g2'},
   {id:'sf',l:'Diagnostic Imaging / Procedure Fee (if paid)',t:'feefield'},
-  {id:'padh_on',l:'Administrative Time',t:'tog'},
+  {id:'padh_on',l:"Physician's Administrative Time",t:'tog'},
   {id:'padh_dn',l:'Internal Clinician Name',t:'doctorsel',cond:{f:'padh_on',has:true}},
   {id:'padh_h',l:'Administrative Hours',t:'sel',o:['In Hours','Out of Hours'],cond:{f:'padh_on',has:true},grp:'g3'},
   {id:'padh',l:'Administrative Duration',t:'hours',cond:{f:'padh_on',has:true},grp:'g3'},
@@ -2715,7 +2719,7 @@ extGlobal:{label:'Global External Care Coordination',sub:'Custom fees',col:'#9A6
   {id:'rf',l:'Diagnostic Referral Fee',t:'tog',grp:'g2'},
   {id:'rr',l:'Medical Report Review & Re-reporting Fee (UK)',t:'tog',n:'If re-reported in the UK',grp:'g2'},
   {id:'sf',l:'Diagnostic Imaging / Procedure Fee (if paid)',t:'feefield'},
-  {id:'padh_on',l:'Administrative Time',t:'tog'},
+  {id:'padh_on',l:"Physician's Administrative Time",t:'tog'},
   {id:'padh_dn',l:'Internal Clinician Name',t:'doctorsel',cond:{f:'padh_on',has:true}},
   {id:'padh_h',l:'Administrative Hours',t:'sel',o:['In Hours','Out of Hours'],cond:{f:'padh_on',has:true},grp:'g3'},
   {id:'padh',l:'Administrative Duration',t:'hours',cond:{f:'padh_on',has:true},grp:'g3'},
@@ -3834,7 +3838,7 @@ function selectPatient(name){
     if(_isNewBill||!curBill.rollingInvoice){
       curBill.rollingInvoice=matched.rollingInvoice||'';
       curBill.rollingColor=matched.rollingInvoice?(matched.rollingColor||'#185FA5'):'';
-      var rollEl=document.querySelector('[data-save-key="rollingInvoice"]');
+      var rollEl=document.getElementById('ri-select');
       if(rollEl)rollEl.value=curBill.rollingInvoice;
       var colorEl=document.querySelector('input[type="color"][title="Invoice colour"]');
       if(colorEl)colorEl.value=curBill.rollingColor||'#185FA5';
@@ -4756,7 +4760,7 @@ function attachTextListeners(body,ctx){
             if(matched.rollingInvoice&&!curBill.rollingInvoice){
               curBill.rollingInvoice=matched.rollingInvoice;
               curBill.rollingColor=matched.rollingColor||'#185FA5';
-              var rollEl=document.querySelector('[data-save-key="rollingInvoice"]');
+              var rollEl=document.getElementById('ri-select');
               if(rollEl)rollEl.value=matched.rollingInvoice;
               var colorEl=document.querySelector('input[type="color"][title="Invoice colour"]');
               if(colorEl)colorEl.value=matched.rollingColor||'#185FA5';
@@ -5473,15 +5477,20 @@ function buildItemCard(item,idata,secCol,secBg,sk){
   else if(['ep','uep','gep'].includes(itemId)){
     var scanname=tv('scanname');var hosp=tv('hospital');var fee=fmtFee('sf')||fmtFee('feepaid');var rxDn=tv('rx_dn');
     var scanDesc=scanname+(hosp?' at '+hosp:'')+(rxDn?' — referred by '+rxDn:'')+(fee?' — settled for '+fee:'');
-    if(scanDesc)summaryRows.push({title:'Diagnostic Imaging / Procedure Coordination',desc:scanDesc,highlight:!!fee});
-    var rf=idata['rf'];
+    var rf=idata['rf'];var rr=idata['rr'];
+    var _scanFolded=false;
     if(rf===true||rf==='true'){
       var rfDispLoc=idata['al']||'Inside UAE';var rfDispH=idata['ch']||idata['nv']||'In Hours';
       var rfDispK=rfDispH+'-'+(rfDispLoc==='International'?'International':rfDispLoc.startsWith('Inside')?'Inside UAE':'Outside UAE');
       var rfAmt=FEES.referral[rfDispK]||FEES.referral['In Hours-Inside UAE']||220;
-      summaryRows.push({title:'Diagnostic Referral Sent to '+(hosp||'[facility]'),desc:rfDispH+(rfDispLoc?' · '+rfDispLoc:''),fee:rfAmt,highlight:true});
+      summaryRows.push({title:'Diagnostic Referral Sent to '+(hosp||'[facility]'),desc:(scanDesc?scanDesc+' · ':'')+rfDispH+(rfDispLoc?' · '+rfDispLoc:''),fee:rfAmt,highlight:true});
+      _scanFolded=true;
     }
-    var rr=idata['rr'];if(rr===true||rr==='true')summaryRows.push({title:'Medical Report Review & Re-reporting Fee (UK)',desc:'Scan re-reported by UK radiologist',fee:FEES.reReport||500,highlight:true});
+    if(rr===true||rr==='true'){
+      summaryRows.push({title:'Medical Report Review & Re-reporting Fee (UK)',desc:_scanFolded?'Scan re-reported by UK radiologist':(scanDesc?scanDesc+' · ':'')+'Scan re-reported by UK radiologist',fee:FEES.reReport||500,highlight:true});
+      _scanFolded=true;
+    }
+    if(!_scanFolded&&scanDesc)summaryRows.push({title:'Diagnostic Imaging / Procedure Coordination',desc:scanDesc,highlight:!!fee});
     // Administrative Time / Medical Concierge Coordination — same shared toggle-gated
     // function used by Nursing Services (neither section has a Location field here).
     if(itemId==='ep'||itemId==='gep'){
@@ -5491,7 +5500,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
         var _epPStr=(parseInt(_epPd.h)||0)+'h '+(parseInt(_epPd.m)||0)+'min';
         var _epPUnits=fmtAdminUnits(_epPd.h,_epPd.m);
         var _epClinician=idata['padh_dn']?' — '+idata['padh_dn']:'';
-        summaryRows.push({title:'Administrative Time',desc:_epPHt+' — '+_epPStr+(_epPUnits?' — '+_epPUnits:'')+_epClinician,fee:_epIC.phys,highlight:true});
+        summaryRows.push({title:'Physician Administrative Time',desc:_epPHt+' — '+_epPStr+(_epPUnits?' — '+_epPUnits:'')+_epClinician,fee:_epIC.phys,highlight:true});
       }
       if(_epIC.concierge>0){
         var _epCd=idata['adh'];var _epCHt=idata['adh_h']||'In Hours';
@@ -5662,11 +5671,11 @@ function buildItemCard(item,idata,secCol,secBg,sk){
   // Admin time — em/uk_med/rx_gli use Medication Logistics logic; ic/inv have their own
   // explicit toggle-gated display above (via icAdminFees/nurseAdminFees) — none of these
   // should also go through this generic, non-toggle-aware block.
-  var _isMedLogItem2=['em','im','uk_med','rx_gli','ic','inv','env','ges','ep','gep','elbi','glbi'].includes(itemId);
+  var _isMedLogItem2=['em','im','uk_med','rx_gli','ic','inv','env','ges','ep','gep','elbi','ulbi','glbi','iadm','eadm','gadm'].includes(itemId);
   // Admin time
   var adh=idata['adh'];var al=tv('al');
   var adhStr=fmtDur('adh');
-  if(adhStr&&!_isMedLogItem2&&(!idata._svcV2||idata.adh_on||['iadm','eadm','gadm'].includes(itemId))){
+  if(adhStr&&!_isMedLogItem2&&(!idata._svcV2||idata.adh_on)){
     var _adhH=tv('adh_h')||tv('ph2')||'In Hours';
     var _ah=parseInt((adh&&adh.h)||0),_am=parseInt((adh&&adh.m)||0);
     var _adminMins=_ah*60+_am;if(_adminMins>0&&_adminMins<15)_adminMins=15;
@@ -5949,59 +5958,141 @@ function rptExternalNurseVisits(){
     '</div></div>';
   return html;
 }
-function rptPhysicianServicesAudit(){
+function rptNeedsLinkingAlways(){
   var results=[];
+  var PADH_ITEMS={inv:'int',env:'ext',ges:'extGlobal',ep:'ext',gep:'extGlobal',elbi:'ext',glbi:'extGlobal'};
   bills.forEach(function(b){
-    var bno=_billNo(b);var pat=b.patientName||'Unknown';var date=fdt(b.createdAt,true);
+    var bno=_billNo(b);var pat=b.patientName||'Unknown';var date=fdt(b.createdAt,true);var by=b.billedBy||'Unknown';
     var bd=b.billingData||{};
-    // 1) UK Physician Services — doctor_uki (Internal) / uk_doctor (External): a real doctor
-    // name is recorded (idata.cn) and a real GBP fee is charged, but this item lives in the
-    // separate UK 'rich' catalog, which the Team Performance & Revenue loop never reads —
-    // it only sees the bill's total GBP figure, with no idea which doctor it belongs to.
-    ['intUK','extUK'].forEach(function(sk){
-      var sd=bd[sk];if(!sd)return;
-      var itemId=sk==='intUK'?'doctor_uki':'uk_doctor';
-      var idata=sd[itemId];if(!idata)return;
-      var hasAny=Object.keys(idata).some(function(k){var v=idata[k];return v&&v!=='';});
-      if(!hasAny)return;
-      var docName=(idata.cn&&String(idata.cn).trim())||'(no name entered)';
-      results.push({billId:b.id,billNo:bno,patient:pat,date:date,item:'Physician Services (UK)',doctor:docName,reason:'UK physician consultations are tracked separately from the main attribution loop — the doctor named here never gets credited in Team Performance & Revenue, only the bill\'s overall GBP total.'});
-    });
-    // 2) External / Global Physician Services — ec / gec: fee goes to "Fee Settled" under
-    // the general biller, never to this doctor's own Consults column, even when named.
-    ['ext','extGlobal'].forEach(function(sk){
-      var sd=bd[sk];if(!sd)return;
-      var itemId=sk==='ext'?'ec':'gec';
-      var idata=sd[itemId];if(!idata)return;
-      var hasAny=Object.keys(idata).some(function(k){var v=idata[k];return v&&v!=='';});
-      if(!hasAny)return;
-      var docName=(idata.cn&&String(idata.cn).trim())||'(no name entered)';
-      results.push({billId:b.id,billNo:bno,patient:pat,date:date,item:'Physician Services (External'+(sk==='extGlobal'?'/Global':'')+')',doctor:docName,reason:'External-referred physicians aren\'t on the internal team roster, so this consultation is credited to whoever billed the invoice under Fee Settled, not to '+docName+' under Consults.'});
-    });
-    // 3) Internal consultation (ic) with no doctor named — groups as a one-off "unnamed"
-    // row per patient instead of a consolidated, findable name.
+    // 1) UK Physician Services with no doctor named at all — not linkable with a one-click
+    // picker here (its data lives in a structurally different place), so open-bill-to-fix.
+    var _ukIntSd=bd.intUK;
+    if(_ukIntSd){
+      var _ukIntIdata=_ukIntSd.doctor_uki;
+      if(_ukIntIdata){
+        var hasAnyUK=Object.keys(_ukIntIdata).some(function(k){var v=_ukIntIdata[k];return v&&v!=='';});
+        var hasUKDocName=_ukIntIdata.cn&&String(_ukIntIdata.cn).trim();
+        if(hasAnyUK&&!hasUKDocName)results.push({billId:b.id,billNo:bno,patient:pat,date:date,billedBy:by,item:'Physician Services (UK)',reason:'No physician selected on this UK consultation — the fee currently falls to the general biller instead of a specific doctor.',kind:'nolink'});
+      }
+    }
+    // 2) Internal consultation (ic) with no doctor named
     var icd=bd.int&&bd.int.ic;
     if(icd&&!((icd.dn&&String(icd.dn).trim()))){
       var hasAnyIc=Object.keys(icd).some(function(k){var v=icd[k];return v&&v!=='';});
-      if(hasAnyIc)results.push({billId:b.id,billNo:bno,patient:pat,date:date,item:'Physician Services (Internal)',doctor:'(no name entered)',reason:'No physician selected on this consultation — it shows in Doctors as a one-off \u201cDoctor (unnamed)\u201d row for this patient rather than under a real name.'});
+      if(hasAnyIc)results.push({billId:b.id,billNo:bno,patient:pat,date:date,billedBy:by,item:'Physician Services (Internal)',reason:'No physician selected on this consultation — shows as a one-off "unnamed" row rather than under a real name.',kind:'ic'});
+    }
+    // 3) Walk-In Laboratory Services — "Ordered By" left blank despite real lab data
+    [['elbi','ext'],['glbi','extGlobal']].forEach(function(pair){
+      var idata=bd[pair[1]]&&bd[pair[1]][pair[0]];if(!idata)return;
+      var hasLab=Array.isArray(idata.lw)&&idata.lw.length>0;
+      var hasOrderedBy=idata.padh_dn&&String(idata.padh_dn).trim();
+      if(hasLab&&!hasOrderedBy)results.push({billId:b.id,billNo:bno,patient:pat,date:date,billedBy:by,item:'Walk-In Laboratory Services',reason:'Lab tests were ordered but no internal clinician is named under "Ordered By".',kind:'field',linkSk:pair[1],linkItem:pair[0],linkField:'padh_dn'});
+    });
+    // 4) Physician Admin Time toggled on but no doctor named
+    Object.keys(PADH_ITEMS).forEach(function(itemId){
+      var sk=PADH_ITEMS[itemId];
+      var idata=bd[sk]&&bd[sk][itemId];if(!idata)return;
+      var padhOn=idata.padh_on===true||idata.padh_on==='true';
+      var hasDur=idata.padh&&((parseInt(idata.padh.h)||0)||(parseInt(idata.padh.m)||0));
+      var hasDoc=idata.padh_dn&&String(idata.padh_dn).trim();
+      if(padhOn&&hasDur&&!hasDoc){
+        var itemLabel=(SECS[sk]&&SECS[sk].items.find(function(x){return x.id===itemId;})||{}).label||itemId;
+        results.push({billId:b.id,billNo:bno,patient:pat,date:date,billedBy:by,item:itemLabel+' — Physician Admin Time',reason:'Physician admin time is charged but no internal clinician is named.',kind:'field',linkSk:sk,linkItem:itemId,linkField:'padh_dn'});
+      }
+    });
+    // 5) Medication Logistics (internal) — no prescribing/referring doctor
+    var imd=bd.int&&bd.int.im;
+    if(imd&&imd.imt){
+      var hasRxDoc=imd.rx_dn&&String(imd.rx_dn).trim();
+      if(!hasRxDoc)results.push({billId:b.id,billNo:bno,patient:pat,date:date,billedBy:by,item:'Medication Logistics',reason:'Medication was arranged but no prescribing/referring doctor is named.',kind:'field',linkSk:'int',linkItem:'im',linkField:'rx_dn'});
     }
   });
-  if(!results.length)return '';
-  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 10px;">'+
-    '<span style="font-size:15px;font-weight:700;color:var(--tx);">Physician Services Not Attributed <span style="font-size:11px;font-weight:500;color:var(--m2);">('+results.length+')</span></span>'+
-    '<button data-sec="rpt-physaudit" onclick="togRptSec(this)" style="font-size:10px;padding:2px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);color:var(--m2);cursor:pointer;">hide</button></div>'+
-    '<div id="rpt-physaudit">'+
-    '<div class="rpt-table-wrap"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:900px;"><thead><tr style="background:var(--g);color:#FBF7EC;">'+
-    ['Bill','Patient','Date','Item','Doctor Named','Why it\'s not showing'].map(function(c){return '<th style="padding:6px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+
+  if(!results.length)return'<div style="font-size:11px;color:var(--m2);padding:8px 2px;font-style:italic;">Nothing needs linking right now.</div>';
+  var _roster3=(CFG.doctors||[]).slice();
+  function linkCellFor(r){
+    if(r.kind==='nolink')return '<span style="font-size:10px;color:var(--m2);font-style:italic;">open bill to fix</span>';
+    var selId=r.kind==='ic'?('link-sel-'+r.billId):('link-int-sel-'+r.billId+'-'+r.linkItem+'-'+r.linkField);
+    var action=r.kind==='ic'?('linkUnnamedDoctor(\''+r.billId+'\')'):('linkInternalArrangement(\''+r.billId+'\',\''+r.linkSk+'\',\''+r.linkItem+'\',\''+r.linkField+'\')');
+    return '<div style="display:flex;gap:4px;" onclick="event.stopPropagation();">'+
+      '<select id="'+selId+'" style="font-size:11px;padding:3px 4px;border:1px solid var(--bo);border-radius:4px;max-width:130px;">'+
+      '<option value="">Choose doctor…</option>'+
+      _roster3.map(function(d){return '<option value="'+esc(d)+'">'+esc(d)+'</option>';}).join('')+
+      '</select>'+
+      '<button onclick="'+action+'" style="font-size:11px;padding:3px 8px;border:1px solid var(--oc);border-radius:4px;background:var(--wh);color:var(--oc);cursor:pointer;white-space:nowrap;">Link</button>'+
+      '</div>';
+  }
+  return '<div class="rpt-table-wrap"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:1050px;"><thead><tr style="background:var(--g);color:#FBF7EC;">'+
+    ['Bill','Patient','Date','Billed By','Item','Why it needs linking','Link to'].map(function(c){return '<th style="padding:6px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+
     '</tr></thead><tbody>'+
     results.map(function(r,i){
       return '<tr style="background:'+(i%2?'var(--wh2)':'var(--wh)')+';border-bottom:1px solid var(--bo);cursor:pointer;vertical-align:top;" onclick="viewBill(\''+r.billId+'\')" title="Click to open and fix this bill">'+
         '<td style="padding:6px 10px;font-weight:700;color:var(--oc);white-space:nowrap;">'+esc(r.billNo)+'</td>'+
         '<td style="padding:6px 10px;">'+esc(r.patient)+'</td>'+
         '<td style="padding:6px 10px;white-space:nowrap;">'+esc(r.date)+'</td>'+
+        '<td style="padding:6px 10px;white-space:nowrap;">'+esc(r.billedBy)+'</td>'+
         '<td style="padding:6px 10px;white-space:nowrap;">'+esc(r.item)+'</td>'+
-        '<td style="padding:6px 10px;">'+esc(r.doctor)+'</td>'+
-        '<td style="padding:6px 10px;color:var(--m2);max-width:320px;">'+esc(r.reason)+'</td>'+
+        '<td style="padding:6px 10px;color:var(--m2);max-width:260px;">'+esc(r.reason)+'</td>'+
+        '<td style="padding:6px 10px;">'+linkCellFor(r)+'</td>'+
+        '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+}
+async function linkUnnamedDoctor(billId){
+  var sel=document.getElementById('link-sel-'+billId);
+  if(!sel||!sel.value){toast('Choose a doctor first','error');return;}
+  var docName=sel.value;
+  var bill=bills.find(function(b){return b.id===billId;});
+  if(!bill){toast('Bill not found','error');return;}
+  if(!confirm('Link this consultation to '+docName+'?\n\nThis updates the bill directly — the physician name will be saved on bill '+_billNo(bill)+' ('+(bill.patientName||'this patient')+').'))return;
+  var updated=Object.assign({},bill);
+  updated.billingData=Object.assign({},bill.billingData);
+  updated.billingData.int=Object.assign({},bill.billingData.int);
+  updated.billingData.int.ic=Object.assign({},bill.billingData.int.ic,{dn:docName});
+  var ok=await dbSave(updated);
+  if(ok)renderReports();
+}
+async function linkInternalArrangement(billId,sk,itemId,fieldId){
+  var uid=billId+'-'+itemId+'-'+fieldId;
+  var sel=document.getElementById('link-int-sel-'+uid);
+  if(!sel||!sel.value){toast('Choose a doctor first','error');return;}
+  var docName=sel.value;
+  var bill=bills.find(function(b){return b.id===billId;});
+  if(!bill){toast('Bill not found','error');return;}
+  if(!confirm('Link this to '+docName+'?\n\nThis updates the bill directly — the clinician name will be saved on bill '+_billNo(bill)+' ('+(bill.patientName||'this patient')+').'))return;
+  var updated=Object.assign({},bill);
+  updated.billingData=Object.assign({},bill.billingData);
+  updated.billingData[sk]=Object.assign({},bill.billingData[sk]);
+  var _fieldUpdate={};_fieldUpdate[fieldId]=docName;
+  updated.billingData[sk][itemId]=Object.assign({},bill.billingData[sk][itemId],_fieldUpdate);
+  var ok=await dbSave(updated);
+  if(ok)renderReports();
+}
+function rptCustomFeeGapsAudit(){
+  var results=[];
+  bills.forEach(function(b){
+    var bd=b.billingData||{};
+    var idata=bd.int&&bd.int.im;
+    if(!idata||idata.imt!=='Custom fee')return;
+    var mfee=idata.mfee;
+    var amt=mfee&&mfee.amount;
+    if(amt&&parseFloat(amt)>0)return; // has a real amount — fine
+    results.push({billId:b.id,billNo:_billNo(b),patient:b.patientName||'Unknown',date:fdt(b.createdAt,true),billedBy:b.billedBy||'Unknown'});
+  });
+  if(!results.length)return'';
+  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 10px;">'+
+    '<span style="font-size:15px;font-weight:700;color:var(--tx);">Medication Custom Fee Missing Amount <span style="font-size:11px;font-weight:500;color:var(--m2);">('+results.length+')</span></span>'+
+    '<button data-sec="rpt-customfee" onclick="togRptSec(this)" style="font-size:10px;padding:2px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);color:var(--m2);cursor:pointer;">hide</button></div>'+
+    '<div id="rpt-customfee">'+
+    '<div style="font-size:11px;color:var(--m2);margin-bottom:8px;">These bills have Medication Logistics set to "Custom fee" but no amount was ever entered — the fee is currently AED 0 on these bills, which is mathematically correct given what was entered, but is very likely an oversight. Click a row to open and fix it.</div>'+
+    '<div class="rpt-table-wrap"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:600px;"><thead><tr style="background:var(--g);color:#FBF7EC;">'+
+    ['Bill','Patient','Date','Billed By'].map(function(c){return '<th style="padding:6px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+
+    '</tr></thead><tbody>'+
+    results.map(function(r,i){
+      return '<tr style="background:'+(i%2?'var(--wh2)':'var(--wh)')+';border-bottom:1px solid var(--bo);cursor:pointer;" onclick="viewBill(\''+r.billId+'\')" title="Click to open and fix this bill">'+
+        '<td style="padding:6px 10px;font-weight:700;color:var(--oc);white-space:nowrap;">'+esc(r.billNo)+'</td>'+
+        '<td style="padding:6px 10px;">'+esc(r.patient)+'</td>'+
+        '<td style="padding:6px 10px;white-space:nowrap;">'+esc(r.date)+'</td>'+
+        '<td style="padding:6px 10px;white-space:nowrap;">'+esc(r.billedBy)+'</td>'+
         '</tr>';
     }).join('')+
     '</tbody></table></div></div>';
@@ -6247,7 +6338,7 @@ function renderReports(){
       'rpt-t-billsbyteam':rptBillNumbersByTeam(),
       'rpt-t-needslink':rptNeedsLinking(),
       'rpt-t-extnurse':rptExternalNurseVisits(),
-      'rpt-t-physaudit':rptPhysicianServicesAudit(),
+      'rpt-t-customfee':rptCustomFeeGapsAudit(),
       'rpt-t-teamrev':rptTeamRevenue(),
       'rpt-t-doctors':rptDoctorArrangements(),
       'rpt-t-bills':rptBillsTable()
@@ -6258,7 +6349,7 @@ function renderReports(){
       'rpt-t-billsbyteam':'Bill Numbers by Team',
       'rpt-t-needslink':'Needs to be Linked',
       'rpt-t-extnurse':'External / Unlinked Nurse Visits',
-      'rpt-t-physaudit':'Physician Services Not Attributed',
+      'rpt-t-customfee':'Medication Custom Fee Missing Amount',
       'rpt-t-status':'Bills by Status',
       'rpt-t-branchteam':'By Branch &amp; Team',
       'rpt-t-teamrev':'Team Performance &amp; Revenue',
@@ -6311,7 +6402,7 @@ bills=_origBillsForRpt;
 pg.innerHTML=h;
 }
 // ── Report tile layout: persisted order + hidden state, drag-to-reorder ──
-var RPT_DEFAULT_TILE_ORDER=['rpt-t-overview','rpt-t-teamarr','rpt-t-billsbyteam','rpt-t-needslink','rpt-t-extnurse','rpt-t-physaudit','rpt-t-status','rpt-t-branchteam','rpt-t-teamrev','rpt-t-doctors','rpt-t-bills'];
+var RPT_DEFAULT_TILE_ORDER=['rpt-t-overview','rpt-t-teamarr','rpt-t-billsbyteam','rpt-t-needslink','rpt-t-extnurse','rpt-t-customfee','rpt-t-status','rpt-t-branchteam','rpt-t-teamrev','rpt-t-doctors','rpt-t-bills'];
 var rptArrangeMode=false;
 var _rptTeamFilters=[]; // array of resolved team member names; empty = All Team
 var _rptTeamDropdownOpen=false;
@@ -6346,7 +6437,8 @@ function _billInvolvesTeamMember(b,name){
 }
 var _rptDragTileId=null;
 function rptLoadLayout(){
-  var def={order:RPT_DEFAULT_TILE_ORDER.slice(),hidden:[]};
+  var _defaultHidden=RPT_DEFAULT_TILE_ORDER.filter(function(id){return['rpt-t-overview','rpt-t-teamrev','rpt-t-doctors','rpt-t-bills'].indexOf(id)<0;});
+  var def={order:RPT_DEFAULT_TILE_ORDER.slice(),hidden:_defaultHidden};
   try{
     var raw=localStorage.getItem('amara_rpt_layout');
     if(!raw)return def;
@@ -6541,22 +6633,58 @@ function rptTeamRevenue(){
     return 'concierge';
   }
   var M={};
-  function g(k){if(!M[k])M[k]={bills:0,billIds:[],consultAED:0,consultMins:0,consultIHMins:0,consultOOHMins:0,physAdminAED:0,physAdminMins:0,adminAED:0,adminGBP:0,visitAED:0,labAED:0,labGBP:0,referralAED:0,feeSettledAED:0,feeSettledGBP:0,courierAED:0,medicationAED:0,deviceAED:0,otherAED:0,fuAED:0,fuGBP:0,totalAED:0,totalGBP:0,cat:'concierge'};return M[k];}
+  function g(k){if(!M[k])M[k]={bills:0,billIds:[],externalBillIds:[],consultAED:0,consultMins:0,consultIHMins:0,consultOOHMins:0,physAdminAED:0,physAdminMins:0,adminAED:0,adminGBP:0,visitAED:0,labAED:0,labGBP:0,referralAED:0,feeSettledAED:0,feeSettledGBP:0,courierAED:0,medicationAED:0,deviceAED:0,fuAED:0,fuGBP:0,fuDescs:[],cat:'concierge'};return M[k];}
+  var vatTotal=0,labGrandAED=0,labGrandGBP=0;
   scoped.forEach(function(b){
     var billerKey=resolveN(b.billedBy||'Unassigned');
     var m=g(billerKey);m.bills++;m.billIds.push(b.id);
     m.cat=catOf(billerKey);
-    m.totalAED+=calcBillGrandTotal(b)||0;
-    var ukl=(typeof computeUKLines==='function')?computeUKLines(b):[];
-    ukl.forEach(function(l){if((l.cur||'GBP')==='GBP'){m.totalGBP+=l.amount||0;if(/admin/i.test(l.label||''))m.adminGBP+=l.amount||0;}});
+    vatTotal+=(typeof _billStdTaxTotal==='function'?_billStdTaxTotal(b):0)||0;
+    var _billIsExternal=false;
+    // UK money — reuses computeUKLines' own pricing (never recomputed here), only decides
+    // who each line belongs to. Only the consultation itself, physician admin time, and stat
+    // medication go to the named doctor/nurse — referral, phlebotomy, lab work, courier,
+    // medication, and concierge coordination all stay with the concierge, exactly matching
+    // how the AED side already works. Checking the sub-label (after the item name), not just
+    // which item it came from, since one item (e.g. doctor_uki) can contain several of these.
+    var _ukLines=(typeof computeUKLines==='function')?computeUKLines(b):[];
+    if(_ukLines.length){
+      var _ukDocName=(b.billingData&&b.billingData.intUK&&b.billingData.intUK.doctor_uki&&String(b.billingData.intUK.doctor_uki.cn||'').trim())||'';
+      var _ukNurseName=(b.billingData&&b.billingData.intUK&&b.billingData.intUK.nurse_uki&&String(b.billingData.intUK.nurse_uki.nu||'').trim())||'';
+      var _ukResolvedNurse=_ukNurseName?resolveN(_ukNurseName):'';
+      _ukLines.forEach(function(l){
+        var amt=l.amount||0;if(!amt)return;
+        var lbl=l.label||'';
+        var sepIdx=lbl.indexOf(' — ');
+        var itemPrefix=sepIdx>=0?lbl.slice(0,sepIdx):lbl;
+        var subLabel=sepIdx>=0?lbl.slice(sepIdx+3):'';
+        var isDoctorClinical=/consultation/i.test(subLabel)||subLabel.indexOf('Physician Admin')===0||subLabel.indexOf('Stat Medication')===0;
+        var isNurseClinical=/nursing services|stat medication/i.test(subLabel)||subLabel.indexOf("Physician's Administrative Time")===0;
+        if(subLabel.indexOf('Lab work')>=0){
+          labGrandGBP+=amt;
+        } else if(!l.external&&itemPrefix==='Physician Services'&&isDoctorClinical&&_ukDocName){
+          var docM=g(resolveN(_ukDocName));docM.cat='doctor';
+          docM.consultGBP=(docM.consultGBP||0)+amt;
+          if(docM.billIds.indexOf(b.id)<0){docM.bills++;docM.billIds.push(b.id);}
+        } else if(!l.external&&itemPrefix==='Nursing Services'&&isNurseClinical&&INTERNAL_NURSES.indexOf(_ukResolvedNurse)>=0){
+          var nurM=g(_ukResolvedNurse);nurM.cat='nurse';nurM.visitGBP=(nurM.visitGBP||0)+amt;
+          if(nurM.billIds.indexOf(b.id)<0){nurM.bills++;nurM.billIds.push(b.id);}
+        } else {
+          // Referral, phlebotomy, courier, medication, concierge coordination, external
+          // lines, or an unnamed UK doctor/nurse — all fall to the general biller
+          m.feeSettledGBP+=amt;
+          if(l.external)_billIsExternal=true;
+        }
+      });
+    }
     for(var sk in SECS){
-      if(sk==='extUK')continue; // legacy UK 'secs' items never rendered on real bills — real UK data is computeUKLines above
+      if(sk==='extUK')continue;
       var sd=b.billingData&&b.billingData[sk];if(!sd)continue;var reg=_skRegion(sk);
       SECS[sk].items.forEach(function(item){
         var idata=sd[item.id];if(!idata)return;
         var isNurseVisit=['inv','env','ges'].indexOf(item.id)>=0;
         var isConsult=item.id==='ic';
-        // ── Consultation (doctor-owned) ──
+        var isExternalDoc=item.id==='ec'||item.id==='gec';
         var ownerM=m,ownerIsNamed=false;
         if(isConsult){
           var rawDoc=(idata.dn&&String(idata.dn).trim())||'';
@@ -6566,20 +6694,25 @@ function rptTeamRevenue(){
           ownerM.consultAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0;
           if(idata.dur){var dh=parseInt(idata.dur.h)||0,dm=parseInt(idata.dur.m)||0;var dmins=dh*60+dm;ownerM.consultMins+=dmins;if((idata.ch||'').indexOf('Out')>=0)ownerM.consultOOHMins+=dmins;else ownerM.consultIHMins+=dmins;}
         }
-        // ── Nurse visit (nurse-owned) — only for the real internal roster; anyone else
-        // (external nurse names, unnamed, or a description typed into the name field) stays
-        // with the general biller here and is surfaced separately in the dedicated
-        // External/Unlinked Nurse Visits tile instead of cluttering this table ──
+        if(isExternalDoc){
+          var hasExtDocData=Object.keys(idata).some(function(k){var v=idata[k];return v&&v!=='';});
+          if(hasExtDocData)_billIsExternal=true;
+        }
         if(isNurseVisit){
           var rawNurse=(idata.nu&&String(idata.nu).trim())||'';
           var resolvedNurse=rawNurse?resolveN(rawNurse):'';
           if(INTERNAL_NURSES.indexOf(resolvedNurse)>=0){
             ownerM=g(resolvedNurse);ownerM.cat='nurse';ownerM.bills++;ownerM.billIds.push(b.id);ownerIsNamed=true;
             ownerM.visitAED+=(FEES.nurse&&FEES.nurse[idata.nv||'In Hours'])||0;
+          } else {
+            // External (named but not on the internal roster) or unnamed — the visit fee has
+            // nowhere else to go, so it folds into the concierge's Fee Settled, same treatment
+            // as an external doctor's fee. Only a real external name gets the "external" tag;
+            // unnamed stays untagged here and is still separately flagged for review.
+            m.feeSettledAED+=(FEES.nurse&&FEES.nurse[idata.nv||'In Hours'])||0;
+            if(rawNurse)_billIsExternal=true;
           }
         }
-        // ── Physician admin time — always attributed to the named doctor: same doctor as the
-        // consultation on 'ic', or whoever's named in padh_dn on every other item type ──
         if(idata.padh&&(parseInt((idata.padh||{}).h)||parseInt((idata.padh||{}).m))){
           var pfee=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours',idata.pal||idata.al||'Inside UAE','physAdmin')||0;
           if(isConsult){
@@ -6587,37 +6720,36 @@ function rptTeamRevenue(){
           } else {
             var padhDocRaw=(idata.padh_dn&&String(idata.padh_dn).trim())||'';
             if(padhDocRaw){var padhDM=g(resolveN(padhDocRaw));padhDM.cat='doctor';padhDM.physAdminAED+=pfee;padhDM.physAdminMins+=(parseInt(idata.padh.h)||0)*60+(parseInt(idata.padh.m)||0);}
-            else ownerM.adminAED+=pfee; // unnamed — falls to whoever owns this item (nurse for a visit, general biller otherwise)
+            else ownerM.adminAED+=pfee;
           }
         }
-        // ── Concierge/admin coordination time — team-admin work, stays with whoever owns
-        // this item (the nurse on her own visit; the general biller for everything else,
-        // including 'ic' — a doctor's own admin coordination isn't clinical work) ──
+        var _medAdminNote=null;
         if(idata.adh){
           var afee=calcAdminFee(idata.adh.h,idata.adh.m,idata.adh_h||idata.ph2||'In Hours',idata.al||'Inside UAE','teamAdmin')||0;
-          if(isConsult)m.adminAED+=afee; // concierge time on a consult always goes to the general biller
-          else if(reg==='UK')ownerM.adminGBP+=afee;
-          else ownerM.adminAED+=afee;
+          if(['im','em','gem'].indexOf(item.id)>=0){
+            // Medication logistics' own admin time is folded into the Medication fee itself,
+            // not double-counted separately in Admin Time — noted, not summed here
+            _medAdminNote=fmtAdminUnits(idata.adh.h,idata.adh.m);
+          } else if(isConsult){
+            m.adminAED+=afee;m.adminMins=(m.adminMins||0)+(parseInt(idata.adh.h||0)*60+parseInt(idata.adh.m||0));
+          } else if(reg==='UK'){m.adminGBP+=afee;}
+          else {m.adminAED+=afee;m.adminMins=(m.adminMins||0)+(parseInt(idata.adh.h||0)*60+parseInt(idata.adh.m||0));}
         }
-        // ── Everything else on this item: referral/re-report, fee settled (external),
-        // courier, medication/prescription, device & procedure toggles — attributed to the
-        // same owner as the encounter (doctor on a consult, nurse on her visit), otherwise
-        // the general biller, matching how Lab Works and Follow-ups already work ──
         if(idata.rf===true||idata.rf==='true'){
           var rfLoc=idata.al||'Inside UAE';var rfH=idata.rf_h||idata.ch||idata.nv||'In Hours';
           var rfk=rfH+'-'+(rfLoc==='International'?'International':rfLoc.indexOf('Inside')===0?'Inside UAE':'Outside UAE');
-          ownerM.referralAED+=FEES.referral[rfk]||FEES.referral['In Hours-Inside UAE']||220;
+          m.referralAED+=FEES.referral[rfk]||FEES.referral['In Hours-Inside UAE']||220;
         }
-        if(idata.rr===true||idata.rr==='true')ownerM.referralAED+=FEES.reReport||500;
+        if(idata.rr===true||idata.rr==='true')m.referralAED+=FEES.reReport||500;
         ['feepaid','sf','cf'].forEach(function(fk){
           var fv=idata[fk];if(!fv||!parseFloat(fv.amount))return;
           var _fc=fv.cur||'AED';var _settled=Math.round((parseFloat(fv.amount)||0)*(1+_settleMk(_fc))*100)/100;
-          if(_fc==='GBP')ownerM.feeSettledGBP+=_settled;else ownerM.feeSettledAED+=_settled;
+          if(_fc==='GBP')m.feeSettledGBP+=_settled;else m.feeSettledAED+=_settled;
         });
         var coItem=idata.co||idata.ct2;
         if(coItem&&typeof coItem==='object'&&coItem.region){
-          if(coItem.region==='UAE')ownerM.courierAED+=(coItem.type==='Controlled drugs courier (Amara driver)')?(FEES.courierControlled||250):(FEES.courierUAE||135);
-          else if(coItem.customFee&&parseFloat(coItem.customFee))ownerM.courierAED+=parseFloat(coItem.customFee)||0;
+          if(coItem.region==='UAE')m.courierAED+=(coItem.type==='Controlled drugs courier (Amara driver)')?(FEES.courierControlled||250):(FEES.courierUAE||135);
+          else if(coItem.customFee&&parseFloat(coItem.customFee))m.courierAED+=parseFloat(coItem.customFee)||0;
         }
         if(['im','em','gem'].indexOf(item.id)>=0&&idata.imt){
           var _mtLoc=idata.al||'Inside UAE';var _mtWhen=idata.adh_h||'In Hours';
@@ -6626,137 +6758,176 @@ function rptTeamRevenue(){
           if(idata.imt.indexOf('OTC')>=0)_mtBase=FEES.internalMedOTC||75;
           else if(idata.imt.indexOf('Custom')>=0){var _mfg=idata.mfee;_mtBase=(_mfg&&parseFloat(_mfg.amount))?parseFloat(_mfg.amount):0;}
           var _mtF=calcMedLogisticsFee(_mtReg,_mtWhen,idata.adh,_mtBase);
-          ownerM.medicationAED+=_mtF.total||0;
+          m.medicationAED+=_mtF.total||0;
+          if(_medAdminNote)m.medAdminNote=_medAdminNote;
         }
         if(isConsult&&idata.ptype){
           var ploc=idata.al||'Inside UAE';var pch=idata.ch||'In Hours';
           var ppk=pch+'-'+(ploc==='International'?'International':ploc.indexOf('Inside')===0?'Inside UAE':'Outside UAE');
-          ownerM.medicationAED+=(FEES.prescription&&FEES.prescription[ppk])||0;
+          m.medicationAED+=(FEES.prescription&&FEES.prescription[ppk])||0;
         }
-        if(idata.ph){var phv=idata.ph;if(phv==='UAE — AED 75')ownerM.deviceAED+=FEES.phlebotomy['UAE']||75;else if(phv==='Global — AED 275')ownerM.deviceAED+=FEES.phlebotomy['Global']||275;else if(phv===true||phv==='true')ownerM.deviceAED+=FEES.phlebotomy['UAE']||75;}
-        if(idata.ef===true||idata.ef==='true')ownerM.deviceAED+=FEES.ecgStandard||500;
-        if(idata.if2===true||idata.if2==='true')ownerM.deviceAED+=FEES.injection||250;
+        // Phlebotomy — its own dedicated field, tracked separately from device/stat-med
+        function _creditDevice(amt){if(ownerM===m)m.feeSettledAED+=amt;else ownerM.deviceAED+=amt;}
+        function _creditPhlebo(amt){if(ownerM===m)m.feeSettledAED+=amt;else ownerM.phleboAED=(ownerM.phleboAED||0)+amt;}
+        if(idata.ph){var phv=idata.ph;var phFee=0;if(phv==='UAE — AED 75')phFee=FEES.phlebotomy['UAE']||75;else if(phv==='Global — AED 275')phFee=FEES.phlebotomy['Global']||275;else if(phv===true||phv==='true')phFee=FEES.phlebotomy['UAE']||75;if(phFee)_creditPhlebo(phFee);}
+        // Device toggles (ECG/BP/injection/IV/vaccine) + stat medication — stay with whoever
+        // owns the encounter (nurse on her visit, doctor on a consult); otherwise credited to
+        // Concierge's Fee Settled, since neither table for a specific person applies
+        if(idata.ef===true||idata.ef==='true')_creditDevice(FEES.ecgStandard||500);
+        if(idata.if2===true||idata.if2==='true')_creditDevice(FEES.injection||250);
         var _gf;
-        if((_gf=feeTogVal(idata.ecgf,FEES.ecgStandard||500))!=null)ownerM.deviceAED+=_gf;
-        if((_gf=feeTogVal(idata.bpf,FEES.bpMonitor||0))!=null)ownerM.deviceAED+=_gf;
-        if((_gf=feeTogVal(idata.injf,FEES.injection||250))!=null)ownerM.deviceAED+=_gf;
-        if((_gf=feeTogVal(idata.ivf,FEES.injection||250))!=null)ownerM.deviceAED+=_gf;
-        if((_gf=feeTogVal(idata.vacf,FEES.vaccine||0))!=null)ownerM.deviceAED+=_gf;
-        if(item.id!=='ic'&&item.id!=='inv'&&(idata.sm===true||idata.sm==='true'))ownerM.deviceAED+=FEES.statMedicine||20;
-        // Lab work — always the general biller, same as before
-        if(Array.isArray(idata.lw)&&idata.lw.length){var lt=_labTotalFor(idata.lw,reg);if(reg==='UK')m.labGBP+=lt;else m.labAED+=lt;}
+        if((_gf=feeTogVal(idata.ecgf,FEES.ecgStandard||500))!=null)_creditDevice(_gf);
+        if((_gf=feeTogVal(idata.bpf,FEES.bpMonitor||0))!=null)_creditDevice(_gf);
+        if((_gf=feeTogVal(idata.injf,FEES.injection||250))!=null)_creditDevice(_gf);
+        if((_gf=feeTogVal(idata.ivf,FEES.injection||250))!=null)_creditDevice(_gf);
+        if((_gf=feeTogVal(idata.vacf,FEES.vaccine||0))!=null)_creditDevice(_gf);
+        if(item.id!=='ic'&&item.id!=='inv'&&(idata.sm===true||idata.sm==='true'))_creditDevice(FEES.statMedicine||20);
+        // Lab work — no longer summarized per person here; tracked only as a business-wide
+        // total for the Reconciliation section. Full detail stays in All Patient Bills.
+        if(Array.isArray(idata.lw)&&idata.lw.length){var lt=_labTotalFor(idata.lw,reg);if(reg==='UK')labGrandGBP+=lt;else labGrandAED+=lt;}
       });
     }
     var fus=(b.billingData&&b.billingData._followUps)||[];
     fus.forEach(function(fu,fi){
       var f=fuEffectiveFee(fu,fi,b.billingData,b.branch);
-      if(f.amount>0){if((f.cur||'AED')==='GBP')m.fuGBP+=f.amount;else m.fuAED+=f.amount;}
+      if(f.amount>0){
+        if((f.cur||'AED')==='GBP')m.fuGBP+=f.amount;else m.fuAED+=f.amount;
+        var _fuLbl=(typeof fuServiceLabel==='function'?fuServiceLabel(fu):null)||fu.type||'Follow-up';
+        if(m.fuDescs.indexOf(_fuLbl)<0)m.fuDescs.push(_fuLbl);
+      }
     });
-    var disc=b.billingData&&b.billingData._discount;
-    if(disc){
-      var dAmt=0;
-      if(disc.consultation&&disc.consultationPct)dAmt+=(m.totalAED*(parseFloat(disc.consultationPct)||0)/100);
-      if(disc.goodwill&&disc.goodwillAmt)dAmt+=(parseFloat(disc.goodwillAmt)||0);
-      if(dAmt>0)m.otherAED-=dAmt;
-    }
+    if(_billIsExternal)m.externalBillIds.push(b.id);
   });
   function f2(n){return(Math.round((n||0)*100)/100).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:2});}
   function mc(aed,gbp){var p=[];if(aed>0.005||aed<-0.005)p.push('AED '+f2(aed));if(gbp>0.005)p.push('<span style="color:var(--b);">GBP '+f2(gbp)+'</span>');return p.length?p.join('<br>')+'​':'—';}
   function fmtT(mins){if(!mins)return '—';var h=Math.floor(mins/60),m=mins%60;return(h?h+'h ':'')+m+'min';}
-  var COLS=['Member','Bills','Consults','Phys Admin','Admin Fee','Nurse Visit','Referral &amp; Re-report','Fee Settled','Courier','Medication','Device/Procedure','Lab Works','Follow-ups','Total'];
-  var tot={bills:0,consultAED:0,physAdminAED:0,adminAED:0,adminGBP:0,visitAED:0,referralAED:0,feeSettledAED:0,feeSettledGBP:0,courierAED:0,medicationAED:0,deviceAED:0,labAED:0,labGBP:0,fuAED:0,fuGBP:0,totalAED:0,totalGBP:0};
-  var conciergeRows=Object.keys(M).filter(function(k){return M[k].cat==='concierge';}).sort(function(a,b){return M[b].bills-M[a].bills;});
-  var nurseRows=Object.keys(M).filter(function(k){return M[k].cat==='nurse';}).sort(function(a,b){return M[b].bills-M[a].bills;});
-  var doctorRows=Object.keys(M).filter(function(k){return M[k].cat==='doctor';}).sort(function(a,b){return(M[b].consultAED||0)-(M[a].consultAED||0);});
-  var mgmtRows=Object.keys(M).filter(function(k){return M[k].cat==='management';}).sort(function(a,b){return M[b].bills-M[a].bills;});
-  function catDiv(label,color){return '<tr><td colspan="14" style="padding:6px 11px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:'+color+';background:var(--wh2);border-bottom:1px solid var(--bo);">'+label+'</td></tr>';}
-  function td(html,bold){return '<td style="padding:8px 11px;font-size:11px;'+(bold?'font-weight:700;color:var(--oc);':'')+'">'+html+'</td>';}
-  function accum(m){
-    tot.bills+=m.bills;tot.consultAED+=m.consultAED;tot.physAdminAED+=m.physAdminAED;tot.adminAED+=m.adminAED;tot.adminGBP+=m.adminGBP;
-    tot.visitAED+=m.visitAED;tot.referralAED+=m.referralAED;tot.feeSettledAED+=m.feeSettledAED;tot.feeSettledGBP+=m.feeSettledGBP;
-    tot.courierAED+=m.courierAED;tot.medicationAED+=m.medicationAED;tot.deviceAED+=m.deviceAED;tot.labAED+=m.labAED;tot.labGBP+=m.labGBP;
-    tot.fuAED+=m.fuAED;tot.fuGBP+=m.fuGBP;tot.totalAED+=m.totalAED;tot.totalGBP+=m.totalGBP;
-  }
-  var allRows='';
   var _billsCellCounter=0;
   function billsCellHtml(m){
     var ids=Array.from(new Set(m.billIds||[]));
     if(!ids.length)return '<div style="text-align:center;">'+(m.bills||'—')+'</div>';
     var uid='bc'+(_billsCellCounter++);
+    var extSet={};(m.externalBillIds||[]).forEach(function(id){extSet[id]=true;});
     var billObjs=ids.map(function(id){return bills.find(function(x){return x.id===id;});}).filter(Boolean);
     billObjs.sort(function(a,x){return new Date(x.createdAt||0)-new Date(a.createdAt||0);});
     var listHtml=billObjs.map(function(b){
+      var tag=extSet[b.id]?'<span style="font-size:9px;color:var(--m2);font-style:italic;margin-left:5px;">external</span>':'';
       return '<div onclick="viewBill(\''+b.id+'\')" style="padding:5px 9px;cursor:pointer;border-bottom:1px solid var(--bo);font-size:11px;white-space:nowrap;" onmouseover="this.style.background=\'var(--wh2)\'" onmouseout="this.style.background=\'transparent\'">'+
-        '<span style="font-weight:700;color:var(--oc);">'+esc(_billNo(b))+'</span> — '+esc(b.patientName||'Unknown')+'</div>';
+        '<span style="font-weight:700;color:var(--oc);">'+esc(_billNo(b))+'</span> — '+esc(b.patientName||'Unknown')+tag+'</div>';
     }).join('');
     return '<div style="position:relative;text-align:center;" onmouseenter="document.getElementById(\''+uid+'\').style.display=\'block\'" onmouseleave="document.getElementById(\''+uid+'\').style.display=\'none\'">'+
       '<span style="font-weight:600;cursor:pointer;border-bottom:1px dashed var(--m2);">'+m.bills+'</span>'+
-      '<div id="'+uid+'" style="display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:40;background:var(--wh);border:1px solid var(--bo);border-radius:var(--r);box-shadow:var(--sh);min-width:220px;max-height:220px;overflow-y:auto;margin-top:4px;text-align:left;">'+listHtml+'</div>'+
+      '<div id="'+uid+'" style="display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:40;background:var(--wh);border:1px solid var(--bo);border-radius:var(--r);box-shadow:var(--sh);min-width:230px;max-height:220px;overflow-y:auto;margin-top:4px;text-align:left;">'+listHtml+'</div>'+
       '</div>';
   }
-  function rowHtml(k,m,i,bg,nameSuffix){
-    accum(m);
-    return '<tr style="background:'+bg+';border-bottom:1px solid var(--bo);vertical-align:top;">'+
-      td('<span style="font-weight:600;">'+esc(k)+'</span>'+(nameSuffix||''))+
-      td(billsCellHtml(m))+
-      td(mc(m.consultAED,0))+
-      td(m.physAdminAED>0?mc(m.physAdminAED,0):'—')+
-      td(mc(m.adminAED,m.adminGBP))+
-      td(m.visitAED>0?mc(m.visitAED,0):'—')+
-      td(mc(m.referralAED,0))+
-      td(mc(m.feeSettledAED,m.feeSettledGBP))+
-      td(mc(m.courierAED,0))+
-      td(mc(m.medicationAED,0))+
-      td(mc(m.deviceAED,0))+
-      td(mc(m.labAED,m.labGBP))+
-      td(mc(m.fuAED,m.fuGBP))+
-      td(mc(m.totalAED,m.totalGBP),true)+
-      '</tr>';
-  }
-  if(conciergeRows.length){allRows+=catDiv('Concierge Team','var(--oc)');allRows+=conciergeRows.map(function(k,i){return rowHtml(k,M[k],i,i%2?'var(--wh2)':'var(--wh)');}).join('');}
-  if(nurseRows.length){allRows+=catDiv('Nurses','#0F6E56');allRows+=nurseRows.map(function(k,i){return rowHtml(k,M[k],i,i%2?'var(--wh2)':'var(--wh)');}).join('');}
-  if(doctorRows.length){allRows+=catDiv('Doctors','#185FA5');allRows+=doctorRows.map(function(k,i){
+  function td(html,align,bold,w){return '<td style="padding:8px 10px;font-size:11px;text-align:'+(align||'left')+';'+(bold?'font-weight:700;color:var(--oc);':'')+(w?'width:'+w+';':'')+'white-space:nowrap;">'+html+'</td>';}
+
+  // ── Concierge table ──
+  var conciergeKeys=Object.keys(M).filter(function(k){return M[k].cat==='concierge';}).sort(function(a,b){return M[b].bills-M[a].bills;});
+  var conTot={adminAED:0,adminGBP:0,referralAED:0,feeSettledAED:0,feeSettledGBP:0,courierAED:0,medicationAED:0,bills:0,total:0};
+  var conRows=conciergeKeys.map(function(k,i){
     var m=M[k];
-    var cd=m.consultMins>0?'<br><span style="font-size:10px;color:var(--m2);">'+fmtT(m.consultMins)+(m.consultIHMins?' · IH: '+fmtT(m.consultIHMins):'')+(m.consultOOHMins?' · OOH: '+fmtT(m.consultOOHMins):'')+'</span>':'';
-    var pd=m.physAdminAED>0?'<br><span style="font-size:10px;color:var(--m2);">'+fmtT(m.physAdminMins)+'</span>':'';
-    accum(m);
-    return '<tr style="background:'+(i%2?'#f7f3ee':'#faf8f4')+';border-bottom:1px solid var(--bo);vertical-align:top;">'+
-      td('<span style="font-weight:600;">'+esc(k)+'</span><span style="font-size:9px;background:#eef4fb;color:#185FA5;border-radius:3px;padding:1px 5px;margin-left:5px;">Dr</span>')+
-      td(billsCellHtml(m))+
-      td(mc(m.consultAED,0)+cd)+
-      td(m.physAdminAED>0?mc(m.physAdminAED,0)+pd:'—')+
-      td(mc(m.adminAED,m.adminGBP))+
-      td(m.visitAED>0?mc(m.visitAED,0):'—')+
-      td(mc(m.referralAED,0))+
-      td(mc(m.feeSettledAED,m.feeSettledGBP))+
-      td(mc(m.courierAED,0))+
-      td(mc(m.medicationAED,0))+
-      td(mc(m.deviceAED,0))+
-      td(mc(m.labAED,m.labGBP))+
-      td(mc(m.fuAED,m.fuGBP))+
-      td(mc(m.totalAED,m.totalGBP),true)+
+    var rowTotal=m.adminAED+m.referralAED+m.feeSettledAED+m.courierAED+m.medicationAED;
+    conTot.adminAED+=m.adminAED;conTot.adminGBP+=m.adminGBP;conTot.referralAED+=m.referralAED;conTot.feeSettledAED+=m.feeSettledAED;conTot.feeSettledGBP+=m.feeSettledGBP;conTot.courierAED+=m.courierAED;conTot.medicationAED+=m.medicationAED;conTot.bills+=m.bills;conTot.total+=rowTotal;
+    var adminHrs=fmtT(m.adminMins||0);
+    var fuNote=m.fuDescs&&m.fuDescs.length?'<div style="font-size:10px;color:var(--m2);font-style:italic;margin-top:2px;">Follow-ups linked: '+esc(m.fuDescs.join(', '))+' — '+mc(m.fuAED,m.fuGBP)+' included above</div>':'';
+    var medNote=m.medAdminNote?'<div style="font-size:10px;color:var(--m2);">('+m.medAdminNote+' admin included)</div>':'';
+    return '<tr style="background:'+(i%2?'var(--wh2)':'var(--wh)')+';border-bottom:1px solid var(--bo);vertical-align:top;">'+
+      td('<span style="font-weight:600;">'+esc(k)+'</span>',null,null,'14%')+
+      td(billsCellHtml(m),'center',null,'8%')+
+      td(adminHrs+' · '+mc(m.adminAED,m.adminGBP),'right',null,'16%')+
+      td(mc(m.referralAED,0),'right',null,'13%')+
+      td(mc(m.feeSettledAED,m.feeSettledGBP),'right',null,'14%')+
+      td(mc(m.courierAED,0),'right',null,'11%')+
+      td(mc(m.medicationAED,0)+medNote,'right',null,'12%')+
+      td(mc(rowTotal+m.fuAED,m.fuGBP),'right',true,'12%')+
+      '</tr>'+(fuNote?'<tr style="background:'+(i%2?'var(--wh2)':'var(--wh)')+';"><td colspan="8" style="padding:0 10px 8px;">'+fuNote+'</td></tr>':'');
+  }).join('');
+  conTot.total+=Object.keys(M).reduce(function(s,k){return M[k].cat==='concierge'?s+M[k].fuAED:s;},0);
+  var conTable=!conciergeKeys.length?'':'<div style="font-size:12px;font-weight:700;color:var(--oc);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 6px;">Concierge team</div>'+
+    '<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);overflow-x:auto;box-shadow:var(--sh);margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;min-width:820px;"><thead><tr style="background:var(--g);color:#FBF7EC;">'+
+    ['Member','Bills','Admin time','Referral & re-report','Fee settled','Courier','Medication','Total'].map(function(c,i){return '<th style="padding:8px 10px;text-align:'+(i===0?'left':i===1?'center':'right')+';font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+
+    '</tr></thead><tbody>'+conRows+
+    '<tr style="background:var(--g);color:#FBF7EC;border-top:2px solid var(--bo2);font-weight:700;">'+
+    td('All concierge',null,null)+td(conTot.bills,'center')+td(mc(conTot.adminAED,conTot.adminGBP),'right')+td(mc(conTot.referralAED,0),'right')+td(mc(conTot.feeSettledAED,conTot.feeSettledGBP),'right')+td(mc(conTot.courierAED,0),'right')+td(mc(conTot.medicationAED,0),'right')+td(mc(conTot.total,0),'right',true)+
+    '</tr></tbody></table></div>';
+
+  // ── Nurses table ──
+  var nurseKeys=Object.keys(M).filter(function(k){return M[k].cat==='nurse';}).sort(function(a,b){return M[b].visitAED-M[a].visitAED;});
+  var nurTot={visitAED:0,visitGBP:0,deviceAED:0,phleboAED:0,bills:0,total:0};
+  var nurRows=nurseKeys.map(function(k,i){
+    var m=M[k];
+    var rowTotal=m.visitAED+(m.deviceAED||0)+(m.phleboAED||0);
+    nurTot.visitAED+=m.visitAED;nurTot.visitGBP+=(m.visitGBP||0);nurTot.deviceAED+=(m.deviceAED||0);nurTot.phleboAED+=(m.phleboAED||0);nurTot.bills+=m.bills;nurTot.total+=rowTotal;
+    return '<tr style="background:'+(i%2?'var(--wh2)':'var(--wh)')+';border-bottom:1px solid var(--bo);vertical-align:top;">'+
+      td('<span style="font-weight:600;">'+esc(k)+'</span>',null,null,'22%')+
+      td(billsCellHtml(m)+' · '+mc(m.visitAED,m.visitGBP||0),'center',null,'26%')+
+      td(mc(m.deviceAED||0,0),'right',null,'24%')+
+      td(mc(m.phleboAED||0,0),'right',null,'14%')+
+      td(mc(rowTotal,m.visitGBP||0),'right',true,'14%')+
       '</tr>';
-  }).join('');}
-  if(mgmtRows.length){allRows+=catDiv('Management & Accounts','#5F5E5A');allRows+=mgmtRows.map(function(k,i){return rowHtml(k,M[k],i,i%2?'var(--wh2)':'var(--wh)');}).join('');}
-  var totRow='<tr style="background:var(--g);color:#FBF7EC;border-top:2px solid var(--bo2);font-weight:700;">'+
-    '<td style="padding:9px 11px;font-size:12px;">All Team</td>'+
-    '<td style="padding:9px 11px;text-align:center;font-size:12px;">'+tot.bills+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.consultAED,0)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.physAdminAED,0)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.adminAED,tot.adminGBP)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.visitAED,0)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.referralAED,0)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.feeSettledAED,tot.feeSettledGBP)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.courierAED,0)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.medicationAED,0)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.deviceAED,0)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.labAED,tot.labGBP)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;">'+mc(tot.fuAED,tot.fuGBP)+'</td>'+
-    '<td style="padding:9px 11px;font-size:11px;color:#FAC775;">'+mc(tot.totalAED,tot.totalGBP)+'</td>'+
-    '</tr>';
+  }).join('');
+  var nurTable=!nurseKeys.length?'':'<div style="font-size:12px;font-weight:700;color:#0F6E56;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 6px;">Nurses</div>'+
+    '<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);overflow-x:auto;box-shadow:var(--sh);margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;min-width:560px;"><thead><tr style="background:var(--g);color:#FBF7EC;">'+
+    ['Member','Visits','Device & stat medication','Phlebotomy','Total'].map(function(c,i){return '<th style="padding:8px 10px;text-align:'+(i===0?'left':i===1?'center':'right')+';font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+
+    '</tr></thead><tbody>'+nurRows+
+    '<tr style="background:var(--g);color:#FBF7EC;border-top:2px solid var(--bo2);font-weight:700;">'+
+    td('All nurses',null,null)+td(nurTot.bills+' · '+mc(nurTot.visitAED,nurTot.visitGBP),'center')+td(mc(nurTot.deviceAED,0),'right')+td(mc(nurTot.phleboAED,0),'right')+td(mc(nurTot.total,nurTot.visitGBP),'right',true)+
+    '</tr></tbody></table></div>';
+
+  // ── Doctors table ──
+  var allDoctorKeys=Object.keys(M).filter(function(k){return M[k].cat==='doctor';}).sort(function(a,b){return(M[b].consultAED||0)-(M[a].consultAED||0);});
+  var doctorKeys=allDoctorKeys.filter(function(k){return k.indexOf('Doctor (unnamed')!==0;});
+  var unnamedDoctorKeys=allDoctorKeys.filter(function(k){return k.indexOf('Doctor (unnamed')===0;});
+  var docTot={consultAED:0,consultGBP:0,physAdminAED:0,deviceAED:0,bills:0,total:0,unnamedTotal:0};
+  var docRows=doctorKeys.map(function(k,i){
+    var m=M[k];
+    var rowTotal=m.consultAED+m.physAdminAED+(m.deviceAED||0);
+    docTot.consultAED+=m.consultAED;docTot.consultGBP+=(m.consultGBP||0);docTot.physAdminAED+=m.physAdminAED;docTot.deviceAED+=(m.deviceAED||0);docTot.bills+=m.bills;docTot.total+=rowTotal;
+    var cHrs=fmtT(m.consultMins||0);var pHrs=fmtT(m.physAdminMins||0);
+    return '<tr style="background:'+(i%2?'#f7f3ee':'#faf8f4')+';border-bottom:1px solid var(--bo);vertical-align:top;">'+
+      td('<span style="font-weight:600;">'+esc(k)+'</span><span style="font-size:9px;background:#eef4fb;color:#185FA5;border-radius:3px;padding:1px 5px;margin-left:5px;">Dr</span>',null,null,'22%')+
+      td(billsCellHtml(m)+' · '+cHrs+' · '+mc(m.consultAED,m.consultGBP||0),'center',null,'30%')+
+      td((m.physAdminAED>0?pHrs+' · ':'')+mc(m.physAdminAED,0),'right',null,'22%')+
+      td(mc(m.deviceAED||0,0),'right',null,'12%')+
+      td(mc(rowTotal,m.consultGBP||0),'right',true,'14%')+
+      '</tr>';
+  }).join('');
+  unnamedDoctorKeys.forEach(function(k){
+    var m=M[k];var rowTotal=m.consultAED+m.physAdminAED+(m.deviceAED||0);
+    docTot.consultAED+=m.consultAED;docTot.physAdminAED+=m.physAdminAED;docTot.deviceAED+=(m.deviceAED||0);docTot.bills+=m.bills;docTot.total+=rowTotal;docTot.unnamedTotal+=rowTotal;
+  });
+  var unnamedNote=docTot.unnamedTotal>0.005?'<div style="font-size:11px;color:var(--m2);padding:4px 2px;font-style:italic;">+ '+mc(docTot.unnamedTotal,0)+' from unnamed consultations — see "Physician Services Not Attributed" below to link them to a real doctor.</div>':'';
+  var docTable=!doctorKeys.length&&!unnamedDoctorKeys.length?'':'<div style="font-size:12px;font-weight:700;color:#185FA5;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 6px;">Doctors</div>'+
+    '<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);overflow-x:auto;box-shadow:var(--sh);margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;min-width:640px;"><thead><tr style="background:var(--g);color:#FBF7EC;">'+
+    ['Doctor','Consultations','Physician admin time','Stat medication','Total'].map(function(c,i){return '<th style="padding:8px 10px;text-align:'+(i===0?'left':i===1?'center':'right')+';font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+
+    '</tr></thead><tbody>'+docRows+
+    '<tr style="background:var(--g);color:#FBF7EC;border-top:2px solid var(--bo2);font-weight:700;">'+
+    td('All doctors',null,null)+td(mc(docTot.consultAED,docTot.consultGBP),'center')+td(mc(docTot.physAdminAED,0),'right')+td(mc(docTot.deviceAED,0),'right')+td(mc(docTot.total,docTot.consultGBP),'right',true)+
+    '</tr></tbody></table>'+unnamedNote+'</div>';
+
+  // ── Reconciliation ──
+  var deptSubtotal=conTot.total+nurTot.total+docTot.total;
+  var trueTotal=deptSubtotal+labGrandAED+vatTotal;
+  var trueTotalGBP=(conTot.feeSettledGBP+conTot.adminGBP)+nurTot.visitGBP+docTot.consultGBP+labGrandGBP;
+  var reconTable='<div style="font-size:12px;font-weight:700;color:var(--oc);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 6px;">Reconciliation</div>'+
+    '<div style="background:rgba(184,129,58,.08);border:1px solid var(--bo);border-radius:var(--rl);padding:12px 16px;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<tr><td style="padding:3px 0;color:var(--m2);">Concierge team</td><td style="padding:3px 0;text-align:right;">'+mc(conTot.total,conTot.feeSettledGBP+conTot.adminGBP)+'</td></tr>'+
+    '<tr><td style="padding:3px 0;color:var(--m2);">Nurses</td><td style="padding:3px 0;text-align:right;">'+mc(nurTot.total,nurTot.visitGBP)+'</td></tr>'+
+    '<tr><td style="padding:3px 0;color:var(--m2);">Doctors</td><td style="padding:3px 0;text-align:right;">'+mc(docTot.total,docTot.consultGBP)+'</td></tr>'+
+    '<tr><td style="padding:3px 0;color:var(--m2);">Lab works (see All Patient Bills for detail)</td><td style="padding:3px 0;text-align:right;">'+mc(labGrandAED,labGrandGBP)+'</td></tr>'+
+    '<tr><td style="padding:3px 0;color:var(--m2);">VAT (Standard Rate 5%)</td><td style="padding:3px 0;text-align:right;">'+mc(vatTotal,0)+'</td></tr>'+
+    '<tr style="border-top:1px solid var(--bo2);"><td style="padding:6px 0;font-weight:700;">True business total</td><td style="padding:6px 0;text-align:right;font-weight:700;color:var(--oc);">'+mc(trueTotal,trueTotalGBP)+'</td></tr>'+
+    '</table></div>';
+
   return '<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 10px;"><span style="font-size:15px;font-weight:700;color:var(--tx);">Team Performance &amp; Revenue</span><button data-sec="rpt-teamrev" onclick="togRptSec(this)" style="font-size:10px;padding:2px 8px;border:1px solid var(--bo);border-radius:4px;background:var(--wh);color:var(--m2);cursor:pointer;">hide</button></div>'+
     _rptTeamRevFilterBar(fFrom,fTo,fCat)+
-    '<div id="rpt-teamrev" style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);overflow-x:auto;box-shadow:var(--sh);margin-bottom:10px;"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:1500px;"><thead><tr style="background:var(--g);color:#FBF7EC;">'+COLS.map(function(c){return'<th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;">'+c+'</th>';}).join('')+'</tr></thead><tbody>'+allRows+totRow+'</tbody></table><div style="padding:7px 11px;font-size:10px;color:var(--m2);border-top:1px solid var(--bo);">Consults &amp; Phys Admin: credited to the named doctor. Nurse Visit: credited to the named nurse. Referral/Fee Settled/Courier/Medication/Device: credited to whoever owns that encounter (the doctor on a consult, the nurse on her visit, otherwise the general biller). Admin Fee, Lab Works and Follow-ups: always the general biller. GBP in blue.</div></div>';
+    '<div id="rpt-teamrev" style="margin-bottom:10px;">'+conTable+nurTable+docTable+reconTable+
+    '<div style="padding:8px 2px;font-size:10px;color:var(--m2);">Consultations and physician admin time: credited to the named doctor. Nurse visits, device/procedure toggles, and stat medication: credited to the named nurse. Admin time, referral, fee settled, courier, and medication: concierge — including external doctor/nurse arrangements, which stay with the concierge who arranged them (tagged "external" in the bill list on hover). Lab works and VAT are reconciled separately, not split per person. GBP in blue.</div>'+
+    '<div style="font-size:12px;font-weight:700;color:var(--oc);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 6px;">Needs linking</div>'+
+    '<div style="font-size:11px;color:var(--m2);margin-bottom:8px;">Internal arrangements only — external providers don\'t need linking since they correctly go to whoever billed the invoice. Click a row to open the bill, or link it directly right here.</div>'+
+    rptNeedsLinkingAlways()+
+    '</div>';
 }
 function _rptTeamRevFilterBar(fFrom,fTo,fCat){
   var selStyle='padding:5px 8px;font-size:11px;border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--text-primary);';
@@ -8683,6 +8854,28 @@ async function dbSaveSettings(){
   }
 }
 
+function _mergeComments(local,cloud){
+  local=local||{};cloud=cloud||{};
+  var merged={};var allBillIds={};
+  Object.keys(local).forEach(function(k){allBillIds[k]=true;});
+  Object.keys(cloud).forEach(function(k){allBillIds[k]=true;});
+  Object.keys(allBillIds).forEach(function(billId){
+    var byId={};
+    (local[billId]||[]).forEach(function(c){if(c&&c.id)byId[c.id]=c;});
+    (cloud[billId]||[]).forEach(function(c){
+      if(!c||!c.id)return;
+      var existing=byId[c.id];
+      if(!existing){byId[c.id]=c;return;}
+      // Same comment exists on both sides (e.g. one side marked it complete) —
+      // prefer whichever reflects the "done" state, so a completion is never reverted
+      var exDone=!!existing.done,clDone=!!c.done;
+      if(clDone&&!exDone)byId[c.id]=c;
+      else if(!(exDone&&!clDone)&&(c._ts||0)>=(existing._ts||0))byId[c.id]=c;
+    });
+    merged[billId]=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return (a._ts||0)-(b._ts||0);});
+  });
+  return merged;
+}
 async function dbLoadSettings(){
   var d=gDB();if(!d)return false;
   try{
@@ -8726,7 +8919,7 @@ async function dbLoadSettings(){
       if(stored.auditLog)CFG.auditLog=stored.auditLog;
       if(stored.referralLedger)CFG.referralLedger=stored.referralLedger;
       if(stored.collections)CFG.collections=stored.collections;
-      if(stored.billComments)CFG.billComments=stored.billComments;
+      if(stored.billComments){CFG.billComments=_mergeComments(CFG.billComments,stored.billComments);stored.billComments=CFG.billComments;}
       if(stored.patientMeta)CFG.patientMeta=stored.patientMeta;
       if(typeof stored.privacyMode==='boolean')CFG.privacyMode=stored.privacyMode;
       if(stored.statuses&&stored.statuses.length)CFG.statuses=stored.statuses;
