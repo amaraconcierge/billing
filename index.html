@@ -2632,11 +2632,18 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
  {id:'elab',label:'Lab Works',followupOnly:true,fields:[
   {id:'lw',l:'Laboratory Tests Performed',t:'lab',req:1,n:'Select all tests ordered — for tests added alongside another visit, not a standalone walk-in'},
   {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel'}
+ ]},
+ {id:'efee',label:'Fee Settled',followupOnly:true,sub:'Standalone external payment — not tied to a specific consultation or visit item',fields:[
+  {id:'paid_to',l:'Paid To (Provider / Facility)',t:'txt',req:1},
+  {id:'feepaid',l:'Fee Settled',t:'feefield',req:1},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
+  {id:'desc',l:'What was this for',t:'mta'}
  ]}
 ]},
 extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#EAEFF3',items:[
  {id:'ues',label:'Nurse — Sample Collection',sub:'Sample collection · nurse visit',fields:[
   {id:'nu',l:'Nurse name',t:'txt'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'ph',l:'Phlebotomy fee (GBP 55)',t:'tog'},{id:'feepaid',l:'Fee paid to nurse (GBP)',t:'feefield'},
   {id:'dur',l:'Time spent',t:'hours'},{id:'lw',l:'Lab work',t:'lab'},{id:'labwhere',l:'Laboratory',t:'labsel'},
   {id:'co',l:'Courier',t:'courieropts'},{id:'adh',l:'Admin concierge time',t:'hours'},
@@ -2644,6 +2651,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
  ]},
  {id:'ulbi',label:'Laboratory Walk-In',sub:'Direct UK lab visit — sample collection & tests',fields:[
   {id:'padh_dn',l:'Ordered by (doctor)',t:'doctorsel'},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'lw',l:'Lab work',t:'lab',req:1,n:'Select TDL tests ordered'},
   {id:'labwhere',l:'Laboratory',t:'labsel'},
   {id:'ph',l:'Phlebotomy fee (GBP 55)',t:'tog'},
@@ -2654,6 +2662,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
  ]},
  {id:'uee',label:'Nurse — ECG / BP Monitor',sub:'Device fitting · nurse visit',fields:[
   {id:'nu',l:'Nurse name',t:'txt'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'ef',l:'ECG or BP monitor fee',t:'tog'},{id:'feepaid',l:'Fee paid to nurse (GBP)',t:'feefield'},
   {id:'dur',l:'Time spent',t:'hours'},{id:'co',l:'Courier',t:'courieropts'},
   {id:'adh',l:'Admin concierge time',t:'hours'},{id:'adh_h',l:'Admin hours type',t:'sel',o:['In Hours','Out of Hours']},
@@ -2661,6 +2670,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
  ]},
  {id:'uei',label:'Nurse — Injection / Vaccination',sub:'Injection or vaccination · nurse visit',fields:[
   {id:'nu',l:'Nurse name',t:'txt'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'if2',l:'Injection or IV drips fee',t:'tog'},{id:'feepaid',l:'Fee paid to nurse (GBP)',t:'feefield'},
   {id:'dur',l:'Time spent',t:'hours'},{id:'co',l:'Courier',t:'courieropts'},
   {id:'adh',l:'Admin concierge time',t:'hours'},{id:'adh_h',l:'Admin hours type',t:'sel',o:['In Hours','Out of Hours']},
@@ -2677,6 +2687,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
  ]},
  {id:'uec',label:"Doctor's Consultation",sub:'External physician consultation',fields:[
   {id:'cn',l:'Consultant / doctor name',t:'txt',req:1},{id:'hospital',l:'Hospital / clinic',t:'txt'},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'mode',l:'Consultation type',t:'sel',o:['In clinic','Home visit','Telephone','Virtual consultation'],req:1},
   {id:'cf',l:'Consultation fee (GBP)',t:'feefield'},{id:'rf',l:'Physician referral fee',t:'tog'},
   {id:'rf_h',l:'Referral hours',t:'sel',o:['In Hours','Out of Hours']},
@@ -2685,6 +2696,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
  ]},
  {id:'uem',label:'Medication Logistics',sub:'Prescription fee + 30 min admin included',fields:[
   {id:'rx_dn',l:'Prescribing / referring doctor',t:'doctorsel'},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'ph2',l:'Prescription hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'prx_dest',l:'Prescription sent to',t:'txt'},{id:'meds',l:'Medications arranged',t:'mta',req:1},
   {id:'feepaid',l:'Fee paid (GBP)',t:'feefield'},{id:'co',l:'Courier',t:'courieropts'},
@@ -2779,6 +2791,12 @@ extGlobal:{label:'Global External Care Coordination',sub:'Custom fees',col:'#9A6
  {id:'glab',label:'Lab Works',followupOnly:true,sub:'Tests added alongside another visit — not a standalone walk-in',fields:[
   {id:'lw',l:'Laboratory Tests Performed',t:'lab',req:1,n:'Select all tests ordered'},
   {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel'}
+ ]},
+ {id:'gfee',label:'Fee Settled',followupOnly:true,sub:'Standalone external payment — not tied to a specific consultation or visit item',fields:[
+  {id:'paid_to',l:'Paid To (Provider / Facility)',t:'txt',req:1},
+  {id:'feepaid',l:'Fee Settled',t:'feefield',req:1},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
+  {id:'desc',l:'What was this for',t:'mta'}
  ]}
 ]}
 };
@@ -4583,6 +4601,9 @@ function fuServiceFee(fu,idx,billingData,billRegion){
   var cur=(region==='UK')?'GBP':'AED';
   if(item.system==='rich'){
     var r=ukItemLines(item,idata);
+    if(item.id==='uk_fee'&&r.lines&&r.lines[0]&&r.lines[0].cur){
+      return{amount:r.total,cur:r.lines[0].cur};
+    }
     return{amount:r.total,cur:cur};
   }
   var total=0;
@@ -4623,6 +4644,13 @@ function fuServiceFee(fu,idx,billingData,billRegion){
     var lf=nurseAdminFees(idata);total+=lf.phys+lf.concierge;
   } else if(item.id==='iadm'||item.id==='eadm'||item.id==='gadm'){
     if(idata.adh)total+=calcAdminFee(idata.adh.h,idata.adh.m,idata.ph2||idata.adh_h||'In Hours',idata.al||'Inside UAE','teamAdmin');
+  } else if(item.id==='efee'||item.id==='gfee'){
+    if(idata.feepaid&&parseFloat(idata.feepaid.amount)>0){
+      var _feeCur=idata.feepaid.cur||'AED';
+      var _feeAmt=parseFloat(idata.feepaid.amount)*(1+_settleMk(_feeCur));
+      return{amount:Math.round(_feeAmt*100)/100,cur:_feeCur};
+    }
+    return{amount:0,cur:cur};
   } else {
     return{amount:0,cur:cur,unsupported:true};
   }
@@ -5471,6 +5499,26 @@ function buildItemCard(item,idata,secCol,secBg,sk){
   var summaryRows=[];   // [{icon, main, sub, highlight}]
   var detailRows=[];    // [{label, value, style}]  — remaining items below summary
 
+  // STANDALONE FEE SETTLED (efee/gfee) — follow-up only, external payment not tied to
+  // any consultation/visit. Consolidated into one summary row (title/desc/fee) matching
+  // every other item card, instead of falling through to the generic field-by-field
+  // default this item would otherwise get (which showed three separate checkmark rows).
+  if(itemId==='efee'||itemId==='gfee'){
+    var _fsPaidTo=tv('paid_to');
+    var _fsFee=idata.feepaid;
+    var _fsAmt=(_fsFee&&parseFloat(_fsFee.amount))||0;
+    var _fsCur=(_fsFee&&_fsFee.cur)||'AED';
+    var _fsTotal=_fsAmt?Math.round(_fsAmt*(1+_settleMk(_fsCur))*100)/100:0;
+    var _fsDesc=tv('desc');
+    var _fsSub=(_fsPaidTo?'Paid to '+_fsPaidTo:'')+(_fsDesc?(_fsPaidTo?' — ':'')+_fsDesc:'');
+    return '<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+
+      '<div><div style="font-weight:600;font-size:13px;">'+(_fsAmt?'\u2713 ':'')+'Fee Settled</div>'+
+      (_fsSub?'<div style="font-size:12px;color:var(--mu);margin-top:2px;">'+esc(_fsSub)+'</div>':'')+
+      '</div>'+
+      (_fsTotal?'<div style="font-weight:600;font-size:13px;white-space:nowrap;">'+_fsCur+' '+_fsTotal.toLocaleString('en-GB',{minimumFractionDigits:2})+'</div>':'')+
+      '</div></div>';
+  }
   // DOCTOR'S CONSULTATION (ic / ec)
   if(['ic','ec','uec','gec'].includes(itemId)){
     var ct=tv('ct');var ch=tv('ch');var mode=tv('mode');var dur=fmtDur('dur');
@@ -12289,6 +12337,7 @@ function ukExternalItems(){
         {id:'meds',l:'Medications arranged',t:'mta'},
         {id:'med',l:'Medication fee (if settled by Amara)',t:'pass'},
         {id:'courier',l:'Courier',t:'sel',o:['Standard','Custom']},
+        {id:'arr_date',l:'Arrangement Date',t:'date'},
         {id:'adh',l:'Total admin time spent',t:'unit',n:'GBP 55 (In Hours) / GBP 85 (Out of Hours) per 30-min unit'}
       ],
       prices:{courier:COURIER},
@@ -12360,7 +12409,19 @@ function ukExternalItems(){
       color:'#0F6E56', bg:'#F0F7F4', required:false, active:true, custom:true,
       fields:[
         {id:'lw',l:'Laboratory Tests Performed',t:'lab',req:1,n:'Select all tests ordered'},
-        {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel'}
+        {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel'},
+        {id:'arr_date',l:'Arrangement Date',t:'date'}
+      ],
+      rates:{} },
+
+    { id:'uk_fee', name:'Fee Settled', displayName:'Fee Settled', cur:'GBP', followupOnly:true,
+      description:'Standalone external payment \u2014 not tied to a specific consultation or visit item', category:'Other',
+      color:'#963030', bg:'#FBEFEF', required:false, active:true, custom:true,
+      fields:[
+        {id:'paid_to',l:'Paid To (Provider / Facility)',t:'txt',req:1},
+        {id:'feepaid',l:'Fee Settled',t:'feefield',req:1},
+        {id:'arr_date',l:'Arrangement Date',t:'date'},
+        {id:'desc',l:'What was this for',t:'mta'}
       ],
       rates:{} },
 
@@ -12991,6 +13052,13 @@ function ukItemLines(item,idata){
     } else if(f.t==='pass'){
       var fee=(v&&parseFloat(v.amount))||0;
       if(fee>0){lines.push({label:_clnUK(f.l),amount:Math.round(fee*1.10*100)/100});}
+    } else if(f.t==='feefield'){
+      var _ffAmt=(v&&parseFloat(v.amount))||0;
+      if(_ffAmt>0){
+        var _ffCur=(v&&v.cur)||'GBP';
+        var _ffTotal=Math.round(_ffAmt*(1+_settleMk(_ffCur))*100)/100;
+        lines.push({label:f.l,amount:_ffTotal,cur:_ffCur});
+      }
     } else if(f.t==='unit'){
       var mins=v?((parseInt(v.h)||0)*60+(parseInt(v.m)||0)):0;
       if(mins>0){
@@ -13403,6 +13471,20 @@ function renderUKField(item,idata,f,sk){
   if(f.t==='txt'){
     return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><input class="dfi" value="'+esc(idata[fid]||'')+'" placeholder="Enter details\u2026" data-save-key="'+sk+'|'+id+'|'+fid+'"></div>';
   }
+  if(f.t==='date'){
+    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div>'+
+      '<input class="dfi" type="date" value="'+esc(idata[fid]||'')+'" data-save-key="'+sk+'|'+id+'|'+fid+'"></div>';
+  }
+  if(f.t==='feefield'){
+    var _ukfv=idata[fid]||{cur:'GBP',amount:''};
+    return '<div class="dr"><div class="dl">'+esc(lbl)+'</div>'+
+      '<div class="fee-w">'+
+      '<select class="fee-cur-sel" data-save-key="'+sk+'|'+id+'|'+fid+'_cur">'+
+      CURRENCIES.map(function(c){return'<option'+(_ukfv.cur===c?' selected':'')+'>'+c+'</option>';}).join('')+
+      '</select>'+
+      '<input class="fee-inp" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc(_ukfv.amount||'')+'" data-save-key="'+sk+'|'+id+'|'+fid+'_amt">'+
+      '</div></div>';
+  }
   if(f.t==='mta'){
     return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><textarea class="dfta" placeholder="Notes\u2026" data-save-key="'+sk+'|'+id+'|'+fid+'">'+esc(idata[fid]||'')+'</textarea></div>';
   }
@@ -13785,7 +13867,7 @@ ukAdminDesc=function(item,idata,billDateISO){
   if(id==='uk_med'){
     var med=(idata.meds&&String(idata.meds).trim().replace(/\n+/g,', '))||'[name of medication]';
     var ph=(idata.prx_dest&&String(idata.prx_dest).trim())||'[pharmacy sourced]';
-    return 'Sourcing and arrangement of medication '+med+' from '+ph+' on '+dt()+'.';
+    return 'Sourcing and arrangement of medication '+med+' from '+ph+' on '+arrDt()+'.';
   }
   if(id==='uk_nurse'){
     var nmC=idata.nu||'[name]';
@@ -13818,7 +13900,20 @@ buildUKCard=function(item,idata,b){
   var purpose=item.id==='uk_nurse_sample'?'sample collection':(item.id==='uk_nurse_ecg'?'ECG / BP monitor fitting':(item.id==='uk_nurse_inj'?'injection / IV drip':(item.id==='uk_nurse'?((Array.isArray(idata.nvt)?idata.nvt:[]).join(', ').toLowerCase()||'home visit'):'')));
   var desc=(idata.adesc&&String(idata.adesc).trim())?idata.adesc:ukAdminDesc(item,idata,b&&b.createdAt);
   var rows=[];var descUsed=false;
-  if(item.id==='doctor_uki'||item.id==='doctor_gli'||item.id==='nurse_uki'||item.id==='nurse_gli'||item.id==='uk_doctor'||item.id==='uk_nurse'||item.id==='uk_scan'||item.id==='uk_lab'){
+  if(item.id==='uk_fee'){
+    // Standalone Fee Settled follow-up — one consolidated row (paid_to + marked-up total),
+    // matching the AED-side efee/gfee fix, instead of the generic per-field fallback below
+    // (which this function has no field-type handlers for at all, so it rendered nothing).
+    var _ukfsPaidTo=(idata.paid_to&&String(idata.paid_to).trim())||'';
+    var _ukfsFee=idata.feepaid;
+    var _ukfsAmt=(_ukfsFee&&parseFloat(_ukfsFee.amount))||0;
+    var _ukfsCur=(_ukfsFee&&_ukfsFee.cur)||'GBP';
+    var _ukfsTotal=_ukfsAmt?Math.round(_ukfsAmt*(1+_settleMk(_ukfsCur))*100)/100:0;
+    var _ukfsDesc=(idata.desc&&String(idata.desc).trim())||'';
+    var _ukfsSub=(_ukfsPaidTo?'Paid to '+_ukfsPaidTo:'')+(_ukfsDesc?(_ukfsPaidTo?' — ':'')+_ukfsDesc:'');
+    rows.push({label:'Fee Settled',amount:_ukfsTotal,cur:_ukfsCur,sub:_ukfsSub||undefined});
+    descUsed=true;
+  } else if(item.id==='doctor_uki'||item.id==='doctor_gli'||item.id==='nurse_uki'||item.id==='nurse_gli'||item.id==='uk_doctor'||item.id==='uk_nurse'||item.id==='uk_scan'||item.id==='uk_lab'){
     // Physician Services fee lines now have real structure (Standard/Extended/Follow up,
     // toggle-gated admin, itemised Stat Medication) that only ukItemLines knows how to
     // compute correctly — delegate to it here instead of duplicating that logic a second
