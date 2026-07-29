@@ -1880,7 +1880,7 @@ function calcBillGrandTotal(b){
     SECS[sk].items.forEach(function(item){
       var idata=sdata[item.id];if(!idata)return;
       // Doc consultation
-      if(item.id==='ic'){total+=calcDocFee(idata['ct']||'Brief',idata['ch']||'In Hours',b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);}
+      if(item.id==='ic'&&!idata['no_consult']){total+=calcDocFee(idata['ct']||'Brief',idata['ch']||'In Hours',b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);}
       // Physician Services (ic) — admin/concierge/stat-med all go through one shared function
       if(item.id==='ic'){var _icFees=icAdminFees(idata);total+=_icFees.phys+_icFees.concierge+_icFees.statMed;}
       // Nursing Services (inv, env) — admin/concierge/stat-med all go through one shared function
@@ -2416,10 +2416,11 @@ var SECS={
 int:{label:'UAE Internal Care Coordination',sub:'Amara team — no markup',col:'#5A7A55',bg:'#EDF0EA',items:[
  {id:'ic',label:"Physician Services",fields:[
   {id:'dn',l:'Physician',t:'doctorsel'},
-  {id:'ch',l:'Consultation Hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'g1'},
-  {id:'ct',l:'Consultation Type',t:'sel',o:['Brief','Standard','Extended'],req:1,grp:'g1'},
-  {id:'dur',l:'Consultation Duration',t:'hours',grp:'g1'},
-  {id:'mode',l:'Consultation Mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment']},
+  {id:'no_consult',l:'No consultation on this bill — Physician Admin Time / Concierge Coordination only',t:'tog'},
+  {id:'ch',l:'Consultation Hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'g1',cond:{f:'no_consult',hasNot:true}},
+  {id:'ct',l:'Consultation Type',t:'sel',o:['Brief','Standard','Extended'],req:1,grp:'g1',cond:{f:'no_consult',hasNot:true}},
+  {id:'dur',l:'Consultation Duration',t:'hours',grp:'g1',cond:{f:'no_consult',hasNot:true}},
+  {id:'mode',l:'Consultation Mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment'],cond:{f:'no_consult',hasNot:true}},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'hospital',l:'Facility / Location',t:'txt'},
   {id:'ph',l:'Phlebotomy fee (AED 75)',t:'tog',n:'Only if there are blood samples'},
@@ -3486,7 +3487,7 @@ function render(){
           var has=item.fields.some(function(f){var v=idata[f.id];return v&&(Array.isArray(v)?v.length>0:typeof v==='object'&&v&&v.amount?parseFloat(v.amount)>0:v!==false&&v!=='');});
           if(!has)return;
           itemNames.push((sk==='ext'?'[Ext] ':'')+item.label);
-          if(item.id==='ic'){rptTotal+=calcDocFee(idata['ct']||'Brief',idata['ch']||'In Hours',b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);}
+          if(item.id==='ic'&&!idata['no_consult']){rptTotal+=calcDocFee(idata['ct']||'Brief',idata['ch']||'In Hours',b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);}
           if(['is','ie','ii','inv'].includes(item.id)){rptTotal+=FEES.nurse[idata['nv']||'In Hours']||0;}
           if(['es','ee','ei'].includes(item.id)&&(idata['nf']===true||idata['nf']==='true')){rptTotal+=FEES.nurse[idata['nv']||'In Hours']||0;}
           // Phlebotomy
@@ -4319,16 +4320,15 @@ function _nurseVisitPurpose(idata){
 function _referralClause(idata){
   var isOn=idata.rf===true||idata.rf==='true'||idata.ref==='In Hours'||idata.ref==='Out of Hours';
   if(!isOn)return '';
-  var dest=(idata.hospital&&String(idata.hospital).trim())||'[facility]';
-  var detail=(idata.rf_detail&&String(idata.rf_detail).trim())||'[what needs to be taken]';
-  var whenDate=_fmtDDMonYY(idata.rf_when)||'[DD-MON-YY]';
-  return ' Referral letter prepared and sent to '+dest+' for the following '+detail+' to be taken '+whenDate+'.';
+  var dest=(idata.hospital&&String(idata.hospital).trim())||'';
+  var detail=(idata.rf_detail&&String(idata.rf_detail).trim())||'';
+  var whenDate=_fmtDDMonYY(idata.rf_when)||'';
+  var s=' Referral letter prepared'+(dest?' and sent to '+dest:'');
+  if(detail)s+=' for the following '+detail;
+  if(whenDate)s+=' to be taken '+whenDate;
+  return s+'.';
 }
-function autoFillAdminDesc(sk,itemId){
-  var idata=(curBill.billingData[sk]&&curBill.billingData[sk][itemId])||{};
-  var existing=String(idata['adesc']||'').trim();
-  // Don't overwrite if user has custom text (no placeholders, not our template)
-  if(existing&&!isAutoDesc(existing))return;
+function _computeAdminDesc(itemId,idata,billDateFallback){
   var nu=idata['nu']||'';var nv=idata['nv']||'';var cn=idata['cn']||'';
   var hospital=idata['hospital']||idata['facility']||'';var scanname=idata['scanname']||'';
   var ct=idata['ct']||'';var ch=idata['ch']||'';var mode=idata['mode']||'';
@@ -4400,7 +4400,7 @@ function autoFillAdminDesc(sk,itemId){
   else if(['em'].includes(itemId)){
     var medStr=meds||'[medication name]';
     var pharmStr=prxd||'[pharmacy sourced]';
-    var invDate=_fmtDDMonYY(curBill.billDate||curBill.createdAt)||'[DD-MON-YY]';
+    var invDate=_fmtDDMonYY(billDateFallback)||'[DD-MON-YY]';
     desc='Sourcing and arrangement of medication '+medStr+' from '+pharmStr+' on '+invDate+'.';
   }
   // Standalone Medical Concierge Coordination (iadm/eadm/gadm) — not tied to a
@@ -4413,6 +4413,14 @@ function autoFillAdminDesc(sk,itemId){
     var hospStr4=hospital?'at '+hospital:'at [location]';
     desc='End to end arrangements for Medical Concierge Coordination ('+admBits+'), to take place on '+arrDate+' '+hospStr4+'.';
   }
+  return desc;
+}
+function autoFillAdminDesc(sk,itemId){
+  var idata=(curBill.billingData[sk]&&curBill.billingData[sk][itemId])||{};
+  var existing=String(idata['adesc']||'').trim();
+  // Don't overwrite if user has custom text (no placeholders, not our template)
+  if(existing&&!isAutoDesc(existing))return;
+  var desc=_computeAdminDesc(itemId,idata,curBill.billDate||curBill.createdAt);
   if(desc){
     if(!curBill.billingData[sk])curBill.billingData[sk]={};
     if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
@@ -4420,6 +4428,14 @@ function autoFillAdminDesc(sk,itemId){
     var ta=document.querySelector('[data-save-key="'+sk+'|'+itemId+'|adesc"]');
     if(ta)ta.value=desc;
   }
+}
+// Read-only fallback for bill card display: use the saved description if there is one,
+// otherwise compute it fresh from the item's own fields — so a bill never shows a blank
+// description just because nobody happened to trigger the auto-fill while editing it.
+function _displayAdminDesc(itemId,idata,billDateFallback){
+  var existing=(idata&&idata.adesc&&String(idata.adesc).trim())||'';
+  if(existing)return existing;
+  return _computeAdminDesc(itemId,idata||{},billDateFallback)||'';
 }
 function sBF(sk,itemId,fId,val){
   if(!curBill.billingData[sk])curBill.billingData[sk]={};
@@ -5124,11 +5140,13 @@ function buildBillTotal(b){
       // Doctor consultation fee — internal only (external fees entered via feepaid/cf fields)
       if(item.id==='ic'){
         var ct=idata['ct']||'Brief',ch=idata['ch']||'In Hours';
-        var df=calcDocFee(ct,ch,b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);
-        if(df>0){
-          var units=(ct==='Extended'&&idata['dur'])?Math.ceil(Math.max(30,(parseInt(idata['dur'].h)||0)*60+(parseInt(idata['dur'].m)||0))/30):1;
-          lines.push({label:item.label+(ct==='Extended'?' ('+units+' × 30 min)':''),amount:df});
-          grandTotal+=df;
+        if(!idata['no_consult']){
+          var df=calcDocFee(ct,ch,b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);
+          if(df>0){
+            var units=(ct==='Extended'&&idata['dur'])?Math.ceil(Math.max(30,(parseInt(idata['dur'].h)||0)*60+(parseInt(idata['dur'].m)||0))/30):1;
+            lines.push({label:item.label+(ct==='Extended'?' ('+units+' × 30 min)':''),amount:df});
+            grandTotal+=df;
+          }
         }
         // Physician Administrative Time / Medical Concierge Coordination / Stat Medication —
         // all through the single shared icAdminFees function (handles old and new bill structure)
@@ -5504,7 +5522,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
     var fee=fmtFee('cf')||fmtFee('feepaid');
     if(fee){
       summaryRows.push({title:item.label+' fee',desc:summary+' — '+fee,highlight:true});
-    } else if(itemId==='ic'){
+    } else if(itemId==='ic'&&!idata['no_consult']){
       var _vbranch=viewId&&bills.find(function(x){return x.id===viewId;})?bills.find(function(x){return x.id===viewId;}).branch:'UAE';
       var autoFee=calcDocFee(ct,ch,_vbranch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);
       if(autoFee){
@@ -5567,7 +5585,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       var _ccD=idata['adh'];var _ccHtype=idata['adh_h']||'In Hours';
       var _ccStr=(parseInt(_ccD.h)||0)+'h '+(parseInt(_ccD.m)||0)+'min';
       var _ccUnits=fmtAdminUnits(_ccD.h,_ccD.m);
-      var _ccDesc=idata['adesc']?stripTmplLabel(String(idata['adesc'])):'';
+      var _ccDesc=stripTmplLabel(_displayAdminDesc(item.id,idata,null));
       summaryRows.push({title:'Medical Concierge Coordination',desc:_ccHtype+' — '+_ccStr+(_ccUnits?' — '+_ccUnits:'')+(_ccDesc?' · '+_ccDesc:''),fee:_icSM.concierge,highlight:true});
     }
     } // end itemId==='ic' admin/concierge/stat-med block
@@ -5641,7 +5659,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
         var _nvCd=idata['adh'];var _nvCHt=idata['adh_h']||'In Hours';
         var _nvCStr=(parseInt(_nvCd.h)||0)+'h '+(parseInt(_nvCd.m)||0)+'min';
         var _nvCUnits=fmtAdminUnits(_nvCd.h,_nvCd.m);
-        var _nvCDesc=idata['adesc']?stripTmplLabel(String(idata['adesc'])):'';
+        var _nvCDesc=stripTmplLabel(_displayAdminDesc(item.id,idata,null));
         summaryRows.push({title:'Medical Concierge Coordination',desc:_nvCHt+' — '+_nvCStr+(_nvCUnits?' — '+_nvCUnits:'')+(_nvCDesc?' · '+_nvCDesc:''),fee:_nvIC.concierge,highlight:true});
       }
     }
@@ -5731,7 +5749,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
         var _epCd=idata['adh'];var _epCHt=idata['adh_h']||'In Hours';
         var _epCStr=(parseInt(_epCd.h)||0)+'h '+(parseInt(_epCd.m)||0)+'min';
         var _epCUnits=fmtAdminUnits(_epCd.h,_epCd.m);
-        var _epCDesc=idata['adesc']?stripTmplLabel(String(idata['adesc'])):'';
+        var _epCDesc=stripTmplLabel(_displayAdminDesc(item.id,idata,null));
         summaryRows.push({title:'Medical Concierge Coordination',desc:_epCHt+' — '+_epCStr+(_epCUnits?' — '+_epCUnits:'')+(_epCDesc?' · '+_epCDesc:''),fee:_epIC.concierge,highlight:true});
       }
     }
@@ -5916,7 +5934,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       adminFeeAmt=calcAdminFee(_ah,_am,_adhH,al||'Inside UAE','teamAdmin');
       adminCur='AED';
     }
-    var adminDesc=idata['adesc']?stripTmplLabel(String(idata['adesc'])):'';
+    var adminDesc=stripTmplLabel(_displayAdminDesc(item.id,idata,null));
     // Sub: "Inside UAE · In Hours · 30min — 1 unit"
     var _adminSubParts=[];
     if(al)_adminSubParts.push(al);
@@ -6448,12 +6466,15 @@ function rptDoctorArrangements(){
           var resolvedDn=rawDn?_resolveAlias(rawDn):'';
           var isReal=resolvedDn&&_docFullNames.indexOf(resolvedDn)>=0;
           var dn=rawDn?(isReal?resolvedDn:'External / Not on Roster'):'Doctor (unnamed)';
-          var d=gd(dn);if(rawDn&&!isReal)d.isExternal=true;d.consultCount++;
-          var dh=parseInt((idata.dur||{}).h)||0,dm=parseInt((idata.dur||{}).m)||0;
-          var dmins=dh*60+dm;d.consultMins+=dmins;
-          var ch=idata.ch||'In Hours';
-          if(ch.indexOf('Out')>=0)d.consultOOHMins+=dmins;else d.consultIHMins+=dmins;
-          d.consultFeeAED+=calcDocFee(idata.ct||'Brief',ch,b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0;
+          var d=gd(dn);if(rawDn&&!isReal)d.isExternal=true;
+          if(!idata.no_consult){
+            d.consultCount++;
+            var dh=parseInt((idata.dur||{}).h)||0,dm=parseInt((idata.dur||{}).m)||0;
+            var dmins=dh*60+dm;d.consultMins+=dmins;
+            var ch=idata.ch||'In Hours';
+            if(ch.indexOf('Out')>=0)d.consultOOHMins+=dmins;else d.consultIHMins+=dmins;
+            d.consultFeeAED+=calcDocFee(idata.ct||'Brief',ch,b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0;
+          }
           if(idata.ph){var pa=idata.ph==='UAE — AED 75'?75:(idata.ph==='Global — AED 275'?275:(idata.ph===true||idata.ph==='true'?75:0));if(pa){d.phlebCount++;d.phlebAED+=pa;}}
           if(Array.isArray(idata.lw)&&idata.lw.length){var lt=_labTotalFor(idata.lw,reg);d.labCount+=idata.lw.length;d.labTotal+=lt;idata.lw.forEach(function(l){if(d.labTests.indexOf(l)<0)d.labTests.push(l);});}
           if((idata._svcV2?idata.padh_on:idata.padh_on!==false)&&idata.padh&&(parseInt((idata.padh||{}).h)||parseInt((idata.padh||{}).m))){d.physAdminMins+=(parseInt(idata.padh.h)||0)*60+(parseInt(idata.padh.m)||0);d.physAdminAED+=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours','Inside UAE','physAdmin')||0;}
@@ -6840,7 +6861,7 @@ function rptUnifiedTable(){
         if(item.id==='ic'){
           var docKey=(idata.dn&&String(idata.dn).trim())||billerKey;
           var dM=g(docKey);dM.docConsults++;
-          dM.consultAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0;
+          dM.consultAED+=(!idata.no_consult)?(calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0):0;
           if(idata.padh)dM.adminAED+=calcAdminFee(idata.padh.h,idata.padh.m,idata.padh_h||'In Hours','Inside UAE','physAdmin')||0;
           if(idata.adh){m.adminAED+=calcAdminFee(idata.adh.h,idata.adh.m,idata.adh_h||idata.ph2||'In Hours',idata.al||'Inside UAE','teamAdmin')||0;m.adminMins+=(parseInt(idata.adh.h)||0)*60+(parseInt(idata.adh.m)||0);}
         } else {
@@ -7032,14 +7053,16 @@ function rptTeamRevenue(){
             // into the field) — this money belongs with the concierge, not a fake doctor row.
             // Routed into Fee Settled specifically, since that's already summed and visible,
             // rather than a field with no column to explain where the money went.
-            m.feeSettledAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0;
+            if(!idata.no_consult)m.feeSettledAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0;
             _billIsExternal=true;
           } else {
             var docKey=rawDoc?_resolvedDoc:('Doctor (unnamed — '+(b.patientName||'?')+')');
             ownerM=g(docKey);ownerM.cat='doctor';ownerIsNamed=true;
             if(ownerM.billIds.indexOf(b.id)<0){ownerM.bills++;ownerM.billIds.push(b.id);}
-            ownerM.consultAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0;
-            if(idata.dur){var dh=parseInt(idata.dur.h)||0,dm=parseInt(idata.dur.m)||0;var dmins=dh*60+dm;ownerM.consultMins+=dmins;if((idata.ch||'').indexOf('Out')>=0)ownerM.consultOOHMins+=dmins;else ownerM.consultIHMins+=dmins;}
+            if(!idata.no_consult){
+              ownerM.consultAED+=calcDocFee(idata.ct||'Brief',idata.ch||'In Hours',b.branch,idata.dur&&idata.dur.h,idata.dur&&idata.dur.m,idata)||0;
+              if(idata.dur){var dh=parseInt(idata.dur.h)||0,dm=parseInt(idata.dur.m)||0;var dmins=dh*60+dm;ownerM.consultMins+=dmins;if((idata.ch||'').indexOf('Out')>=0)ownerM.consultOOHMins+=dmins;else ownerM.consultIHMins+=dmins;}
+            }
           }
         }
         if(isExternalDoc){
@@ -7409,8 +7432,10 @@ function rptTeamReport(){
         if(item.id==='ic'){
           var docKey=normName(idata.dn||'')||'Unassigned Doctor';
           var dD=getTS(docKey);
-          dD.docConsults++;
-          if(idata.dur){var dh=parseInt(idata.dur.h)||0,dm=parseInt(idata.dur.m)||0;var dmins=dh*60+dm;var dch=idata.ch||'In Hours';dD.docConsultMins+=dmins;if(dch.indexOf('Out')>=0)dD.docOOHMins+=dmins;else dD.docIHMins+=dmins;}
+          if(!idata.no_consult){
+            dD.docConsults++;
+            if(idata.dur){var dh=parseInt(idata.dur.h)||0,dm=parseInt(idata.dur.m)||0;var dmins=dh*60+dm;var dch=idata.ch||'In Hours';dD.docConsultMins+=dmins;if(dch.indexOf('Out')>=0)dD.docOOHMins+=dmins;else dD.docIHMins+=dmins;}
+          }
           if(idata.padh){var pah=parseInt(idata.padh.h)||0,pam=parseInt(idata.padh.m)||0;var pamins=pah*60+pam;var paht=idata.padh_h||'In Hours';dD.physAdminMins+=pamins;dD.physAdminFeeAED+=calcAdminFee(idata.padh.h,idata.padh.m,paht,'Inside UAE','physAdmin');}
         }
         // External consultation: credited to the external consultant (keeps it off the concierge)
@@ -7824,7 +7849,7 @@ function rptTable(title,obj,clickType){
       var t=0;
       for(var sk in SECS){var sdata=b.billingData&&b.billingData[sk];if(!sdata)continue;
         SECS[sk].items.forEach(function(item){var idata=sdata[item.id];if(!idata)return;
-          if(item.id==='ic'){var df=calcDocFee(idata['ct']||'Brief',idata['ch']||'In Hours',b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);t+=df;}
+          if(item.id==='ic'&&!idata['no_consult']){var df=calcDocFee(idata['ct']||'Brief',idata['ch']||'In Hours',b.branch,idata['dur']&&idata['dur'].h,idata['dur']&&idata['dur'].m,idata);t+=df;}
           if(['is','ie','ii','inv'].includes(item.id)){t+=FEES.nurse[idata['nv']||'In Hours']||0;}
           ['feepaid','sf','cf'].forEach(function(fk){var fv=idata[fk];if(fv&&parseFloat(fv.amount)&&(fv.cur||'AED')==='AED')t+=parseFloat(fv.amount)||0;});
           if(idata['adh']){t+=calcAdminFee(idata['adh'].h,idata['adh'].m,idata['ph2']||'In Hours',idata['al']||'Inside UAE','teamAdmin');}
