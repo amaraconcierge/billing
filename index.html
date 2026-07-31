@@ -2826,6 +2826,48 @@ function ini(n){return(n||'?').split(' ').map(function(w){return w[0]||'';}).fil
 // ═══════════════════════════════════════════════════════════════
 function setSS(st,m){document.getElementById('sdot').className='sdot'+(st==='sy'?' sy':st==='er'?' er':'');document.getElementById('slbl').textContent=m||'';}
 function gDB(){if(!db){if(typeof supabase==='undefined'){setSS('er','Loading…');return null;}try{db=supabase.createClient(SURL,SKEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'amara_session'}});}catch(e){setSS('er','Connection error');return null;}}return db;}
+function _rowToBill(x){
+  var bd=(typeof x.billing_data==='string'?JSON.parse(x.billing_data||'{}'):(x.billing_data||{}));
+  return{id:x.id,patientName:x.patient_name||'',branch:x.branch||'UAE',status:x.status||'Draft',billedBy:x.assigned_to||'',notes:x.notes||'',billTo:bd._billTo||'',invoiceNo:x.invoice_no||'',soNumber:bd._soNumber||'',_teamStatus:bd._teamStatus||'',billingData:bd,createdAt:x.created_at,updatedAt:x.updated_at};
+}
+// Applies one real-time change (insert/update/delete) directly to the local bills
+// array, instead of re-fetching the entire table on every single change anywhere —
+// this is the fix for the Supabase egress overage: the old handler ignored the
+// change payload entirely and just re-downloaded everything, every time, for every
+// connected tab. This version uses the payload Supabase already sends us.
+//
+// Safety: if the bill being changed is the exact one currently open for editing,
+// the update is skipped — an in-progress, unsaved edit must never be silently
+// overwritten by an incoming row from elsewhere. Every OTHER bill still updates
+// live in the background even while one bill is being edited, which is actually
+// more precise than the old blanket "any modal open = skip everything" check.
+// Any unexpected payload shape falls back to a full dbLoad() rather than risk
+// applying a bad partial update.
+function _applyBillChange(payload){
+  try{
+    if(!payload)return;
+    var et=payload.eventType;
+    if(et==='DELETE'){
+      var delId=payload.old&&payload.old.id;
+      if(!delId)return;
+      if(curBill&&curBill.id===delId&&_busy())return;
+      bills=bills.filter(function(b){return b.id!==delId;});
+    } else if(et==='INSERT'||et==='UPDATE'){
+      var row=payload.new;
+      if(!row||!row.id)return;
+      if(curBill&&curBill.id===row.id&&_busy())return;
+      var updated=_rowToBill(row);
+      var idx=bills.findIndex(function(b){return b.id===row.id;});
+      if(idx>=0)bills[idx]=updated;
+      else bills=[updated].concat(bills);
+    } else {
+      return; // unrecognised event type — do nothing rather than guess
+    }
+    updCts();render();refreshPatientsPage();
+  }catch(e){
+    if(!_busy())dbLoad(); // never let a malformed payload silently desync the app
+  }
+}
 async function dbLoad(){
   var d=gDB();if(!d)return;setSS('sy','Syncing…');
   try{
@@ -2844,10 +2886,7 @@ async function dbLoad(){
       if(chunk.length<BATCH)break;
       from+=BATCH;
     }
-    bills=allBillRows.map(function(x){
-      var bd=(typeof x.billing_data==='string'?JSON.parse(x.billing_data||'{}'):(x.billing_data||{}));
-      return{id:x.id,patientName:x.patient_name||'',branch:x.branch||'UAE',status:x.status||'Draft',billedBy:x.assigned_to||'',notes:x.notes||'',billTo:bd._billTo||'',invoiceNo:x.invoice_no||'',soNumber:bd._soNumber||'',_teamStatus:bd._teamStatus||'',billingData:bd,createdAt:x.created_at,updatedAt:x.updated_at};
-    });
+    bills=allBillRows.map(_rowToBill);
     var allPatRows=[];
     var pfrom=0;
     while(true){
@@ -3095,9 +3134,15 @@ function APP_INIT(){
   // Always render empty state immediately so buttons work even before DB responds
   renderStats();render();refreshPatientsPage();
   dbLoad().catch(function(e){setSS('er','Offline');render();});
-  try{var d=gDB();if(d)d.channel('chg').on('postgres_changes',{event:'*',schema:'public',table:'bills'},function(){if(!_busy())dbLoad();}).subscribe();}catch(e){}
-  // Resilience: polling fallback + reconnect-aware refresh + crash recovery
-  if(!window._amaraPoll){window._amaraPoll=setInterval(function(){if(!document.hidden&&!_busy())dbLoad();},20000);}
+  try{var d=gDB();if(d)d.channel('chg').on('postgres_changes',{event:'*',schema:'public',table:'bills'},function(payload){_applyBillChange(payload);}).subscribe();}catch(e){}
+  // Resilience: reconnect-aware refresh + crash recovery. The 20-second polling
+  // interval that used to live here has been removed — it was re-downloading the
+  // entire bills table every 20 seconds in every open tab regardless of whether
+  // anything had changed, which was the dominant cause of a Supabase egress
+  // overage. The real-time subscription above now handles live updates precisely
+  // (one changed bill, not the whole table), and the safety-net full syncs below
+  // (tab refocus, coming back online) remain exactly as they were, for anything
+  // the real-time channel might miss during a brief disconnect.
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&!_busy())dbLoad();});
   window.addEventListener('focus',function(){if(!_busy())dbLoad();});
   window.addEventListener('online',function(){setSS('sy','Reconnecting…');dbLoad();});
