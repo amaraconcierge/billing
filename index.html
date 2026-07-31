@@ -4215,9 +4215,11 @@ function renderDF(sk,itemId,f,val){
     var fv=val||{cur:'AED',amount:''};
     var _rrPresets='';
     if(fid_==='rr'&&(id_==='gep'||id_==='uep')){
+      var _rrType=(curBill.billingData[sk_]&&curBill.billingData[sk_][id_]&&curBill.billingData[sk_][id_].rrType)||'';
       _rrPresets='<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">'+
-        '<button type="button" class="chip" onclick="setReReportPreset(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',800,\'GBP\')">Full body MRI \u2014 London expert (GBP 800)</button>'+
-        '<button type="button" class="chip" onclick="setReReportPreset(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',500,\'GBP\')">Single scan \u2014 London expert (GBP 500)</button>'+
+        '<button type="button" class="chip'+(_rrType==='full_body_mri'?' on':'')+'" onclick="setReReportPreset(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',800,\'GBP\',\'full_body_mri\')">Full body MRI \u2014 London expert (GBP 800)</button>'+
+        '<button type="button" class="chip'+(_rrType==='single_scan'?' on':'')+'" onclick="setReReportPreset(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',500,\'GBP\',\'single_scan\')">Single scan \u2014 London expert (GBP 500)</button>'+
+        '<button type="button" class="chip'+(_rrType==='custom'?' on':'')+'" onclick="setReReportPreset(\''+sk_+'\',\''+id_+'\',\''+fid_+'\',null,null,\'custom\')">Custom fee\u2026</button>'+
         '</div>';
     }
     return '<div class="dr"><div class="dl">'+f.l+' '+rq+'</div>'+_rrPresets+
@@ -4532,8 +4534,10 @@ function sBF(sk,itemId,fId,val){
   }
   renderBForm();
 }
-function setReReportPreset(sk,itemId,fId,amount,cur){
-  sBF(sk,itemId,fId,{amount:String(amount),cur:cur});
+function setReReportPreset(sk,itemId,fId,amount,cur,rrType){
+  var existing=(curBill.billingData[sk]&&curBill.billingData[sk][itemId]&&curBill.billingData[sk][itemId][fId])||{};
+  var newVal=(amount==null)?{amount:existing.amount||'',cur:existing.cur||cur||'GBP',rrType:rrType}:{amount:String(amount),cur:cur,rrType:rrType};
+  sBF(sk,itemId,fId,newVal);
 }
 function sBFH(sk,itemId,fId,subKey,val){
   // Set a sub-key on an hours object: sBFH(sk,id,'padh','h','2')
@@ -5836,8 +5840,9 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       summaryRows.push({title:'Diagnostic Referral Sent to '+(hosp||'[facility]'),desc:(scanDesc?scanDesc+' · ':'')+rfDispH+(rfDispLoc?' · '+rfDispLoc:''),fee:rfAmt,highlight:true});
       _scanFolded=true;
     }
-    if(rr===true||rr==='true'){
-      summaryRows.push({title:'Medical Report Review & Re-reporting Fee (UK)',desc:_scanFolded?'Scan re-reported by UK radiologist':(scanDesc?scanDesc+' · ':'')+'Scan re-reported by UK radiologist',fee:FEES.reReport||500,highlight:true});
+    if(rr&&parseFloat(rr.amount)>0){
+      var _rrTypeLabelEp=(rr.rrType==='full_body_mri')?' \u2014 Field expert reporting, full body scan':(rr.rrType==='single_scan')?' \u2014 Field expert reporting, single scan':'';
+      summaryRows.push({title:'Medical Report Review & Re-reporting Fee'+_rrTypeLabelEp,desc:_scanFolded?'Scan re-reported by UK radiologist':(scanDesc?scanDesc+' · ':'')+'Scan re-reported by UK radiologist',fee:parseFloat(rr.amount),amtCur:rr.cur||'AED',highlight:true});
       _scanFolded=true;
     }
     if(!_scanFolded&&scanDesc)summaryRows.push({title:'Diagnostic Imaging / Procedure Coordination',desc:scanDesc,highlight:!!fee});
@@ -5990,7 +5995,13 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       if(['pl','prx_dest','al','adh','adh_h','adesc','lw','labwhere','co','ct','ct2','rf_h','rf_l'].includes(f.id))return;
       var v=idata[f.id];if(!v&&v!==true)return;
       var vs=bvFieldVal(f,v,idata);if(!vs)return;
-      if(f.t==='feefield')summaryRows.push({title:f.l,desc:vs,highlight:true});
+      if(f.t==='feefield'){
+        var _titleWithType=f.l;
+        if(f.id==='rr'&&v&&v.rrType){
+          _titleWithType+=(v.rrType==='full_body_mri')?' \u2014 Field expert reporting, full body scan':(v.rrType==='single_scan')?' \u2014 Field expert reporting, single scan':'';
+        }
+        summaryRows.push({title:_titleWithType,desc:vs,highlight:true});
+      }
       else summaryRows.push({title:f.l,desc:vs});
     });
     // Lab + labwhere
@@ -12359,7 +12370,7 @@ function ukExternalItems(){
         {id:'al',l:'Coordination Location',t:'sel',o:['Local','International'],cond:{f:'adh_on',has:true},grp:'g2'},
         {id:'adh_h',l:'Coordination Hours',t:'sel',o:['In Hours','Out of Hours'],cond:{f:'adh_on',has:true},grp:'g2'},
         {id:'adh',l:'Coordination Duration',t:'hours',cond:{f:'adh_on',has:true},grp:'g2'},
-        {id:'adesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}},
+        {id:'ccdesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}},
         {id:'docnotes',l:'Consultation notes',t:'mta'}
       ],
       prices:{ref:{'In Hours':75,'Out of Hours':95}},
@@ -12393,7 +12404,7 @@ function ukExternalItems(){
         {id:'adh_on',l:'Medical Concierge Coordination',t:'tog'},
         {id:'adh_h',l:'Coordination Hours',t:'sel',o:['In Hours','Out of Hours'],cond:{f:'adh_on',has:true},grp:'g_adh'},
         {id:'adh',l:'Coordination Duration',t:'hours',cond:{f:'adh_on',has:true},grp:'g_adh'},
-        {id:'adesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}}
+        {id:'ccdesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}}
       ],
       prices:{nurse:{'In Hours':275,'Out of Hours':375}, phleb:{'__on':55}, presc:{'In Hours':75,'Out of Hours':95}, courier:COURIER},
       rates:{},
@@ -12449,7 +12460,7 @@ function ukExternalItems(){
         {id:'adh_on',l:'Medical Concierge Coordination',t:'tog'},
         {id:'adh_h',l:'Coordination Hours',t:'sel',o:['In Hours','Out of Hours'],cond:{f:'adh_on',has:true},grp:'g_adh'},
         {id:'adh',l:'Coordination Duration',t:'hours',cond:{f:'adh_on',has:true},grp:'g_adh'},
-        {id:'adesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}}
+        {id:'ccdesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}}
       ],
       prices:{ref:{'In Hours':75,'Out of Hours':95}, rr:{'__on':500}},
       rates:{},
@@ -13027,7 +13038,8 @@ function ukItemLines(item,idata){
   // Medical Report Review & Re-reporting Fee — open amount + currency, entered directly
   // by the team rather than a flat guessed value.
   if(item.id==='uk_scan'&&idata.rr&&parseFloat(idata.rr.amount)>0){
-    lines.push({label:'Medical Report Review & Re-reporting Fee',amount:parseFloat(idata.rr.amount),cur:idata.rr.cur||'GBP'});
+    var _rrTypeLabel=(idata.rr.rrType==='full_body_mri')?' \u2014 Field expert reporting, full body scan':(idata.rr.rrType==='single_scan')?' \u2014 Field expert reporting, single scan':'';
+    lines.push({label:'Medical Report Review & Re-reporting Fee'+_rrTypeLabel,amount:parseFloat(idata.rr.amount),cur:idata.rr.cur||'GBP'});
   }
   // Administrative Time / Medical Concierge Coordination — same toggle-gated pattern as
   // uk_nurse/uk_doctor (neither section has a Location field here).
@@ -13557,9 +13569,11 @@ function renderUKField(item,idata,f,sk){
     var _ukfv=idata[fid]||{cur:'GBP',amount:''};
     var _ukRrPresets='';
     if(fid==='rr'&&id==='uk_scan'){
+      var _ukRrType=_ukfv.rrType||'';
       _ukRrPresets='<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">'+
-        '<button type="button" class="chip" onclick="setReReportPreset(\''+sk+'\',\''+id+'\',\''+fid+'\',800,\'GBP\')">Full body MRI \u2014 London expert (GBP 800)</button>'+
-        '<button type="button" class="chip" onclick="setReReportPreset(\''+sk+'\',\''+id+'\',\''+fid+'\',500,\'GBP\')">Single scan \u2014 London expert (GBP 500)</button>'+
+        '<button type="button" class="chip'+(_ukRrType==='full_body_mri'?' on':'')+'" onclick="setReReportPreset(\''+sk+'\',\''+id+'\',\''+fid+'\',800,\'GBP\',\'full_body_mri\')">Full body MRI \u2014 London expert (GBP 800)</button>'+
+        '<button type="button" class="chip'+(_ukRrType==='single_scan'?' on':'')+'" onclick="setReReportPreset(\''+sk+'\',\''+id+'\',\''+fid+'\',500,\'GBP\',\'single_scan\')">Single scan \u2014 London expert (GBP 500)</button>'+
+        '<button type="button" class="chip'+(_ukRrType==='custom'?' on':'')+'" onclick="setReReportPreset(\''+sk+'\',\''+id+'\',\''+fid+'\',null,null,\'custom\')">Custom fee\u2026</button>'+
         '</div>';
     }
     return '<div class="dr"><div class="dl">'+esc(lbl)+'</div>'+_ukRrPresets+
@@ -14008,7 +14022,8 @@ buildUKCard=function(item,idata,b){
     // itself) — this is the fix: these fields already exist and save correctly, they just
     // never made it onto the card for these delegated item types.
     var _padescTxt=(idata.padesc&&String(idata.padesc).trim())||'';
-    var _adescTxt=(idata.adesc&&String(idata.adesc).trim())||'';
+    var _ccFieldId=(['uk_doctor','uk_nurse','uk_scan'].indexOf(item.id)>=0)?'ccdesc':'adesc';
+    var _adescTxt=(idata[_ccFieldId]&&String(idata[_ccFieldId]).trim())||'';
     rows.forEach(function(r){
       if(_padescTxt&&r.label.indexOf('Physician Admin')>=0&&!r.sub)r.sub=_padescTxt;
       else if(_adescTxt&&r.label.indexOf('Medical Concierge Coordination')>=0&&!r.sub)r.sub=_adescTxt;
