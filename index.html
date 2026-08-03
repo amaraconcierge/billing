@@ -2422,7 +2422,7 @@ int:{label:'UAE Internal Care Coordination',sub:'Amara team — no markup',col:'
   {id:'dur',l:'Consultation Duration',t:'hours',grp:'g1',cond:{f:'no_consult',hasNot:true}},
   {id:'mode',l:'Consultation Mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment'],cond:{f:'no_consult',hasNot:true}},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
-  {id:'hospital',l:'Facility / Location',t:'txt'},
+  {id:'hospital',l:'Facility / Location',t:'contactsel'},
   {id:'ph',l:'Phlebotomy fee (AED 75)',t:'tog',n:'Only if there are blood samples'},
   {id:'lw',l:'Laboratory Tests Performed',t:'lab',n:'Ensure lab uses Amara profile (Dubai Lab) and TDL test code for UK'},
   {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel'},
@@ -2493,8 +2493,8 @@ int:{label:'UAE Internal Care Coordination',sub:'Amara team — no markup',col:'
 ]},
 ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85',bg:'#EAEFF3',items:[
  {id:'ec',label:"Physician Services",fields:[
-  {id:'cn',l:'External physician name',t:'txt',req:1,grp:'g1'},
-  {id:'hospital',l:'Facility',t:'txt',grp:'g1'},
+  {id:'cn',l:'External physician name',t:'contactsel',req:1,grp:'g1'},
+  {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'mode',l:'Consultation mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment']},
   {id:'rf',l:'Referral Prepared & Shared',t:'tog',n:'First-time specialist — referral fee applies',grp:'g2'},
@@ -2508,11 +2508,11 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'adesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}}
  ]},
  {id:'env',label:"Nursing Services",fields:[
-  {id:'nu',l:'External Nurse Name',t:'txt'},
+  {id:'nu',l:'External Nurse Name',t:'contactsel'},
   {id:'nvt',l:'Nurse visit type',t:'multi',o:['Sample collection','Device fitting','Medication administration'],req:1},
   {id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
-  {id:'facility',l:'Facility / Location',t:'txt'},
+  {id:'facility',l:'Facility / Location',t:'contactsel'},
   {id:'feepaid',l:'Nurse fee paid (external)',t:'feefield',req:0,n:'Fee paid to the external nurse — enter amount and select currency'},
   {id:'ph',l:'Phlebotomy fee',t:'sel',o:['UAE — AED 75','Global — AED 275'],n:'Only if there are blood samples'},
   {id:'lw',l:'Lab work',t:'lab',n:'Ensure lab uses Amara profile (Dubai Lab) and TDL test code for UK'},
@@ -2535,7 +2535,7 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'nnotes',l:'Notes',t:'mta'}
  ]},
  {id:'es',hidden:true,label:'Nursing Services — Sample Collection',sub:'External nurse visit',fields:[
-  {id:'nu',l:'Nurse name',t:'txt'},
+  {id:'nu',l:'Nurse name',t:'contactsel'},
   {id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'nf',l:'Nurse visit fee',t:'tog'},
   {id:'feepaid',l:'Fee paid for nurse visit',t:'feefield',req:1},
@@ -2549,7 +2549,7 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'ee',hidden:true,label:'Nursing Services — ECG / BP Monitor',sub:'ECG or BP monitor',fields:[
-  {id:'nu',l:'Nurse name',t:'txt'},
+  {id:'nu',l:'Nurse name',t:'contactsel'},
   {id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'nf',l:'Nurse visit fee',t:'tog'},
   {id:'feepaid',l:'Fee paid for nurse / ECG',t:'feefield',req:1},
@@ -2561,14 +2561,14 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'ei',hidden:true,label:'Nursing Services — Injection / Vaccination',sub:'Injection or IV drips',fields:[
-  {id:'nu',l:'Nurse name',t:'txt'},
+  {id:'nu',l:'Nurse name',t:'contactsel'},
   {id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'nf',l:'Nurse visit fee',t:'tog'},
   {id:'feepaid',l:'Fee paid for nurse / injection',t:'feefield',req:1},
   {id:'dur',l:'Time spent',t:'hours'},
   {id:'pl',l:'Prescription location',t:'sel',o:['Local','International']},
   {id:'ph2',l:'Prescription hours',t:'sel',o:['In Hours','Out of Hours']},
-  {id:'prx_dest',l:'Prescription sent to',t:'txt'},
+  {id:'prx_dest',l:'Prescription sent to',t:'contactsel'},
   {id:'if2',l:'Injection / IV drips fee',t:'tog'},
   {id:'al',l:'Admin concierge location',t:'sel',o:['Local','International']},
   {id:'adh',l:'Admin concierge time',t:'hours'},
@@ -2592,13 +2592,13 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'adh_h',l:'Hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'ga'},
   {id:'adh',l:'Admin concierge time',t:'hours',req:1},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
-  {id:'facility',l:'Facility / Location',t:'txt'},
+  {id:'facility',l:'Facility / Location',t:'contactsel'},
   {id:'adesc',l:'Description of work',t:'admintmpl'}
  ]},
  {id:'ep',label:'Diagnostic Imaging and Procedures Services',fields:[
   {id:'rx_dn',l:'Prescribing / Referring Doctor',t:'doctorsel'},
   {id:'scanname',l:'Diagnostic Imaging / Procedure Arranged',t:'txt',req:1,grp:'g1'},
-  {id:'hospital',l:'Facility',t:'txt',grp:'g1'},
+  {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'rf',l:'Diagnostic Referral Fee',t:'tog',n:'Applies to scans & procedures arranged',grp:'g2'},
   {id:'rf_detail',l:'What needs to be taken (referral detail)',t:'txt',cond:{f:'rf',has:true},grp:'g2'},
@@ -2634,7 +2634,7 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel'}
  ]},
  {id:'efee',label:'Fee Settled',followupOnly:true,sub:'Standalone external payment — not tied to a specific consultation or visit item',fields:[
-  {id:'paid_to',l:'Paid To (Provider / Facility)',t:'txt',req:1},
+  {id:'paid_to',l:'Paid To (Provider / Facility)',t:'contactsel',req:1},
   {id:'feepaid',l:'Fee Settled',t:'feefield',req:1},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'desc',l:'What was this for',t:'mta'}
@@ -2642,7 +2642,7 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
 ]},
 extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#EAEFF3',items:[
  {id:'ues',label:'Nurse — Sample Collection',sub:'Sample collection · nurse visit',fields:[
-  {id:'nu',l:'Nurse name',t:'txt'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
+  {id:'nu',l:'Nurse name',t:'contactsel'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'ph',l:'Phlebotomy fee (GBP 55)',t:'tog'},{id:'feepaid',l:'Fee paid to nurse (GBP)',t:'feefield'},
   {id:'dur',l:'Time spent',t:'hours'},{id:'lw',l:'Lab work',t:'lab'},{id:'labwhere',l:'Laboratory',t:'labsel'},
@@ -2661,7 +2661,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
   {id:'adesc',l:'Admin description',t:'admintmpl'}
  ]},
  {id:'uee',label:'Nurse — ECG / BP Monitor',sub:'Device fitting · nurse visit',fields:[
-  {id:'nu',l:'Nurse name',t:'txt'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
+  {id:'nu',l:'Nurse name',t:'contactsel'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'ef',l:'ECG or BP monitor fee',t:'tog'},{id:'feepaid',l:'Fee paid to nurse (GBP)',t:'feefield'},
   {id:'dur',l:'Time spent',t:'hours'},{id:'co',l:'Courier',t:'courieropts'},
@@ -2669,7 +2669,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'uei',label:'Nurse — Injection / Vaccination',sub:'Injection or vaccination · nurse visit',fields:[
-  {id:'nu',l:'Nurse name',t:'txt'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
+  {id:'nu',l:'Nurse name',t:'contactsel'},{id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'if2',l:'Injection or IV drips fee',t:'tog'},{id:'feepaid',l:'Fee paid to nurse (GBP)',t:'feefield'},
   {id:'dur',l:'Time spent',t:'hours'},{id:'co',l:'Courier',t:'courieropts'},
@@ -2678,7 +2678,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
  ]},
  {id:'uep',label:'Scan / Procedure',sub:'External scan or procedure arrangements',fields:[
   {id:'rx_dn',l:'Prescribing / referring doctor',t:'doctorsel'},
-  {id:'scanname',l:'Scan or procedure',t:'txt',req:1},{id:'hospital',l:'Hospital / facility',t:'txt'},
+  {id:'scanname',l:'Scan or procedure',t:'txt',req:1},{id:'hospital',l:'Hospital / facility',t:'contactsel'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'sf',l:'Fee paid (GBP)',t:'feefield',req:1},{id:'rf',l:'Physician referral fee',t:'tog'},
   {id:'rf_h',l:'Referral hours',t:'sel',o:['In Hours','Out of Hours']},{id:'rr',l:'Re-reporting fee',t:'feefield'},
@@ -2686,7 +2686,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
  ]},
  {id:'uec',label:"Doctor's Consultation",sub:'External physician consultation',fields:[
-  {id:'cn',l:'Consultant / doctor name',t:'txt',req:1},{id:'hospital',l:'Hospital / clinic',t:'txt'},
+  {id:'cn',l:'Consultant / doctor name',t:'contactsel',req:1},{id:'hospital',l:'Hospital / clinic',t:'contactsel'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'mode',l:'Consultation type',t:'sel',o:['In clinic','Home visit','Telephone','Virtual consultation'],req:1},
   {id:'cf',l:'Consultation fee (GBP)',t:'feefield'},{id:'rf',l:'Physician referral fee',t:'tog'},
@@ -2698,7 +2698,7 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
   {id:'rx_dn',l:'Prescribing / referring doctor',t:'doctorsel'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'ph2',l:'Prescription hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
-  {id:'prx_dest',l:'Prescription sent to',t:'txt'},{id:'meds',l:'Medications arranged',t:'mta',req:1},
+  {id:'prx_dest',l:'Prescription sent to',t:'contactsel'},{id:'meds',l:'Medications arranged',t:'mta',req:1},
   {id:'feepaid',l:'Fee paid (GBP)',t:'feefield'},{id:'co',l:'Courier',t:'courieropts'},
   {id:'adh',l:'Admin concierge time',t:'hours'},{id:'adh_h',l:'Admin hours type',t:'sel',o:['In Hours','Out of Hours']},
   {id:'adesc',l:'Admin time description',t:'admintmpl'}
@@ -2706,8 +2706,8 @@ extUK:{label:'UK Arrangements',sub:'GBP rates — 5% markup',col:'#355F7A',bg:'#
 ]},
 extGlobal:{label:'Global External Care Coordination',sub:'Custom fees',col:'#9A6A2E',bg:'#F5EEDF',items:[
  {id:'gec',label:"Physician Services",fields:[
-  {id:'cn',l:'External physician name',t:'txt',req:1,grp:'g1'},
-  {id:'hospital',l:'Facility',t:'txt',grp:'g1'},
+  {id:'cn',l:'External physician name',t:'contactsel',req:1,grp:'g1'},
+  {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'mode',l:'Consultation mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment']},
   {id:'rf',l:'Referral Prepared & Shared',t:'tog',grp:'g2'},
@@ -2721,11 +2721,11 @@ extGlobal:{label:'Global External Care Coordination',sub:'Custom fees',col:'#9A6
   {id:'adesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}}
  ]},
  {id:'ges',label:'Nursing Services',fields:[
-  {id:'nu',l:'External Nurse Name',t:'txt'},
+  {id:'nu',l:'External Nurse Name',t:'contactsel'},
   {id:'nvt',l:'Nurse visit type',t:'multi',o:['Sample collection','Device fitting','Medication administration'],req:1},
   {id:'nv',l:'Visit hours',t:'sel',o:['In Hours','Out of Hours']},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
-  {id:'facility',l:'Facility / Location',t:'txt'},
+  {id:'facility',l:'Facility / Location',t:'contactsel'},
   {id:'feepaid',l:'Nurse fee paid (external)',t:'feefield',n:'Fee paid to the external nurse — enter amount and select currency'},
   {id:'ph',l:'Phlebotomy fee',t:'tog'},
   {id:'lw',l:'Laboratory Tests Performed',t:'lab'},
@@ -2751,13 +2751,13 @@ extGlobal:{label:'Global External Care Coordination',sub:'Custom fees',col:'#9A6
   {id:'adh_h',l:'Hours',t:'sel',o:['In Hours','Out of Hours'],req:1},
   {id:'adh',l:'Admin concierge time',t:'hours',req:1},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
-  {id:'facility',l:'Facility / Location',t:'txt'},
+  {id:'facility',l:'Facility / Location',t:'contactsel'},
   {id:'adesc',l:'Description of work',t:'admintmpl'}
  ]},
  {id:'gep',label:'Diagnostic Imaging and Procedures Services',fields:[
   {id:'rx_dn',l:'Prescribing / Referring Doctor',t:'doctorsel'},
   {id:'scanname',l:'Diagnostic Imaging / Procedure Arranged',t:'txt',req:1,grp:'g1'},
-  {id:'hospital',l:'Facility',t:'txt',grp:'g1'},
+  {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'rf',l:'Diagnostic Referral Fee',t:'tog',grp:'g2'},
   {id:'rf_detail',l:'What needs to be taken (referral detail)',t:'txt',cond:{f:'rf',has:true},grp:'g2'},
@@ -2793,7 +2793,7 @@ extGlobal:{label:'Global External Care Coordination',sub:'Custom fees',col:'#9A6
   {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel'}
  ]},
  {id:'gfee',label:'Fee Settled',followupOnly:true,sub:'Standalone external payment — not tied to a specific consultation or visit item',fields:[
-  {id:'paid_to',l:'Paid To (Provider / Facility)',t:'txt',req:1},
+  {id:'paid_to',l:'Paid To (Provider / Facility)',t:'contactsel',req:1},
   {id:'feepaid',l:'Fee Settled',t:'feefield',req:1},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'desc',l:'What was this for',t:'mta'}
@@ -3063,14 +3063,15 @@ function APP_INIT(){
       // Merge: user settings preserved, labs always reset to built-in
       CFG.team=stored.team||CFG.team;
       CFG.doctors=stored.doctors||CFG.doctors;
-      if(stored.partners)CFG.partners=stored.partners;
+      if(stored.partners&&((stored.partners.hospitals||[]).length+(stored.partners.clinicians||[]).length+(stored.partners.pharmacies||[]).length)>0)CFG.partners=stored.partners;
       if(stored.labWorks)CFG.labWorks=stored.labWorks;
       if(stored.patientLinks)CFG.patientLinks=stored.patientLinks;
       if(stored.protPins)CFG.protPins=stored.protPins;
       if(stored.auditLog)CFG.auditLog=stored.auditLog;
-      if(stored.referralLedger)CFG.referralLedger=stored.referralLedger;
+      if(stored.referralLedger&&stored.referralLedger.length>0)CFG.referralLedger=stored.referralLedger;
       if(stored.collections)CFG.collections=stored.collections;
       if(stored.billComments)CFG.billComments=stored.billComments;
+      if(stored.detectedAliases)CFG.detectedAliases=stored.detectedAliases;
       if(stored.patientMeta)CFG.patientMeta=stored.patientMeta;
       CFG.privacyMode=false;
       // SMART STATUS MERGE: built-ins always present, user edits applied on top
@@ -3112,6 +3113,8 @@ function APP_INIT(){
     }catch(e){CFG.labs=BUILTIN_LABS;}
   }
   ensureCoreLists();
+  _seedContacts();
+  _dedupKnownPartners();
   // Stamp identity from auth profile (takes precedence over localStorage)
   if(_authProfile&&_authProfile.display_name){
     _curUser=_authProfile.display_name;
@@ -3133,7 +3136,7 @@ function APP_INIT(){
   popTeam();popStatuses();popBillTo();
   // Always render empty state immediately so buttons work even before DB responds
   renderStats();render();refreshPatientsPage();
-  dbLoad().catch(function(e){setSS('er','Offline');render();});
+  dbLoad().then(function(){return _seedReferralLedger();}).catch(function(e){setSS('er','Offline');render();});
   try{var d=gDB();if(d)d.channel('chg').on('postgres_changes',{event:'*',schema:'public',table:'bills'},function(payload){_applyBillChange(payload);}).subscribe();}catch(e){}
   // Resilience: reconnect-aware refresh + crash recovery. The 20-second polling
   // interval that used to live here has been removed — it was re-downloading the
@@ -3157,6 +3160,166 @@ function _resolveAlias(raw){
   var key=(raw||'').trim().toLowerCase();
   var aliases=CFG.billedByAliases||{};
   return aliases[key]||aliases[raw.trim()]||raw.trim();
+}
+// Scans the actual, live bills for external fee payments — each result carries a real
+// reference back to its source (billId/sectionKey/itemId/fieldName), which is what lets
+// "linking" an entry to a partner also correct the original bill, not just the ledger.
+function _scanBillsForLedger(){
+  var found=[];
+  var ROSTER=(CFG.doctors||[]).map(function(d){return d.toLowerCase();});
+  function scanSection(idataMap,bill,sectionKey,isFU,fuIdx){
+    if(!idataMap)return;
+    Object.keys(idataMap).forEach(function(itemId){
+      var idata=idataMap[itemId];
+      if(!idata||typeof idata!=='object')return;
+      var provider='';var fieldName='';
+      _PROVIDER_FIELDS_FOR_CHECK.forEach(function(pf){
+        if(!provider&&idata[pf]&&String(idata[pf]).trim()){provider=String(idata[pf]).trim();fieldName=pf;}
+      });
+      function record(amt,feeType){
+        if(amt<=0||!provider)return;
+        if(ROSTER.indexOf(provider.toLowerCase())>=0)return; // internal doctor, not a real referral partner
+        found.push({
+          date:(bill.createdAt||'').slice(0,10),partner:provider,patient:bill.patientName||'',region:bill.branch||'',
+          amount:amt,billId:bill.id,sectionKey:isFU?('_fu'+fuIdx):sectionKey,itemId:itemId,fieldName:fieldName,feeType:feeType
+        });
+      }
+      _FEE_FIELDS_FOR_PROVIDER_CHECK.forEach(function(ff){
+        var v=idata[ff];
+        record((v&&typeof v==='object')?parseFloat(v.amount)||0:0,ff);
+      });
+      // Referral Prepared & Shared toggle — a flat fee, not an entered amount, so it has
+      // to be computed the same way the app's own bill totals compute it.
+      if(idata.rf===true||idata.rf==='true'){
+        var isUK=sectionKey==='extUK'||itemId==='uk_doctor'||itemId==='uk_scan';
+        if(isUK){
+          var ukHours=idata.rf_h||idata.when||'In Hours';
+          record((FEES.referralUK&&FEES.referralUK[ukHours])||75,'rf');
+        } else {
+          var loc=idata.al||'Inside UAE';
+          var hrs=idata.rf_h||idata.ch||idata.nv||'In Hours';
+          var key=hrs+'-'+(loc==='International'?'International':loc.indexOf('Inside')===0?'Inside UAE':'Outside UAE');
+          record((FEES.referral&&(FEES.referral[key]||FEES.referral['In Hours-Inside UAE']))||220,'rf');
+        }
+      }
+    });
+  }
+  (bills||[]).forEach(function(b){
+    var bd=b.billingData||{};
+    ['int','ext','extGlobal','intUK','extUK'].forEach(function(sk){scanSection(bd[sk],b,sk,false,0);});
+    (bd._followUps||[]).forEach(function(fu,fi){scanSection(bd['_fu'+fi],b,'',true,fi);});
+  });
+  return found;
+}
+async function _seedReferralLedger(){
+  _pcfg();
+  var hasModernEntries=CFG.referralLedger.some(function(e){return e.billId;});
+  if(CFG.referralLedger.length>0&&hasModernEntries){
+    // Already seeded with modern, billId-bearing entries — possibly already linked or
+    // reviewed by the team. Three safe, additive things happen here, none of which touch
+    // an existing entry's partner name, link, or manually-set status unless it's a name
+    // this exact function already corrected before:
+    // 1) Status correction: Amara's workflow means a fee is only ever recorded once it's
+    //    actually been paid, so any entry still on 'pending' AND never manually confirmed
+    //    (autoStatus:true) gets corrected to 'paid'.
+    // 2) Top-up: re-scans for anything the scan logic didn't capture before (e.g. referral
+    //    toggle fees added later) and adds ONLY genuinely new entries — matched by
+    //    billId+itemId+fieldName+feeType so nothing already present is ever duplicated.
+    // 3) Known-variant auto-linking runs again too — so a newly-added spelling variant
+    //    (like the King's College Hospital ones) gets corrected retroactively, not only
+    //    on a fresh install that had never seeded a ledger before.
+    var changed=false;
+    CFG.referralLedger.forEach(function(e){
+      if(e.status==='pending'&&e.autoStatus!==false){e.status='paid';e.autoStatus=true;changed=true;}
+    });
+    if(bills&&bills.length){
+      var existingKeys={};
+      CFG.referralLedger.forEach(function(e){existingKeys[e.billId+'|'+e.itemId+'|'+e.fieldName+'|'+(e.feeType||'')]=true;});
+      var rescan=_scanBillsForLedger();
+      rescan.forEach(function(e){
+        var key=e.billId+'|'+e.itemId+'|'+e.fieldName+'|'+(e.feeType||'');
+        if(existingKeys[key])return;
+        CFG.referralLedger.push({id:_uid(),date:e.date,partner:e.partner,patient:e.patient,region:e.region,type:'payment',amount:e.amount,status:'paid',autoStatus:true,billId:e.billId,sectionKey:e.sectionKey,itemId:e.itemId,fieldName:e.fieldName,feeType:e.feeType});
+        existingKeys[key]=true;changed=true;
+      });
+    }
+    if(changed)saveCFG();
+    await _autoLinkKnownVariants();
+    return;
+  }
+  if(!bills||!bills.length)return; // nothing to scan yet — dbLoad hasn't populated bills
+  var found=_scanBillsForLedger();
+  CFG.referralLedger=found.map(function(e){
+    return {id:_uid(),date:e.date,partner:e.partner,patient:e.patient,region:e.region,type:'payment',amount:e.amount,status:'paid',autoStatus:true,billId:e.billId,sectionKey:e.sectionKey,itemId:e.itemId,fieldName:e.fieldName,feeType:e.feeType};
+  });
+  await _autoLinkKnownVariants();
+}
+// Known historical spelling variants — the same ones already merged into the contacts
+// list — get auto-linked immediately (and their source bills corrected), rather than
+// sitting in the manual-review queue for something already known. Extracted as its own
+// step so it can run both on first seeding AND as a top-up for anyone already seeded.
+async function _autoLinkKnownVariants(){
+  var KNOWN_VARIANTS={
+    'lighthouse':'lighthouse arabia','med x pharmacy':'medx pharmacy','medx':'medx pharmacy',
+    'mediclinic parkveiew':'mediclinic parkview','prince knightsbridge':'prince pharmacy knightsbridge',
+    'taib':'taib - laboratory','mr colin natali spinal surgeon':'mr colin natali',
+    'diabetes and endocrinology center':'diabetes and endocrinology center dubai',
+    'the london dermatology clinic':'the london dermatology centre',
+    'kch':'king\u2019s college hospital dubai','kings college hospital dubai':'king\u2019s college hospital dubai',
+    'king\u2019s college hospital \u2013 dubai':'king\u2019s college hospital dubai',
+    'king\u0027s college hospital london - dubai':'king\u2019s college hospital dubai'
+  };
+  var canonicalByLower={};
+  ['hospitals','clinicians','pharmacies'].forEach(function(cat){(CFG.partners[cat]||[]).forEach(function(p){canonicalByLower[p.name.toLowerCase()]=p.name;});});
+  for(var i=0;i<CFG.referralLedger.length;i++){
+    var e=CFG.referralLedger[i];
+    var variantKey=(e.partner||'').toLowerCase();
+    var canonicalKey=KNOWN_VARIANTS[variantKey];
+    if(canonicalKey&&canonicalByLower[canonicalKey]&&e.partner!==canonicalByLower[canonicalKey]){
+      await linkLedgerEntry(e.id,canonicalByLower[canonicalKey],null,false);
+    }
+  }
+}
+// Merges known, exact-match duplicate partner entries that may already exist in a user's
+// directory from before this fix (the KCH / King's College Hospital variants were
+// mistakenly seeded as 3 separate entries originally). Safe to run every time — once
+// merged, there's nothing left to find, so this becomes a no-op on subsequent runs.
+function _dedupKnownPartners(){
+  _pcfg();
+  var DUPES=[
+    {cat:'hospitals',names:['kch','kings college hospital dubai','king\u2019s college hospital \u2013 dubai'],canonical:'King\u2019s College Hospital Dubai'}
+  ];
+  var changed=false;
+  DUPES.forEach(function(d){
+    var list=CFG.partners[d.cat]||[];
+    var toRemove=list.filter(function(p){return d.names.indexOf(p.name.toLowerCase())>=0;});
+    if(!toRemove.length)return;
+    var keep=list.find(function(p){return p.name===d.canonical;})||toRemove[0];
+    if(keep.name!==d.canonical)keep.name=d.canonical;
+    CFG.partners[d.cat]=list.filter(function(p){return p.id===keep.id||toRemove.indexOf(p)<0;});
+    // Re-point any ledger entries that referenced a removed duplicate's exact name
+    (CFG.referralLedger||[]).forEach(function(e){
+      if(d.names.indexOf((e.partner||'').toLowerCase())>=0)e.partner=d.canonical;
+    });
+    changed=true;
+  });
+  if(changed)saveCFG();
+}
+function _seedContacts(){
+  _pcfg();
+  // Migrates the team's curated referral list (merged with providers found in real bill
+  // history) directly into the existing Partners directory (hospitals/clinicians/pharmacies)
+  // rather than a separate list — one source of truth. Runs once: if the Partners directory
+  // already has real entries, this does nothing, so it never overwrites anything the team
+  // has already added by hand.
+  if((CFG.partners.hospitals.length+CFG.partners.clinicians.length+CFG.partners.pharmacies.length)>0)return;
+  // n=name, t=type, sp=specialty, r=region, no=notes.
+  var _seed=[{n:'American Hospital Dubai',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Andrew Goldberg OBE',t:'Clinician',sp:'Orthopaedic Surgery',r:'UK',no:''},{n:'Andy Roche',t:'Clinician',sp:'Consultant Foot and Ankle Surgeon',r:'UK',no:''},{n:'Anu',t:'Clinician',sp:'Psych',r:'UAE',no:''},{n:'Barraquer Eye Hospital',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Barry Cane - Simon Recommendation',t:'Clinician',sp:'Physiotherapist',r:'UK',no:''},{n:'Burjeel Hospital',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Childrens Orthopaedics at Portland Hospital (HCA)',t:'Hospital',sp:'',r:'UK',no:''},{n:'Cleveland Clinic Abu Dhabi',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Diabetes and Endocrinology Center Dubai',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Dr Aleksandar Godic',t:'Clinician',sp:'Consultant Dermatologist',r:'UK',no:''},{n:'Dr Balazs Hodosi',t:'Clinician',sp:'Consultant Dermatologist',r:'UAE',no:''},{n:'Dr Bushra',t:'Clinician',sp:'Paedeatrician - home visit.',r:'UK',no:''},{n:'Dr Colin Ainley',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr David Lipkin',t:'Clinician',sp:'Private Clinic',r:'UK',no:''},{n:'Dr Edward Douek',t:'Clinician',sp:'Paedeatrician',r:'UK',no:''},{n:'Dr Elia Maalouf',t:'Clinician',sp:'Paedeatrician - home visit (he is selective) and in clinic',r:'UK',no:''},{n:'Dr Elisa Betran',t:'Clinician',sp:'Ophthalmologist',r:'UAE',no:''},{n:'Dr Farha Khalil',t:'Clinician',sp:'Consultant Dermatologist',r:'UAE',no:''},{n:'Dr Farooq Rahman',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr George Webster',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr Guy Chung-Faye',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr Jawad Bashir',t:'Clinician',sp:'Consultant Endocrinologist, Diabetologist',r:'UAE',no:''},{n:'Dr John O\'Connell',t:'Clinician',sp:'Paedeatrician - home visit or in clinic.',r:'UK',no:''},{n:'Dr Joseph Kwan',t:'Clinician',sp:'Consultant Neurologist + stroke expert',r:'UK',no:''},{n:'Dr Joy Dental – Dubai',t:'Clinician',sp:'',r:'UAE',no:''},{n:'Dr Joyce Locke-Tse Wong',t:'Clinician',sp:'Cardiologist',r:'UK',no:''},{n:'Dr Jyothish George',t:'Clinician',sp:'Specialist Dermatologist & Director ‑ Homecare Services',r:'UAE',no:''},{n:'Dr Kapil Bhargava',t:'Clinician',sp:'Dermatology',r:'UK',no:''},{n:'Dr Laura Proudfoot',t:'Clinician',sp:'Dermatology',r:'UK',no:''},{n:'Dr Lisa Das',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr Liza Wong',t:'Clinician',sp:'Cardiologist',r:'UAE',no:''},{n:'Dr Marousa Pavlou PhD BSc',t:'Clinician',sp:'Consultant vestibular physiotherapist',r:'UK',no:''},{n:'Dr Martin Moody',t:'Clinician',sp:'Consultant Urology',r:'UAE',no:''},{n:'Dr Mehmoud Butt',t:'Clinician',sp:'Cardiologist',r:'UAE',no:''},{n:'Dr Michael Chapman',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr Murali Subramaniam',t:'Clinician',sp:'Consultant Vascular Surgeon',r:'UAE',no:''},{n:'Dr Nicholas Wake',t:'Clinician',sp:'',r:'UK',no:''},{n:'Dr Rakesh Patalay',t:'Clinician',sp:'Consultant dermatologist and dermatology surgeon',r:'UK',no:''},{n:'Dr Robert Smith',t:'Clinician',sp:'Interventional Cardiologist',r:'UK',no:''},{n:'Dr Sakina Koubeh',t:'Clinician',sp:'Consultant Endocrinologist',r:'UAE',no:''},{n:'Dr Sam Firoozi',t:'Clinician',sp:'Interventional Cardiologist',r:'UK',no:''},{n:'Dr Saqib Bashir',t:'Clinician',sp:'Consultant Dermatologist',r:'UK',no:''},{n:'Dr Sean Preston',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr Simona Lampariello',t:'Clinician',sp:'Paedeatrician',r:'UK',no:''},{n:'Dr Susie Morris',t:'Clinician',sp:'Consultant Dermatologist',r:'UK',no:''},{n:'Dr Syed Babar',t:'Clinician',sp:'Radiology interpretation',r:'UK',no:''},{n:'Dr Tanya Dharamshi',t:'Clinician',sp:'',r:'UAE',no:''},{n:'Dr Vittorio Gherardi',t:'Clinician',sp:'Principal Dentist',r:'UK',no:''},{n:'Dr Voi Shim Wong',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr Wolfgang Muller',t:'Clinician',sp:'Paedeatrician - home visit.',r:'UK',no:''},{n:'Dr. Abdul Aleem',t:'Clinician',sp:'Consultant ENT',r:'UAE',no:''},{n:'Dr. Abtehale Alhussaini',t:'Clinician',sp:'Consultant general and interventional cardiologist',r:'UK',no:''},{n:'Dr. Adam Friedmann',t:'Clinician',sp:'Consultant dermatologist',r:'UK',no:''},{n:'Dr. Alessandro Terruzzi',t:'Clinician',sp:'Consultant Neurologist',r:'UAE',no:''},{n:'Dr. Alexandra Deduchova',t:'Clinician',sp:'Gastroenterology / Hepatology',r:'UAE',no:''},{n:'Dr. Alina Mugnani Deza',t:'Clinician',sp:'Ophthalmologist',r:'UAE',no:''},{n:'Dr. Ameer Azaz',t:'Clinician',sp:'Consultant Paediatrician',r:'UAE',no:''},{n:'Dr. Carmello Barbaccia',t:'Clinician',sp:'Consultant ENT',r:'UAE',no:''},{n:'Dr. Daron Smith',t:'Clinician',sp:'Consultant Urologist',r:'UK',no:''},{n:'Dr. Indira Kanan',t:'Clinician',sp:'Consultant Anaesthetists',r:'UAE',no:''},{n:'Dr. Ioannis Delipalas',t:'Clinician',sp:'Consultant Physchiatrist',r:'UAE',no:''},{n:'Dr. Jyoti Shetye',t:'Clinician',sp:'',r:'UAE',no:''},{n:'Dr. Jyoti Taneja at The Evewell',t:'Clinician',sp:'Consultant Gynaecologist',r:'UK',no:''},{n:'Dr. Kalpa De Silva',t:'Clinician',sp:'Interventional Cardiologist',r:'UK',no:''},{n:'Dr. Karolina Gholam',t:'Clinician',sp:'Paediatric Dermatologist',r:'UK',no:''},{n:'Dr. Luciano Tracia',t:'Clinician',sp:'Plastic Reconstructive & Cosmetic Surgeon',r:'UAE',no:''},{n:'Dr. Manjunatha Ganiga Srinivasaiah',t:'Clinician',sp:'Ortho Surgeon',r:'UAE',no:''},{n:'Dr. Marta Calatayud',t:'Clinician',sp:'Ophthalmologist',r:'UAE',no:''},{n:'Dr. Maryam Alshehhi',t:'Clinician',sp:'Pediatrics Clinical Genetics',r:'UAE',no:''},{n:'Dr. Mohammad Al Thahyabut',t:'Clinician',sp:'',r:'UAE',no:''},{n:'Dr. Nida Chammas',t:'Clinician',sp:'Paediatric Endocrinologist',r:'UK',no:''},{n:'Dr. Omid Sobhani',t:'Clinician',sp:'Dentist',r:'UK',no:''},{n:'Dr. Paollo Cellocco',t:'Clinician',sp:'Consultant Orthopaedic Surgeon',r:'UAE',no:''},{n:'Dr. Roberto Puxeddu',t:'Clinician',sp:'Consultant ENT',r:'UAE',no:''},{n:'Dr. Simon Peake',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Dr. Soraya Farah',t:'Clinician',sp:'Consultant Obstetrician',r:'UAE',no:''},{n:'Dr. Susan Hill',t:'Clinician',sp:'Consultant Paediatric Gastroenterologist',r:'UK',no:''},{n:'Dr. Tabi Leslie',t:'Clinician',sp:'Consultant Dermatologist',r:'UK',no:''},{n:'Dr. Tanya Dharamshi',t:'Clinician',sp:'',r:'UAE',no:''},{n:'Dr. Tiernan Byrnes',t:'Clinician',sp:'Specialist Neurosurgeon',r:'UAE',no:''},{n:'Dubai London Clinic and Speciality Hospital',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Eleni Mavrides',t:'Clinician',sp:'Consultant Gynaecologist',r:'UK',no:''},{n:'Freiburg Medical Lab',t:'Laboratory',sp:'Laboratory',r:'UAE',no:'for the labworks with FML sent to FML'},{n:'Gargash Hospital',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Great Ormond Hospital',t:'Hospital',sp:'Children\'s hospital',r:'UK',no:''},{n:'Harley Street Nurse',t:'Nurse',sp:'',r:'UK',no:''},{n:'HCA Hospital – Harley Street',t:'Hospital',sp:'',r:'UK',no:''},{n:'Helene Patounas',t:'Clinician',sp:'Formula 1 Nutritionist',r:'UK',no:''},{n:'Hospital St John St Elizabeth',t:'Hospital',sp:'',r:'UK',no:''},{n:'International Modern Hospital',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Ioan Tudur Jones',t:'Clinician',sp:'Consultant Foot and Ankle Surgeon',r:'UK',no:''},{n:'John Connell',t:'Clinician',sp:'Paedeatrician',r:'UK',no:''},{n:'King\u2019s College Hospital Dubai',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Kinesis – Dubai',t:'Clinician',sp:'',r:'UAE',no:''},{n:'Knightsbridge Pharmacy',t:'Pharmacy',sp:'',r:'UK',no:''},{n:'Latifa Hospital',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Leto',t:'Hospital',sp:'',r:'UK',no:''},{n:'Life Pharmacy – Al Wasl',t:'Pharmacy',sp:'',r:'UAE',no:''},{n:'Light House Arabia',t:'Clinician',sp:'',r:'UAE',no:''},{n:'Lighthouse Arabia',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Mediclinic City Hospital',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Mediclinic Parkview',t:'Hospital',sp:'',r:'UAE',no:''},{n:'MedX Pharmacy',t:'Pharmacy',sp:'',r:'UAE',no:''},{n:'Melissa Mathias',t:'Clinician',sp:'Clinical Dietician',r:'UAE',no:''},{n:'Moorefields eye centre Dubai',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Mr Alasdair Mace',t:'Clinician',sp:'ENT Specialist',r:'UK',no:''},{n:'Mr Chinmay Gupta',t:'Clinician',sp:'Orthopaedic - knees',r:'UK',no:''},{n:'Mr Christian Brown',t:'Clinician',sp:'Consultant Urological Surgeon',r:'UK',no:''},{n:'Mr Colin Natali',t:'Clinician',sp:'Spinal Surgeon',r:'UK',no:''},{n:'Mr Feilim Murphy',t:'Clinician',sp:'Consultant Paediatric Urologist',r:'UK',no:''},{n:'Mr Lloyd Williams',t:'Clinician',sp:'Consultant Foot and Ankle Surgeon',r:'UK',no:''},{n:'Mr Max Whittaker',t:'Clinician',sp:'ENT/Ear Nose Throat',r:'UK',no:''},{n:'Mr Nick Hamilton',t:'Clinician',sp:'ENT/Ear Nose Throat',r:'UK',no:''},{n:'Mr Simon Ball',t:'Clinician',sp:'Orthopaedic - knees',r:'UK',no:''},{n:'Mr Simon Gane',t:'Clinician',sp:'ENT/Ear Nose Throat (Rhinologist)',r:'UK',no:''},{n:'Mr. A Mark Phillips',t:'Clinician',sp:'Hand & Wrist Surgeon',r:'UK',no:''},{n:'Mr. Andrea Tartaglia',t:'Clinician',sp:'Medical Director Isokinetic',r:'UK',no:''},{n:'Mr. Andy Williams.',t:'Clinician',sp:'',r:'UK',no:''},{n:'Mr. Anthony De Souza',t:'Clinician',sp:'Consultant Cardiologist',r:'UK',no:''},{n:'Mr. Colin Davis',t:'Clinician',sp:'Consultant Gynaecologist',r:'UK',no:''},{n:'Mr. Damian Fahy',t:'Clinician',sp:'Consultant Spinal Surgeon',r:'UK',no:''},{n:'Mr. David Ross',t:'Clinician',sp:'Plastic Surgeon',r:'UK',no:''},{n:'Mr. Maheesh Ghei',t:'Clinician',sp:'Consultant Urologist',r:'UK',no:''},{n:'Mr. Peter Andrews',t:'Clinician',sp:'ENT/Ear Nose Throat (Rhinologist)',r:'UK',no:''},{n:'Mrs Kalpana Patil',t:'Clinician',sp:'PAEDIATRIC SURGERY - circumcisions',r:'UK',no:''},{n:'Mrs. Ghazala Yousuf',t:'Clinician',sp:'Dietetics',r:'UK',no:''},{n:'Ms Maria Fiuza, Dietician',t:'Clinician',sp:'',r:'UK',no:''},{n:'Ms. Jyoti Patel',t:'Clinician',sp:'Podiatry',r:'UK',no:''},{n:'Ms. Shahla Ahmed',t:'Clinician',sp:'Consultant Gynaecologist (Monopause Expert)',r:'UK',no:''},{n:'Mubadala Health Dubai',t:'Hospital',sp:'',r:'UAE',no:''},{n:'NMC Specialty Hospital Al Nahda',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Nurse Amy',t:'Nurse',sp:'',r:'UK',no:''},{n:'Nurse Cathy',t:'Nurse',sp:'',r:'UK',no:''},{n:'OCL vision – UK',t:'Hospital',sp:'',r:'UK',no:''},{n:'Onewelbeck',t:'Hospital',sp:'',r:'UK',no:''},{n:'Peter Rosenfeld',t:'Clinician',sp:'Consultant Foot and Ankle Surgeon',r:'UK',no:''},{n:'Prince Pharmacy Knightsbridge',t:'Pharmacy',sp:'',r:'UK',no:''},{n:'Prince Pharmacy Mayfair',t:'Pharmacy',sp:'',r:'UK',no:''},{n:'Princess Grace Hospital',t:'Hospital',sp:'',r:'UK',no:''},{n:'Prof Alastair Noyce',t:'Clinician',sp:'Professor of Neurology',r:'UK',no:''},{n:'Prof Antony Narula',t:'Clinician',sp:'ENT/Ear Nose Throat',r:'UK',no:''},{n:'Prof Jalesh Panicker',t:'Clinician',sp:'Consultant Neuro-urologist',r:'UK',no:''},{n:'Prof James Teo',t:'Clinician',sp:'Professor of Neurology',r:'UK',no:''},{n:'Prof Maneesha Sinha',t:'Clinician',sp:'Consultant Paediatric Nephrologist',r:'UK',no:''},{n:'Prof Robert Bor',t:'Clinician',sp:'Psychologist',r:'UK',no:''},{n:'Professor David Choi',t:'Clinician',sp:'Consultant Neurosurgeon',r:'UK',no:''},{n:'Professor Dr. Firas R. Alani',t:'Clinician',sp:'Chief of American Hospital Academic Institute / Cardiologist',r:'UAE',no:''},{n:'Professor James Calder',t:'Clinician',sp:'Consultant Foot and Ankle Surgeon',r:'UK',no:''},{n:'Professor James Lindsay',t:'Clinician',sp:'Consultant Gastroenterologist',r:'UK',no:''},{n:'Professor Maralyn Druce',t:'Clinician',sp:'Consultat Endocrinologist',r:'UK',no:''},{n:'Professor Mike Thomson',t:'Clinician',sp:'Consultant Paediatric Gastroenterologist',r:'UK',no:''},{n:'Professor Omar Faiz',t:'Clinician',sp:'Consultant Colorectal Surgeon',r:'UK',no:''},{n:'Professor Pallav Shah',t:'Clinician',sp:'Respiratory Consultant',r:'UK',no:''},{n:'Professor Sam Janes',t:'Clinician',sp:'General (internal) medicine, Respiratory medicine',r:'UK',no:''},{n:'Professor Sanjay Sharma',t:'Clinician',sp:'Cardiologist',r:'UK',no:''},{n:'Professor Shern Chew',t:'Clinician',sp:'Consultat Endocrinologist',r:'UK',no:''},{n:'Royal Brompton – 77 Wimpole Street - UK',t:'Hospital',sp:'',r:'UK',no:''},{n:'Saint Mary Paddington Hospital',t:'Hospital',sp:'NHS - Paeds/adult',r:'UK',no:''},{n:'Saudi German Hospital',t:'Hospital',sp:'',r:'UAE',no:''},{n:'Simon Costain',t:'Clinician',sp:'Consultant Podiatrist',r:'UK',no:''},{n:'Supercare Pharmacy',t:'Pharmacy',sp:'',r:'UAE',no:''},{n:'TAIB - Laboratory',t:'Laboratory',sp:'',r:'Saudi',no:''},{n:'The Cromwell Hospital',t:'Hospital',sp:'',r:'UK',no:''},{n:'The Doctor’s Laboratory',t:'Laboratory',sp:'',r:'UK',no:'for the labworks with TDL/sent to TDL'},{n:'The London Clinic',t:'Hospital',sp:'',r:'UK',no:''},{n:'The London Dermatology Centre',t:'Hospital',sp:'',r:'UK',no:''},{n:'The Portland Hospital',t:'Hospital',sp:'',r:'UK',no:''},{n:'Unilabs',t:'Laboratory',sp:'Laboratory',r:'UAE',no:'for the labwork sent to Unilabs'},{n:'Women\'s Health, Welbeck London',t:'Hospital',sp:'',r:'UK',no:''}];
+  _seed.forEach(function(c){
+    var cat=(c.t==='Hospital'||c.t==='Laboratory')?'hospitals':(c.t==='Pharmacy')?'pharmacies':'clinicians'; // Clinician & Nurse fold into clinicians
+    var note=c.sp&&c.no?(c.sp+' — '+c.no):(c.sp||c.no||'');
+    CFG.partners[cat].push({id:_uid(),name:c.n,region:c.r,contact:'',note:note});
+  });
 }
 function _seedAliases(){
   if(!CFG.billedByAliases)CFG.billedByAliases={};
@@ -4153,6 +4316,9 @@ function renderDF(sk,itemId,f,val){
       '<input class="dfi" value="'+esc(val||'')+'" placeholder="Enter details&#8230;" data-save-key="'+sk_+'|'+id_+'|'+fid_+'">'+
       '</div>';
   }
+  if(f.t==='contactsel'){
+    return renderContactPicker(sk_, id_, fid_, f.l, val, (curBill&&curBill.branch)||'UAE', !!f.req);
+  }
   if(f.t==='date'){
     return '<div class="dr"><div class="dl">'+f.l+' '+rq+'</div>'+
       '<input class="dfi" type="date" value="'+esc(val||'')+'" data-save-key="'+sk_+'|'+id_+'|'+fid_+'">'+
@@ -4508,6 +4674,100 @@ function _displayAdminDesc(itemId,idata,billDateFallback){
   var existing=(idata&&idata.adesc&&String(idata.adesc).trim())||'';
   if(existing)return existing;
   return _computeAdminDesc(itemId,idata||{},billDateFallback)||'';
+}
+// Returns contacts matching a search query, region-matches first. Pure text match on
+// name/specialty — this never changes what gets SAVED, only how it gets FOUND while typing.
+function _contactSearch(query, regionHint) {
+  _pcfg();
+  var q = String(query || '').trim().toLowerCase();
+  if (!q) return [];
+  var all = [];
+  ['hospitals','clinicians','pharmacies'].forEach(function(cat){
+    (CFG.partners[cat]||[]).forEach(function(p){
+      all.push({name:p.name, region:p.region||'', specialty:p.note||'', category:cat});
+    });
+  });
+  var matches = all.filter(function(c) {
+    return c.name.toLowerCase().indexOf(q) >= 0 || (c.specialty && c.specialty.toLowerCase().indexOf(q) >= 0);
+  });
+  matches.sort(function(a, b) {
+    var aReg = (a.region === regionHint) ? 0 : 1;
+    var bReg = (b.region === regionHint) ? 0 : 1;
+    if (aReg !== bReg) return aReg - bReg;
+    return a.name.localeCompare(b.name);
+  });
+  return matches.slice(0, 8);
+}
+// Adds a brand-new contact if the exact name doesn't already exist (case-insensitive) —
+// used by the "+ Add as new contact" option so referrals are never blocked waiting on
+// someone else to update a shared list first. Writes into the same Partners directory
+// (Hospitals & Facilities / Referring Clinicians / Pharmacies) used throughout the app.
+function addNewContact(name, type, region) {
+  name = String(name || '').trim();
+  if (!name) return null;
+  _pcfg();
+  var cat = (type==='Hospital/Facility'||type==='Hospital'||type==='Laboratory') ? 'hospitals' : (type==='Pharmacy') ? 'pharmacies' : 'clinicians';
+  var existing = null;
+  ['hospitals','clinicians','pharmacies'].forEach(function(c){
+    var f = CFG.partners[c].find(function(p){ return p.name.toLowerCase() === name.toLowerCase(); });
+    if (f) existing = f;
+  });
+  if (existing) return existing;
+  var newContact = { id: _uid(), name: name, region: region || 'UAE', contact: '', note: '' };
+  CFG.partners[cat].push(newContact);
+  CFG.partners[cat].sort(function(a, b) { return a.name.localeCompare(b.name); });
+  saveCFG();
+  return newContact;
+}
+// Renders a contact-search input as a drop-in replacement for a plain text provider field.
+// Deliberately writes the SAME plain string value the field always held (via the normal
+// sBF path) — no new data shape, no ID reference — so every existing calculation and
+// display that reads this field is completely unaffected by this being here.
+function renderContactPicker(sk, itemId, fId, label, currentValue, regionHint, req) {
+  var inputId = 'ctp_' + sk + '_' + itemId + '_' + fId;
+  var rq = req ? '<span class="req">*</span>' : '';
+  return '<div class="dr"><div class="dl">' + esc(label) + ' ' + rq + '</div>' +
+    '<div style="position:relative;">' +
+    '<input class="fi" id="' + inputId + '" autocomplete="off" value="' + esc(currentValue || '') + '" ' +
+    'placeholder="Search or type a new name\u2026" ' +
+    'oninput="showContactSuggestions(\'' + inputId + '\',\'' + sk + '\',\'' + itemId + '\',\'' + fId + '\',\'' + (regionHint||'') + '\',this.value)" ' +
+    'onfocus="showContactSuggestions(\'' + inputId + '\',\'' + sk + '\',\'' + itemId + '\',\'' + fId + '\',\'' + (regionHint||'') + '\',this.value)" ' +
+    'onblur="setTimeout(function(){hideContactSuggestions(\'' + inputId + '\');},180)" ' +
+    'onchange="sBF(\'' + sk + '\',\'' + itemId + '\',\'' + fId + '\',this.value)">' +
+    '<div id="' + inputId + '_sug" style="display:none;position:absolute;z-index:50;background:var(--wh);border:1px solid var(--bo);border-radius:var(--r);box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;width:100%;top:100%;left:0;margin-top:2px;"></div>' +
+    '</div></div>';
+}
+function showContactSuggestions(inputId, sk, itemId, fId, regionHint, query) {
+  var box = document.getElementById(inputId + '_sug');
+  if (!box) return;
+  var matches = _contactSearch(query, regionHint);
+  var q = String(query || '').trim();
+  var exactExists = q && (CFG.contacts || []).some(function(c) { return c.name.toLowerCase() === q.toLowerCase(); });
+  var html = matches.map(function(c) {
+    return '<div style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--bo);font-size:12px;" ' +
+      'onmousedown="pickContact(\'' + inputId + '\',\'' + sk + '\',\'' + itemId + '\',\'' + fId + '\',\'' + esc(c.name).replace(/'/g,"\\'") + '\')">' +
+      '<strong>' + esc(c.name) + '</strong> <span style="color:var(--m2);">' + esc(c.region) + (c.specialty ? ' \u00b7 ' + esc(c.specialty) : '') + '</span>' +
+      '</div>';
+  }).join('');
+  if (q && !exactExists) {
+    html += '<div style="padding:7px 10px;cursor:pointer;font-size:12px;color:var(--oc);font-weight:600;" ' +
+      'onmousedown="pickContact(\'' + inputId + '\',\'' + sk + '\',\'' + itemId + '\',\'' + fId + '\',\'' + esc(q).replace(/'/g,"\\'") + '\',true,\'' + regionHint + '\')">' +
+      '+ Add "' + esc(q) + '" as a new contact</div>';
+  }
+  if (!html) { box.style.display = 'none'; return; }
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+function hideContactSuggestions(inputId) {
+  var box = document.getElementById(inputId + '_sug');
+  if (box) box.style.display = 'none';
+}
+function pickContact(inputId, sk, itemId, fId, name, isNew, regionHint) {
+  if (isNew) addNewContact(name, 'Clinician', regionHint || 'UAE');
+  var input = document.getElementById(inputId);
+  if (input) input.value = name;
+  sBF(sk, itemId, fId, name);
+  hideContactSuggestions(inputId);
 }
 function sBF(sk,itemId,fId,val){
   if(!curBill.billingData[sk])curBill.billingData[sk]={};
@@ -5173,9 +5433,42 @@ function _pruneEmptyItems(billingData){
     }
   }
 }
+// Fee fields that represent money paid to an external party, and the provider-name
+// fields that should identify who that money went to. Checked generically across every
+// item rather than hard-coded per item type, since which provider field an item uses
+// varies (paid_to / prx_dest / hospital / labwhere / cn) but the rule is the same:
+// if a fee was paid, someone should be named.
+var _FEE_FIELDS_FOR_PROVIDER_CHECK = ['feepaid','cf','sf','rr','mfee'];
+var _PROVIDER_FIELDS_FOR_CHECK = ['paid_to','prx_dest','hospital','labwhere','cn','rx_dn'];
+function _findMissingProviderItems(billingData){
+  var flagged=[];
+  Object.keys(billingData||{}).forEach(function(sk){
+    var isFollowUpData=/^_fu\d+$/.test(sk);
+    if(sk.charAt(0)==='_'&&!isFollowUpData)return; // skip _followUps, _discount, etc. — not item data
+    var sec=billingData[sk];
+    if(!sec||typeof sec!=='object')return;
+    Object.keys(sec).forEach(function(itemId){
+      var idata=sec[itemId];
+      if(!idata||typeof idata!=='object')return;
+      var hasFee=_FEE_FIELDS_FOR_PROVIDER_CHECK.some(function(ff){
+        var v=idata[ff];
+        return v&&typeof v==='object'&&parseFloat(v.amount)>0;
+      });
+      if(!hasFee)return;
+      var hasProvider=_PROVIDER_FIELDS_FOR_CHECK.some(function(pf){return idata[pf]&&String(idata[pf]).trim();});
+      if(!hasProvider)flagged.push((isFollowUpData?'Follow-up: ':'')+itemId);
+    });
+  });
+  return flagged;
+}
 async function saveBill(){
   if(!(curBill.patientName||'').trim()){toast('Patient name is required','er');return;}
   if(!(curBill.billedBy||'').trim()){toast('Please select who billed this','er');return;}
+  var _missingProv=_findMissingProviderItems(curBill.billingData);
+  if(_missingProv.length){
+    var _msg='A fee has been entered without naming who it was paid to ('+_missingProv.join(', ')+'). Save anyway?';
+    if(!confirm(_msg))return;
+  }
   if(_savingBill)return;_savingBill=true;
   try{
     _pruneEmptyItems(curBill.billingData);
@@ -9292,6 +9585,7 @@ var _cfgSaveTimer=null;
 var _feesSaveTimer=null;
 var _settingsSyncing=false;
 var _settingsDirty=false;
+var _settingsSavePromise=null;
 var _cloudSettingsLoaded=false;
 
 function _handleQuotaErr(e){
@@ -9318,6 +9612,7 @@ function _persistCFG(){
     referralLedger:CFG.referralLedger,
     collections:CFG.collections,
     billComments:CFG.billComments,
+    detectedAliases:CFG.detectedAliases||{},
     patientMeta:CFG.patientMeta||{},
     privacyMode:(typeof CFG.privacyMode==='boolean'?CFG.privacyMode:true),
     doctors:CFG.doctors,
@@ -9385,11 +9680,16 @@ function saveFEES(){
 }
 
 // ── Core cloud settings save/load ──
-async function dbSaveSettings(){
-  var d=gDB();if(!d)return;
-  if(_settingsSyncing){_settingsDirty=true;return;} // a save is in flight — mark dirty, re-push after
+function dbSaveSettings(){
+  if(_settingsSyncing){
+    // A save is already running. Wait for THAT specific save to finish, then do exactly
+    // one fresh save (which will read the latest localStorage, including whatever this
+    // caller just wrote) — so 'await dbSaveSettings()' always reflects a real, completed
+    // save of this caller's own data, not an unrelated already-resolved promise.
+    var inFlight=_settingsSavePromise||Promise.resolve();
+    return inFlight.then(function(){return dbSaveSettings();});
+  }
   _settingsSyncing=true;
-  // Build full settings payload
   var payload={
     cfg:JSON.parse(localStorage.getItem('amara_cfg4')||'{}'),
     fees:JSON.parse(localStorage.getItem('amara_fees4')||'{}'),
@@ -9398,24 +9698,24 @@ async function dbSaveSettings(){
     updatedAt:new Date().toISOString(),
     updatedBy:CFG.team&&CFG.team[0]?CFG.team[0]:'Admin'
   };
-  try{
-    var r=await d.from('settings').upsert({key:'global',data:payload,updated_at:new Date().toISOString()},{onConflict:'key'});
-    if(r.error){
-      // Table doesn't exist yet — show one-time setup banner
-      if(!window._settingsTableWarned){
-        window._settingsTableWarned=true;
-        showSettingsSetupBanner();
+  var d=gDB();
+  if(!d){_settingsSyncing=false;return Promise.resolve(false);}
+  var p=d.from('settings').upsert({key:'global',data:payload,updated_at:new Date().toISOString()},{onConflict:'key'})
+    .then(function(r){
+      if(r.error){
+        if(!window._settingsTableWarned){window._settingsTableWarned=true;showSettingsSetupBanner();}
+        return false;
       }
-    } else {
-      // Success — show subtle cloud icon in topbar
       setCloudStatus('saved');
-    }
-  }catch(e){
-    setCloudStatus('error');
-  }finally{
-    _settingsSyncing=false;
-    if(_settingsDirty){_settingsDirty=false;setTimeout(function(){dbSaveSettings();},0);}
-  }
+      return true;
+    })
+    .catch(function(){setCloudStatus('error');return false;})
+    .finally(function(){
+      _settingsSyncing=false;
+      _settingsSavePromise=null;
+    });
+  _settingsSavePromise=p;
+  return p;
 }
 
 function _mergeComments(local,cloud){
@@ -9464,7 +9764,7 @@ async function dbLoadSettings(){
       var BUILTIN_LABS=CFG.labs.filter(function(l){return Object.prototype.hasOwnProperty.call(FEES.labs||{},l);});
       if(stored.team)CFG.team=stored.team;
       if(stored.doctors)CFG.doctors=stored.doctors;
-      if(stored.partners)CFG.partners=stored.partners;
+      if(stored.partners&&((stored.partners.hospitals||[]).length+(stored.partners.clinicians||[]).length+(stored.partners.pharmacies||[]).length)>0)CFG.partners=stored.partners;
       // Lab works: UNION-merge (cloud + local) so a stale cloud copy can never
       // drop labs added locally. Cloud values win on name conflicts.
       (function(){
@@ -9481,9 +9781,10 @@ async function dbLoadSettings(){
       if(stored.patientLinks)CFG.patientLinks=stored.patientLinks;
       if(stored.protPins)CFG.protPins=stored.protPins;
       if(stored.auditLog)CFG.auditLog=stored.auditLog;
-      if(stored.referralLedger)CFG.referralLedger=stored.referralLedger;
+      if(stored.referralLedger&&stored.referralLedger.length>0)CFG.referralLedger=stored.referralLedger;
       if(stored.collections)CFG.collections=stored.collections;
       if(stored.billComments){CFG.billComments=_mergeComments(CFG.billComments,stored.billComments);stored.billComments=CFG.billComments;}
+      if(stored.detectedAliases)CFG.detectedAliases=Object.assign({},CFG.detectedAliases||{},stored.detectedAliases);
       if(stored.patientMeta)CFG.patientMeta=stored.patientMeta;
       if(typeof stored.privacyMode==='boolean')CFG.privacyMode=stored.privacyMode;
       if(stored.statuses&&stored.statuses.length)CFG.statuses=stored.statuses;
@@ -11999,7 +12300,7 @@ function richRegionItems(reg){
       description:'Home or clinic nurse visit', category:'Nurse',
       color:'#185FA5', bg:'#F0F5FB', required:false, active:true, custom:true,
       fields:[
-        {id:'nu',l:'Nurse name',t:'txt'},
+        {id:'nu',l:'Nurse name',t:'contactsel'},
         {id:'nv',l:'Nurse visit',t:'sel',o:['In Hours','Out of Hours']},
         {id:'ph',l:'Phlebotomy fee',t:'tog'},
         {id:'dur',l:'Time spent',t:'hours'},
@@ -12026,7 +12327,7 @@ function richRegionItems(reg){
       description:'Physician or specialist consultation', category:'Doctor',
       color:'#963030', bg:'#FBF0F0', required:false, active:true, custom:true,
       fields:[
-        {id:'cn',l:'Consultant / doctor name',t:'txt'},
+        {id:'cn',l:'Consultant / doctor name',t:'contactsel'},
         {id:'ctype',l:'Consultation type',t:'sel',o:['Brief','Standard','Extended']},
         {id:'mode',l:'Consultation mode',t:'sel',o:['In clinic','Home visit','Telephone','Video consultation']},
         {id:'dur',l:'Consultation time spent',t:'hours'},
@@ -12358,8 +12659,8 @@ function ukExternalItems(){
       description:'External UK doctor or specialist', category:'Doctor', cur:'GBP',
       color:'#963030', bg:'#FBF0F0', required:false, active:true, custom:true,
       fields:[
-        {id:'cn',l:'External physician name',t:'txt',grp:'g1'},
-        {id:'hospital',l:'Facility',t:'txt',grp:'g1'},
+        {id:'cn',l:'External physician name',t:'contactsel',grp:'g1'},
+        {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
         {id:'arr_date',l:'Arrangement Date',t:'date'},
         {id:'mode',l:'Consultation mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment']},
         {id:'ref',l:'Referral Prepared & Shared',t:'ihooh'},
@@ -12381,10 +12682,10 @@ function ukExternalItems(){
       description:'UK nurse: sample collection, device fitting & medication', category:'Nurse', cur:'GBP',
       color:'#185FA5', bg:'#F0F5FB', required:false, active:true, custom:true,
       fields:[
-        {id:'nu',l:'External Nurse Name',t:'txt'},
+        {id:'nu',l:'External Nurse Name',t:'contactsel'},
         {id:'when',l:'Visit Hours',t:'when',o:['In Hours','Out of Hours']},
         {id:'arr_date',l:'Arrangement Date',t:'date'},
-        {id:'facility',l:'Facility / Location',t:'txt'},
+        {id:'facility',l:'Facility / Location',t:'contactsel'},
         {id:'nvt',l:'Nurse visit type',t:'multi',o:['Sample collection','Device fitting','Medication administration']},
         {id:'nurse_custom',l:'Nurse visit fee (GBP)',t:'txt'},
         {id:'phleb',l:'Phlebotomy (if bloods collected)',t:'tog',cond:{f:'nvt',has:'Sample collection'}},
@@ -12432,7 +12733,7 @@ function ukExternalItems(){
         {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours']},
         {id:'dur',l:'Medical Concierge Coordination',t:'unit'},
         {id:'arr_date',l:'Arrangement Date',t:'date'},
-        {id:'facility',l:'Facility / Location',t:'txt'},
+        {id:'facility',l:'Facility / Location',t:'contactsel'},
         {id:'adesc',l:'Description of work',t:'mta'}
       ],
       rates:{dur:{ih:45,ooh:75,unit:'unit30'}} },
@@ -12444,7 +12745,7 @@ function ukExternalItems(){
       fields:[
         {id:'rx_dn',l:'Prescribing / Referring Doctor',t:'doctorsel'},
         {id:'scanname',l:'Diagnostic Imaging / Procedure Arranged',t:'txt',grp:'g1'},
-        {id:'hospital',l:'Facility',t:'txt',grp:'g1'},
+        {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
         {id:'arr_date',l:'Arrangement Date',t:'date'},
         {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours'],grp:'g2'},
         {id:'ref',l:'Diagnostic Referral Fee',t:'ihooh',grp:'g2'},
@@ -12499,7 +12800,7 @@ function ukExternalItems(){
       description:'Standalone external payment \u2014 not tied to a specific consultation or visit item', category:'Other',
       color:'#963030', bg:'#FBEFEF', required:false, active:true, custom:true,
       fields:[
-        {id:'paid_to',l:'Paid To (Provider / Facility)',t:'txt',req:1},
+        {id:'paid_to',l:'Paid To (Provider / Facility)',t:'contactsel',req:1},
         {id:'feepaid',l:'Fee Settled',t:'feefield',req:1},
         {id:'arr_date',l:'Arrangement Date',t:'date'},
         {id:'desc',l:'What was this for',t:'mta'}
@@ -13561,6 +13862,9 @@ function renderUKField(item,idata,f,sk){
   if(f.t==='txt'){
     return '<div class="dr"><div class="dl">'+esc(lbl)+'</div><input class="dfi" value="'+esc(idata[fid]||'')+'" placeholder="Enter details\u2026" data-save-key="'+sk+'|'+id+'|'+fid+'"></div>';
   }
+  if(f.t==='contactsel'){
+    return renderContactPicker(sk, id, fid, lbl, idata[fid], (curBill&&curBill.branch)||'UK', !!f.req);
+  }
   if(f.t==='date'){
     return '<div class="dr"><div class="dl">'+esc(lbl)+'</div>'+
       '<input class="dfi" type="date" value="'+esc(idata[fid]||'')+'" data-save-key="'+sk+'|'+id+'|'+fid+'"></div>';
@@ -13929,7 +14233,7 @@ ensureRichRegions=function(){
     if(_adm)CFG.billingStructure.external_uk.push(_adm);
   }
   // Additive field merge — insert expected fields if a saved structure is missing them.
-  var EXTRA={uk_med:[{id:'prx_dest',l:'Pharmacy / sent to',t:'txt',after:'meds'},{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_doctor:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_scan:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_nurse:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}]};
+  var EXTRA={uk_med:[{id:'prx_dest',l:'Pharmacy / sent to',t:'contactsel',after:'meds'},{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_doctor:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_scan:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_nurse:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}]};
   (CFG.billingStructure.external_uk||[]).forEach(function(it){
     var ex=EXTRA[it.id];if(!ex)return;if(!it.fields)it.fields=[];
     ex.forEach(function(ef){
@@ -14594,23 +14898,127 @@ var PA_LABELS={
   pharmacies:{t:'Pharmacies',s:'Dispensing partners \u2014 track medications arranged and cash-back due to the team.',i:'\uD83D\uDC8A',f:['Name','Contact','Cash-back %']}
 };
 
+var PA_EDGE_COLOR={hospitals:'--code-bloods',clinicians:'--code-consult',pharmacies:'--code-admin'};
+function _partnerLedgerStats(name){
+  var ledger=CFG.referralLedger||[];
+  var mine=ledger.filter(function(e){return (e.partner||'').toLowerCase()===name.toLowerCase();});
+  var total=0,paid=0,pending=0;
+  mine.forEach(function(e){var a=parseFloat(e.amount)||0;total+=a;if(e.status==='paid')paid+=a;else pending+=a;});
+  return {count:mine.length,total:total,paid:paid,pending:pending,entries:mine};
+}
 function _dirCard(cat){
   _pcfg();var L=PA_LABELS[cat];var list=CFG.partners[cat]||[];
-  var h='<div class="pa-card"><h3>'+L.i+' '+L.t+' <span style="font-size:11px;color:var(--m2);font-weight:400;font-family:var(--sans);">('+list.length+')</span></h3><div class="pa-ct">'+L.s+'</div><div class="pa-list">';
+  var h='<div class="pa-card"><h3>'+L.i+' '+L.t+' <span style="font-size:11px;color:var(--m2);font-weight:400;font-family:var(--sans);">('+list.length+')</span></h3><div class="pa-ct">'+L.s+'</div>';
   if(!list.length)h+='<div class="pa-empty">None added yet.</div>';
-  list.forEach(function(p){
-    var meta=[];if(p.contact)meta.push(esc(p.contact));if(cat==='pharmacies'&&p.cashback)meta.push('cash-back '+esc(p.cashback)+'%');if(p.note)meta.push(esc(p.note));
-    h+='<div class="pa-row"><span class="nm">'+esc(p.name)+'</span><span class="meta">'+meta.join(' \u00B7 ')+'</span><span class="sp"></span><span class="pa-x" onclick="pDel(\''+cat+'\',\''+p.id+'\')" title="Remove">\u00D7</span></div>';
-  });
-  h+='</div>';
+  else{
+    h+='<div class="pats-grid">';
+    list.forEach(function(p){
+      var st=_partnerLedgerStats(p.name);
+      var sub=[];if(p.note)sub.push(esc(p.note));if(p.contact)sub.push(esc(p.contact));if(cat==='pharmacies'&&p.cashback)sub.push('cash-back '+esc(p.cashback)+'%');
+      h+='<div class="pcard" onclick="togglePartnerExpand(\''+p.id+'\')">'+
+        '<div class="bc-edge" style="background:var('+PA_EDGE_COLOR[cat]+')"></div>'+
+        '<div class="pc-r1"><span class="pc-reg" style="cursor:pointer;text-decoration:underline dotted;" onclick="event.stopPropagation();editPartnerRegion(\''+cat+'\',\''+p.id+'\')" title="Click to edit region">'+esc(p.region||'\u2014')+'</span><span class="pa-x" onclick="event.stopPropagation();pDel(\''+cat+'\',\''+p.id+'\')" title="Remove">\u00D7</span></div>'+
+        '<div class="pc-h3">'+esc(p.name)+'</div>'+
+        (sub.length?'<div class="pc-sub">'+sub.join(' \u00B7 ')+'</div>':'')+
+        (st.count?'<div class="pc-meta"><b>'+st.count+' referral'+(st.count!==1?'s':'')+'</b><span class="bc2-sep"></span>AED '+st.total.toLocaleString()+'<span class="bc2-sep"></span>'+(st.pending>0?'AED '+st.pending.toLocaleString()+' outstanding':'all settled')+'</div>':'<div class="pc-meta">No referrals recorded yet</div>')+
+        '<div id="pexp_'+p.id+'" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--bo);" onclick="event.stopPropagation();"></div>'+
+        '</div>';
+    });
+    h+='</div>';
+  }
   var third=cat==='pharmacies'?'<input class="pa-in" id="padd_c_'+cat+'" placeholder="Cash-back %" style="max-width:120px;">':'<input class="pa-in" id="padd_c_'+cat+'" placeholder="'+esc(L.f[2])+'">';
-  h+='<div class="pa-addrow"><input class="pa-in" id="padd_n_'+cat+'" placeholder="'+esc(L.f[0])+'"><input class="pa-in" id="padd_x_'+cat+'" placeholder="'+esc(L.f[1])+'">'+third+'<button class="pa-btn" onclick="pAdd(\''+cat+'\')">Add</button><button class="pa-link" onclick="document.getElementById(\'pbulk_'+cat+'\').classList.toggle(\'open\')">Bulk add</button></div>';
-  h+='<div class="pa-bulk" id="pbulk_'+cat+'"><div class="hint">One per line. Add details with a vertical bar: <b>Name | contact'+(cat==='pharmacies'?' | cash-back %':' | note')+'</b></div><textarea id="pbulk_t_'+cat+'" placeholder="Acme Hospital | 04-123-4567 | preferred for cardiology&#10;City Clinic | 04-987-6543"></textarea><div style="margin-top:8px;"><button class="pa-btn sm" onclick="pBulk(\''+cat+'\')">Import lines</button></div></div></div>';
+  var regionSel='<select class="pa-in" id="padd_r_'+cat+'" style="max-width:100px;"><option value="">Region</option><option>UAE</option><option>UK</option><option>Global</option><option>Saudi</option></select>';
+  h+='<div class="pa-addrow"><input class="pa-in" id="padd_n_'+cat+'" placeholder="'+esc(L.f[0])+'">'+regionSel+'<input class="pa-in" id="padd_x_'+cat+'" placeholder="'+esc(L.f[1])+'">'+third+'<button class="pa-btn" onclick="pAdd(\''+cat+'\')">Add</button><button class="pa-link" onclick="document.getElementById(\'pbulk_'+cat+'\').classList.toggle(\'open\')">Bulk add</button></div>';
+  h+='<div class="pa-bulk" id="pbulk_'+cat+'"><div class="hint">One per line. Add details with a vertical bar: <b>Name | Region | contact'+(cat==='pharmacies'?' | cash-back %':' | note')+'</b></div><textarea id="pbulk_t_'+cat+'" placeholder="Acme Hospital | UAE | 04-123-4567 | preferred for cardiology&#10;City Clinic | UK | 020-987-6543"></textarea><div style="margin-top:8px;"><button class="pa-btn sm" onclick="pBulk(\''+cat+'\')">Import lines</button></div></div></div>';
   return h;
 }
-function pAdd(cat){_pcfg();var n=_v('padd_n_'+cat);if(!n){toast('Enter a name','error');return;}var p={id:_uid(),name:n,contact:_v('padd_x_'+cat)};var c=_v('padd_c_'+cat);if(cat==='pharmacies')p.cashback=c;else p.note=c;CFG.partners[cat].push(p);saveCFG();renderPartners();toast('Added','success');}
-function pBulk(cat){_pcfg();var raw=_v('pbulk_t_'+cat);if(!raw){return;}var n=0;raw.split('\n').forEach(function(line){line=line.trim();if(!line)return;var parts=line.split('|').map(function(x){return x.trim();});var p={id:_uid(),name:parts[0],contact:parts[1]||''};if(cat==='pharmacies')p.cashback=parts[2]||'';else p.note=parts[2]||'';if(p.name){CFG.partners[cat].push(p);n++;}});saveCFG();renderPartners();toast(n+' imported','success');}
+// Expands a partner card in place to show every bill/patient referred to them — clicking
+// the card toggles this open rather than navigating away, per the team's preference.
+function togglePartnerExpand(partnerId){
+  var box=document.getElementById('pexp_'+partnerId);
+  if(!box)return;
+  if(box.style.display==='block'){box.style.display='none';return;}
+  // close any other open expansion first, one at a time
+  document.querySelectorAll('[id^="pexp_"]').forEach(function(b){b.style.display='none';});
+  var name=null;
+  _pcfg();
+  ['hospitals','clinicians','pharmacies'].forEach(function(cat){
+    var p=(CFG.partners[cat]||[]).find(function(x){return x.id===partnerId;});
+    if(p)name=p.name;
+  });
+  if(!name)return;
+  var st=_partnerLedgerStats(name);
+  if(!st.entries.length){box.innerHTML='<div style="font-size:12px;color:var(--m2);">No referrals recorded yet.</div>';}
+  else{
+    box.innerHTML=st.entries.map(function(e){
+      var statusPill='<span class="pa-badge '+(e.status==='paid'?'paid':'pend')+'" onclick="event.stopPropagation();ledPaid(\''+e.id+'\');togglePartnerExpand(\''+partnerId+'\');">'+(e.status==='paid'?'Paid':'Pending')+'</span>';
+      var billLink=e.billId?'<span style="cursor:pointer;color:var(--code-consult);text-decoration:underline;" onclick="event.stopPropagation();viewBill(\''+e.billId+'\');">'+esc(e.patient)+'</span>':esc(e.patient);
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px;gap:8px;">'+
+        '<span>'+billLink+' \u00b7 '+esc(e.date)+'</span><span style="display:flex;align-items:center;gap:8px;"><b>AED '+(parseFloat(e.amount)||0).toLocaleString()+'</b>'+statusPill+'</span></div>';
+    }).join('');
+  }
+  box.style.display='block';
+}
+function pAdd(cat){_pcfg();var n=_v('padd_n_'+cat);if(!n){toast('Enter a name','error');return;}var p={id:_uid(),name:n,contact:_v('padd_x_'+cat),region:_v('padd_r_'+cat)};var c=_v('padd_c_'+cat);if(cat==='pharmacies')p.cashback=c;else p.note=c;CFG.partners[cat].push(p);saveCFG();renderPartners();toast('Added','success');}
+function pBulk(cat){_pcfg();var raw=_v('pbulk_t_'+cat);if(!raw){return;}var n=0;raw.split('\n').forEach(function(line){line=line.trim();if(!line)return;var parts=line.split('|').map(function(x){return x.trim();});var p={id:_uid(),name:parts[0],region:parts[1]||'',contact:parts[2]||''};if(cat==='pharmacies')p.cashback=parts[3]||'';else p.note=parts[3]||'';if(p.name){CFG.partners[cat].push(p);n++;}});saveCFG();renderPartners();toast(n+' imported','success');}
 function pDel(cat,id){_pcfg();CFG.partners[cat]=CFG.partners[cat].filter(function(p){return p.id!==id;});saveCFG();renderPartners();}
+// Lets the team correct a partner's region without deleting and re-adding the whole entry.
+// Wraps a promise so it can never hang the UI indefinitely — if the cloud save (or
+// anything else) doesn't settle within the given time, this resolves to false instead of
+// leaving the caller waiting forever. The local change and UI feedback always happen.
+function _withTimeout(promise,ms){
+  return new Promise(function(resolve){
+    var done=false;
+    var timer=setTimeout(function(){if(!done){done=true;resolve(false);}},ms);
+    Promise.resolve(promise).then(function(v){if(!done){done=true;clearTimeout(timer);resolve(v);}},function(){if(!done){done=true;clearTimeout(timer);resolve(false);}});
+  });
+}
+async function editPartnerRegion(cat,id){
+  _pcfg();
+  var p=(CFG.partners[cat]||[]).find(function(x){return x.id===id;});
+  if(!p)return;
+  var newRegion=prompt('Region for "'+p.name+'" (UAE, UK, Global, or Saudi):',p.region||'');
+  if(newRegion===null)return; // cancelled
+  p.region=newRegion.trim();
+  _persistCFG();
+  var cloudSaved=await _withTimeout(dbSaveSettings(),8000);
+  renderPartners();
+  if(cloudSaved===false)toast('Updated, but hasn\u2019t reached the cloud yet — check your connection before refreshing','er');
+  else toast('Region updated','success');
+}
+// Links an unlinked ledger entry to a partner — creating the partner first if it's new —
+// then propagates the correction back to the ORIGINAL BILL'S actual data (not just the
+// ledger record), since the team asked for arrangements to be fully correct everywhere,
+// not just fixed in the reporting view.
+async function linkLedgerEntry(entryId, partnerName, category, isNewPartner){
+  _pcfg();
+  partnerName=String(partnerName||'').trim();
+  if(!partnerName){toast('Choose or type a partner name','er');return;}
+  var entry=CFG.referralLedger.find(function(e){return e.id===entryId;});
+  if(!entry){toast('Entry not found','er');return;}
+  if(isNewPartner)addNewContact(partnerName,category||'Clinician',entry.region||'UAE');
+  entry.partner=partnerName;
+  if(entry.billId&&entry.sectionKey&&entry.itemId&&entry.fieldName){
+    var bill=(bills||[]).find(function(b){return b.id===entry.billId;});
+    if(bill){
+      var bd=bill.billingData||{};
+      if(bd[entry.sectionKey]&&bd[entry.sectionKey][entry.itemId]){
+        bd[entry.sectionKey][entry.itemId][entry.fieldName]=partnerName;
+        var saved=await dbSave(bill).catch(function(){return false;});
+        if(saved===false){toast('Linked here, but the bill itself couldn\u2019t be saved — check your connection and try again','er');saveCFG();renderPartners();return;}
+      }
+    }
+  }
+  _persistCFG(); // writes localStorage immediately and schedules the normal debounced cloud push
+  // Additionally force an immediate cloud save rather than waiting on the 300ms debounce —
+  // this was the exact cause of links "reverting" after a refresh: a quick refresh could
+  // outrun the debounced push, so the cloud still had the old, unlinked data and overwrote
+  // the correct local change on reload. Awaiting here closes that window.
+  var cloudSaved=await _withTimeout(dbSaveSettings(),8000);
+  renderPartners();
+  if(cloudSaved===false)toast('Linked, but hasn\u2019t reached the cloud yet — check your connection before refreshing','er');
+  else toast('Linked to '+partnerName,'success');
+}
 
 function _ledger(){
   _pcfg();var L=CFG.referralLedger||[];
@@ -14674,12 +15082,13 @@ function _ledger(){
 }
 function ledAdd(){_pcfg();var amt=_v('led_amount');var partner=_v('led_partner');if(!partner&&!amt){toast('Enter a partner and amount','error');return;}CFG.referralLedger.push({id:_uid(),date:_v('led_date')||_today(),partner:partner,patient:_v('led_patient'),region:_v('led_region')||'UAE',type:(document.getElementById('led_type')||{}).value||'referral',amount:parseFloat(amt)||0,status:'pending'});saveCFG();renderPartners();toast('Entry added','success');}
 function ledBulk(){_pcfg();var raw=_v('pbulk_led_t');if(!raw)return;var n=0;raw.split('\n').forEach(function(line){line=line.trim();if(!line)return;var p=line.split('|').map(function(x){return x.trim();});CFG.referralLedger.push({id:_uid(),date:p[0]||_today(),partner:p[1]||'',patient:p[2]||'',region:(['UAE','UK','Global'].indexOf(p[3])>=0?p[3]:'UAE'),type:(['referral','payment','cashback'].indexOf(p[4])>=0?p[4]:'referral'),amount:parseFloat(p[5])||0,status:(p[6]==='paid'?'paid':'pending')});n++;});saveCFG();renderPartners();toast(n+' imported','success');}
-function ledPaid(id){_pcfg();CFG.referralLedger=CFG.referralLedger.map(function(e){return e.id===id?Object.assign({},e,{status:e.status==='paid'?'pending':'paid'}):e;});saveCFG();renderPartners();}
+function ledPaid(id){_pcfg();CFG.referralLedger=CFG.referralLedger.map(function(e){return e.id===id?Object.assign({},e,{status:e.status==='paid'?'pending':'paid',autoStatus:false}):e;});saveCFG();renderPartners();}
 function ledDel(id){_pcfg();CFG.referralLedger=CFG.referralLedger.filter(function(e){return e.id!==id;});saveCFG();renderPartners();}
 
 function _detectExternalDoctors(){
   var _doctorFullNames=(CFG.doctors||[]).map(function(d){return _resolveAlias(d);});
   var known={};(CFG.partners&&CFG.partners.clinicians||[]).forEach(function(p){known[(p.name||'').trim().toLowerCase()]=true;});
+  var aliased=CFG.detectedAliases||{};
   var found={};
   bills.forEach(function(b){
     var bd=b.billingData||{};
@@ -14695,7 +15104,7 @@ function _detectExternalDoctors(){
         } else if(item.id==='ec'||item.id==='gec'){
           name=(idata.cn&&String(idata.cn).trim())||'';
         }
-        if(name&&!known[name.trim().toLowerCase()]){
+        if(name&&!known[name.trim().toLowerCase()]&&!aliased[name.trim().toLowerCase()]){
           if(!found[name])found[name]={count:0,billIds:[]};
           found[name].count++;
           if(found[name].billIds.indexOf(b.id)<0)found[name].billIds.push(b.id);
@@ -14705,27 +15114,124 @@ function _detectExternalDoctors(){
   });
   return found;
 }
+// Simple fuzzy name matching — normalizes common titles/punctuation, then checks for
+// containment or a low edit-distance, so "Dr Amel El Tayeb" can be recognized as likely
+// the same person as "Dr. Amel Al Tayeb" already in the directory.
+function _normName(s){return String(s||'').toLowerCase().replace(/^(dr|mr|mrs|ms|prof|professor)\.?\s+/,'').replace(/[.,]/g,'').trim();}
+function _levenshtein(a,b){
+  var m=a.length,n=b.length;var d=[];for(var i=0;i<=m;i++)d[i]=[i];for(var j=0;j<=n;j++)d[0][j]=j;
+  for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=a[i-1]===b[j-1]?d[i-1][j-1]:1+Math.min(d[i-1][j],d[i][j-1],d[i-1][j-1]);
+  return d[m][n];
+}
+function _findLikelyMatch(name){
+  var norm=_normName(name);_pcfg();
+  var best=null,bestScore=0;
+  ['hospitals','clinicians','pharmacies'].forEach(function(cat){
+    (CFG.partners[cat]||[]).forEach(function(p){
+      var pNorm=_normName(p.name);
+      if(pNorm===norm)return; // exact match handled elsewhere
+      var contained=pNorm.indexOf(norm)>=0||norm.indexOf(pNorm)>=0;
+      var dist=_levenshtein(pNorm,norm);
+      var maxLen=Math.max(pNorm.length,norm.length)||1;
+      var similarity=contained?0.9:1-(dist/maxLen);
+      if(similarity>0.72&&similarity>bestScore){bestScore=similarity;best=p.name;}
+    });
+  });
+  return best;
+}
 function _extDoctorDetectCard(){
   var found=_detectExternalDoctors();
   var names=Object.keys(found);
   if(!names.length)return '';
   names.sort(function(a,b){return found[b].count-found[a].count;});
-  var h='<div class="pa-card"><h3>🔍 Detected external doctors <span style="font-size:11px;color:var(--m2);font-weight:400;font-family:var(--sans);">('+names.length+')</span></h3>'+
+  var h='<div class="pa-card"><h3>\ud83d\udd0d Detected external doctors <span style="font-size:11px;color:var(--m2);font-weight:400;font-family:var(--sans);">('+names.length+')</span></h3>'+
     '<div class="pa-ct">Named on a consultation or external physician item, but not yet in your Clinicians directory below. Add them so their referral activity is tracked properly.</div><div class="pa-list">';
   names.forEach(function(n){
-    h+='<div class="pa-row"><span class="nm">'+esc(n)+'</span><span class="meta">'+found[n].count+' bill'+(found[n].count!==1?'s':'')+'</span><span class="sp"></span><button class="pa-btn sm" onclick="addDetectedDoctor(\''+esc(n).replace(/'/g,"\\'")+'\')">Add to Clinicians</button></div>';
+    var likely=_findLikelyMatch(n);
+    var actionBtn=likely
+      ? '<button class="pa-btn sm" style="border-color:var(--oc);color:var(--oc);" onclick="linkDetectedDoctor(\''+esc(n).replace(/'/g,"\\'")+'\',\''+esc(likely).replace(/'/g,"\\'")+'\')">Link to '+esc(likely)+'</button><button class="pa-link" style="margin-left:8px;" onclick="addDetectedDoctor(\''+esc(n).replace(/'/g,"\\'")+'\')">Add as new instead</button>'
+      : '<button class="pa-btn sm" onclick="addDetectedDoctor(\''+esc(n).replace(/'/g,"\\'")+'\')">Add to Clinicians</button>';
+    h+='<div class="pa-row"><span class="nm">'+esc(n)+'</span><span class="meta">'+found[n].count+' bill'+(found[n].count!==1?'s':'')+'</span><span class="sp"></span>'+actionBtn+'</div>';
   });
   h+='</div></div>';
   return h;
 }
-function addDetectedDoctor(name){
+async function linkDetectedDoctor(detectedName,existingName){
+  // Treats a confirmed fuzzy match the same as any other existing clinician — nothing new
+  // is created; this records the alias so the detected name stops resurfacing.
+  if(!CFG.detectedAliases)CFG.detectedAliases={};
+  CFG.detectedAliases[detectedName.trim().toLowerCase()]=existingName;
+  _persistCFG();
+  var cloudSaved=await _withTimeout(dbSaveSettings(),8000);
+  renderPartners();
+  if(cloudSaved===false)toast('Linked, but hasn\u2019t reached the cloud yet — check your connection before refreshing','er');
+  else toast('Treating "'+detectedName+'" as '+existingName,'success');
+}
+async function addDetectedDoctor(name){
   _pcfg();
   var exists=(CFG.partners.clinicians||[]).some(function(p){return (p.name||'').trim().toLowerCase()===name.trim().toLowerCase();});
   if(exists){toast('Already in your Clinicians directory','in');renderPartners();return;}
   CFG.partners.clinicians.push({id:_uid(),name:name,note:'Detected from bills'});
-  saveCFG();renderPartners();toast('Added '+name+' to Clinicians','success');
+  _persistCFG();
+  var cloudSaved=await _withTimeout(dbSaveSettings(),8000);
+  renderPartners();
+  if(cloudSaved===false)toast('Added, but hasn\u2019t reached the cloud yet — check your connection before refreshing','er');
+  else toast('Added '+name+' to Clinicians','success');
 }
-function renderPartners(){_pcfg();var pg=document.getElementById('page-fees');if(!pg)return;var h='<div class="pa-wrap"><div class="pa-head">Partners &amp; Referrals</div><div class="pa-sub">Your directory of hospitals, clinicians and pharmacies, plus the referral &amp; payment ledger.</div>';h+=_extDoctorDetectCard()+_dirCard('hospitals')+_dirCard('clinicians')+_dirCard('pharmacies')+_ledger()+'</div>';pg.innerHTML=h;}
+function renderPartners(){_pcfg();var pg=document.getElementById('page-fees');if(!pg)return;var h='<div class="pa-wrap"><div class="pa-head">Partners &amp; Referrals</div><div class="pa-sub">Your directory of hospitals, clinicians and pharmacies, plus the referral &amp; payment ledger.</div>';h+=_extDoctorDetectCard()+_unlinkedCard()+_dirCard('hospitals')+_dirCard('clinicians')+_dirCard('pharmacies')+_ledger()+'</div>';pg.innerHTML=h;}
+function _allPartnerNamesLower(){
+  _pcfg();var s={};
+  ['hospitals','clinicians','pharmacies'].forEach(function(cat){(CFG.partners[cat]||[]).forEach(function(p){s[p.name.toLowerCase()]=true;});});
+  return s;
+}
+function _unlinkedCard(){
+  _pcfg();var known=_allPartnerNamesLower();
+  var unlinked=(CFG.referralLedger||[]).filter(function(e){return e.partner&&!known[e.partner.toLowerCase()];});
+  if(!unlinked.length)return '';
+  var h='<div class="pa-card" style="border-color:#E8B84B;background:#FFFBF0;"><h3>\u26a0\ufe0f Unlinked Arrangements <span style="font-size:11px;color:var(--m2);font-weight:400;font-family:var(--sans);">('+unlinked.length+')</span></h3>'+
+    '<div class="pa-ct">These external payments don\u2019t match anyone in your directory yet — search to link an existing partner, or add a new one. Linking also corrects the original bill.</div>';
+  unlinked.forEach(function(e){
+    var inputId='unlnk_'+e.id;
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bo);flex-wrap:wrap;">'+
+      '<div style="min-width:160px;flex:1;"><b>'+esc(e.partner)+'</b><div style="font-size:11px;color:var(--m2);">'+esc(e.patient)+' \u00b7 '+esc(e.region)+' \u00b7 '+esc(e.date)+' \u00b7 AED '+(parseFloat(e.amount)||0).toLocaleString()+'</div></div>'+
+      '<div style="position:relative;min-width:220px;">'+
+      '<input class="pa-in" id="'+inputId+'" autocomplete="off" placeholder="Search or type a partner name\u2026" '+
+      'oninput="showUnlinkedSuggestions(\''+inputId+'\',\''+e.id+'\',\''+esc(e.region)+'\',this.value)" '+
+      'onfocus="showUnlinkedSuggestions(\''+inputId+'\',\''+e.id+'\',\''+esc(e.region)+'\',this.value)" '+
+      'onblur="setTimeout(function(){var b=document.getElementById(\''+inputId+'_sug\');if(b)b.style.display=\'none\';},180)">'+
+      '<div id="'+inputId+'_sug" style="display:none;position:absolute;z-index:50;background:var(--wh);border:1px solid var(--bo);border-radius:var(--r);box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;width:260px;top:100%;left:0;margin-top:2px;"></div>'+
+      '</div></div>';
+  });
+  h+='</div>';
+  return h;
+}
+function showUnlinkedSuggestions(inputId,entryId,region,query){
+  var box=document.getElementById(inputId+'_sug');if(!box)return;
+  var matches=_contactSearch(query,region);
+  var q=String(query||'').trim();
+  var known=_allPartnerNamesLower();
+  var exact=q&&known[q.toLowerCase()];
+  var html=matches.map(function(c){
+    var catLabel=c.category==='hospitals'?'Hospital':c.category==='pharmacies'?'Pharmacy':'Clinician';
+    return '<div style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--bo);font-size:12px;" onmousedown="linkLedgerEntry(\''+entryId+'\',\''+esc(c.name).replace(/'/g,"\\'")+'\',null,false).then(function(){renderPartners();})">'+
+      '<strong>'+esc(c.name)+'</strong> <span style="color:var(--m2);">'+esc(c.region)+' \u00b7 '+catLabel+'</span></div>';
+  }).join('');
+  if(q&&!exact){
+    html+='<div style="padding:7px 10px;cursor:pointer;font-size:12px;color:var(--oc);font-weight:600;" onmousedown="openNewPartnerTypePrompt(\''+entryId+'\',\''+esc(q).replace(/'/g,"\\'")+'\',\''+region+'\')">+ Add "'+esc(q)+'" as a new partner</div>';
+  }
+  if(!html){box.style.display='none';return;}
+  box.innerHTML=html;box.style.display='block';
+}
+function openNewPartnerTypePrompt(entryId,name,region){
+  var cat=prompt('Add "'+name+'" as which type of partner?\n\nType exactly one of: Hospital, Clinician, Pharmacy','Clinician');
+  if(!cat)return;
+  var norm=cat.trim().toLowerCase();
+  var type=norm==='hospital'?'Hospital/Facility':norm==='pharmacy'?'Pharmacy':'Clinician';
+  linkLedgerEntry(entryId,name,type,true).then(function(){renderPartners();});
+}
+// Per-partner cards — one per directory entry, showing how many referrals/payments have
+// been recorded against them and the paid/pending split, so the team can see activity per
+// partner at a glance rather than only as a flat ledger list.
 
 /* ──────── ACCOUNTS · invoice collection tracking ──────── */
 function _colData(id){_pcfg();if(!CFG.collections[id])CFG.collections[id]={paid:false,log:[]};if(!Array.isArray(CFG.collections[id].log))CFG.collections[id].log=[];return CFG.collections[id];}
@@ -15187,7 +15693,6 @@ function _seedUAETDLLabs(){
     return !canonical[k];
   });
   toAdd.forEach(function(lab){CFG.labWorks.UAE.push({name:lab.name,fee:lab.fee});});
-  saveCFG();
 }
 
 function _seedUKLabs(){
@@ -15247,7 +15752,6 @@ function _seedUKLabs(){
   toAdd.forEach(function(lab){
     CFG.labWorks.UK.push({name:lab.name,fee:lab.fee});
   });
-  saveCFG();
 }
 function _lwEnsure(){if(!CFG.labWorks||typeof CFG.labWorks!=='object'||Array.isArray(CFG.labWorks))CFG.labWorks={UAE:[],UK:[],Global:[]};['UAE','UK','Global'].forEach(function(r){if(!Array.isArray(CFG.labWorks[r]))CFG.labWorks[r]=[];});}
 function lwTab(r){_lwReg=r;renderSettings();}
