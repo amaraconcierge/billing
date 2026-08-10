@@ -2512,7 +2512,6 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'mode',l:'Consultation mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment']},
   {id:'rf',l:'Referral Prepared & Shared',t:'tog',n:'First-time specialist — referral fee applies',grp:'g2'},
   {id:'rf_detail',l:'What needs to be taken (referral detail)',t:'txt',cond:{f:'rf',has:true},grp:'g2'},
-  {id:'rf_when',l:'Referral needed by',t:'date',cond:{f:'rf',has:true}},
   {id:'al',l:'Location',t:'sel',o:['Local','International'],n:'Used for both the referral fee and Medical Concierge Coordination below',grp:'g2'},
   {id:'cf',l:'Consultation fee (if we paid)',t:'feefield',grp:'g2'},
   {id:'adh_on',l:'Medical Concierge Coordination',t:'tog'},
@@ -2592,6 +2591,8 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'pl',l:'Location',t:'sel',o:['Local','International'],req:1,grp:'g1'},
   {id:'ph2',l:'Hours',t:'sel',o:['In Hours','Out of Hours'],req:1,grp:'g1'},
   {id:'meds',l:'Medication arranged',t:'mta',req:1},
+  {id:'arr_date',l:'Arrangement Date',t:'date'},
+  {id:'hospital',l:'Pharmacy / Facility',t:'contactsel'},
   {id:'feepaid',l:'Fee settled by Amara (external payment)',t:'feefield',req:0},
   {id:'emf',l:'External controlled medication fee (minimum AED 75)',t:'tog',n:'Applies when sourcing controlled medication externally.'},
   {id:'ct',l:'Courier',t:'courieropts',n:'UAE, UK or Global'},
@@ -2614,8 +2615,6 @@ ext:{label:'UAE External Care Coordination',sub:'5% markup applies',col:'#3D6B85
   {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'rf',l:'Diagnostic Referral Fee',t:'tog',n:'Applies to scans & procedures arranged',grp:'g2'},
-  {id:'rf_detail',l:'What needs to be taken (referral detail)',t:'txt',cond:{f:'rf',has:true},grp:'g2'},
-  {id:'rf_when',l:'Referral needed by',t:'date',cond:{f:'rf',has:true}},
   {id:'rr',l:'Medical Report Review & Re-reporting Fee',t:'feefield'},
   {id:'sf',l:'Diagnostic Imaging / Procedure Fee (if paid)',t:'feefield'},
   {id:'padh_on',l:"Physician's Administrative Time",t:'tog'},
@@ -2725,7 +2724,6 @@ extGlobal:{label:'Global External Care Coordination',sub:'Custom fees',col:'#9A6
   {id:'mode',l:'Consultation mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment']},
   {id:'rf',l:'Referral Prepared & Shared',t:'tog',grp:'g2'},
   {id:'rf_detail',l:'What needs to be taken (referral detail)',t:'txt',cond:{f:'rf',has:true},grp:'g2'},
-  {id:'rf_when',l:'Referral needed by',t:'date',cond:{f:'rf',has:true}},
   {id:'al',l:'Location',t:'sel',o:['Local','International'],n:'Used for both the referral fee and Medical Concierge Coordination below',grp:'g2'},
   {id:'cf',l:'Consultation fee (custom)',t:'feefield',grp:'g2'},
   {id:'adh_on',l:'Medical Concierge Coordination',t:'tog'},
@@ -2773,8 +2771,6 @@ extGlobal:{label:'Global External Care Coordination',sub:'Custom fees',col:'#9A6
   {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
   {id:'arr_date',l:'Arrangement Date',t:'date'},
   {id:'rf',l:'Diagnostic Referral Fee',t:'tog',grp:'g2'},
-  {id:'rf_detail',l:'What needs to be taken (referral detail)',t:'txt',cond:{f:'rf',has:true},grp:'g2'},
-  {id:'rf_when',l:'Referral needed by',t:'date',cond:{f:'rf',has:true}},
   {id:'rr',l:'Medical Report Review & Re-reporting Fee',t:'feefield'},
   {id:'sf',l:'Diagnostic Imaging / Procedure Fee (if paid)',t:'feefield'},
   {id:'padh_on',l:"Physician's Administrative Time",t:'tog'},
@@ -4567,9 +4563,11 @@ function _fmtDDMonYY(dateStr){
   return day+'-'+mon+'-'+yr;
 }
 function _nurseVisitPurpose(idata){
-  // Ticked procedures first (lab tests, phlebotomy, device toggles), notes as fallback
+  // Visit type first (Sample collection / Device fitting / Medication administration) —
+  // the specific lab tests are already itemised separately under Lab Works on the bill
+  // card, so they don't need to be repeated here too.
   var parts=[];
-  if(Array.isArray(idata.lw)&&idata.lw.length)parts.push(idata.lw.join(', '));
+  if(Array.isArray(idata.nvt)&&idata.nvt.length)parts.push(idata.nvt.join(', ').toLowerCase());
   if(idata.ph===true||idata.ph==='true'||(typeof idata.ph==='string'&&idata.ph.indexOf('AED')>=0))parts.push('phlebotomy');
   if(idata.ef===true||idata.ef==='true')parts.push('ECG');
   if(idata.if2===true||idata.if2==='true')parts.push('injection');
@@ -4583,10 +4581,8 @@ function _referralClause(idata){
   if(!isOn)return '';
   var dest=(idata.hospital&&String(idata.hospital).trim())||'';
   var detail=(idata.rf_detail&&String(idata.rf_detail).trim())||'';
-  var whenDate=_fmtDDMonYY(idata.rf_when)||'';
   var s=' Referral letter prepared'+(dest?' and sent to '+dest:'');
   if(detail)s+=' for the following '+detail;
-  if(whenDate)s+=' to be taken '+whenDate;
   return s+'.';
 }
 function _computeAdminDesc(itemId,idata,billDateFallback){
@@ -4678,6 +4674,7 @@ function _computeAdminDesc(itemId,idata,billDateFallback){
   return desc;
 }
 function autoFillAdminDesc(sk,itemId){
+  if(itemId==='eadm')return; // standalone external concierge — manual template picker only, never auto-filled
   var idata=(curBill.billingData[sk]&&curBill.billingData[sk][itemId])||{};
   var existing=String(idata['adesc']||'').trim();
   // Don't overwrite if user has custom text (no placeholders, not our template)
@@ -4851,7 +4848,7 @@ function sBF(sk,itemId,fId,val){
   if(sk==='intGL'&&itemId==='doctor_gli')curBill.billingData[sk][itemId]._svcV2=true;
   if(sk==='intGL'&&itemId==='nurse_gli')curBill.billingData[sk][itemId]._svcV2=true;
   // Auto-fill admin description when key fields change
-  if(['nu','nv','cn','dn','hospital','facility','arr_date','scanname','ct','ch','mode','pl','ph2','al','adh_h','rf','rf_detail','rf_when','co','meds','rx_dn','adh'].includes(fId)){
+  if(['nu','nv','cn','dn','hospital','facility','arr_date','scanname','ct','ch','mode','pl','ph2','al','adh_h','rf','rf_detail','co','meds','rx_dn','adh'].includes(fId)){
     autoFillAdminDesc(sk,itemId);
   }
   // Default admin/physician time to 30 minutes when its toggle is first switched on, if not
@@ -6348,7 +6345,7 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       if(_wlPadhOn&&idata['padh']&&(parseInt(idata['padh'].h)||parseInt(idata['padh'].m))){
         var _wlPaFee=calcAdminFee(idata['padh'].h,idata['padh'].m,idata['padh_h']||'In Hours','Inside UAE','physAdmin');
         var _wlPaDur=fmtAdminUnits(idata['padh'].h,idata['padh'].m);
-        summaryRows.push({title:'Physician Admin Time',desc:(idata['padh_h']||'In Hours')+(_wlPaDur?' — '+_wlPaDur:'')+(tv('padesc')?' · '+tv('padesc'):''),fee:_wlPaFee,amtCur:_wlCur,highlight:_wlPaFee>0});
+        summaryRows.push({title:'Physician Admin Time',desc:(_wlOrderedBy?_wlOrderedBy+' — ':'')+(idata['padh_h']||'In Hours')+(_wlPaDur?' — '+_wlPaDur:'')+(tv('padesc')?' · '+tv('padesc'):''),fee:_wlPaFee,amtCur:_wlCur,highlight:_wlPaFee>0});
       }
     }
     // Medical Concierge Coordination — toggle-gated on elbi/glbi, always-on (no toggle) on
@@ -8052,25 +8049,24 @@ function _getDetailedBillLines(b,fType){
           lines.push({type:'Lab work',item:lab,detail:'',cur:cur,amt:fee,isFU:false,region:(sk==='int'?'Internal':'External')});
         });
       }
-      // Phlebotomy
-      if(idata.ph&&idata.ph!==false&&idata.ph!==''){
-        var phAmt=idata.ph==='UAE — AED 75'?75:idata.ph==='Global — AED 275'?275:((idata.ph===true||idata.ph==='true')?(['ic','inv'].indexOf(item.id)>=0?75:55):(idata.ph==='GBP 55 (standard)'?55:0));
-        if(phAmt>0&&(!fType||fType==='Phlebotomy'))lines.push({type:'Phlebotomy',item:'Phlebotomy fee',detail:'',cur:cur,amt:phAmt,isFU:false,region:(sk==='int'?'Internal':'External')});
-      }
+      // Phlebotomy fees are intentionally NOT hand-computed here either — same reasoning
+      // as above: this hardcoded amount-guessing logic disagreed with buildBillTotal's
+      // actual computed value for real bills (a fixed-value guess can't account for every
+      // region/rate variation buildBillTotal already handles correctly).
       // Medications
       if(idata.meds&&(!fType||fType==='Medication'))lines.push({type:'Medication',item:'Medication',detail:String(idata.meds).slice(0,80),cur:cur,amt:0,isFU:false,region:(sk==='int'?'Internal':'External')});
       // Admin / Physician time
-      if(idata.padh){var pm=(parseInt((idata.padh||{}).h)||0)*60+(parseInt((idata.padh||{}).m)||0);if(pm>0){var pr=_fuRegionRate('phys',reg,idata.pal||'Inside UAE',idata.padh_h||'In Hours');if(!fType||fType==='Admin time')lines.push({type:'Physician time',item:'Physician Admin Time',detail:Math.ceil(pm/30)+' units · '+(idata.padh_h||'In Hours'),cur:cur,amt:Math.ceil(pm/30)*pr,isFU:false,region:(sk==='int'?'Internal':'External')});}}
-      if(idata.adh){var am2=(parseInt((idata.adh||{}).h)||0)*60+(parseInt((idata.adh||{}).m)||0);if(am2>0){var ar=_fuRegionRate('admin',reg,idata.al||'Inside UAE',idata.adh_h||'In Hours');if(!fType||fType==='Admin time')lines.push({type:'Admin time',item:'Medical Concierge Coordination',detail:Math.ceil(am2/30)+' units · '+(idata.adh_h||'In Hours'),cur:cur,amt:Math.ceil(am2/30)*ar,isFU:false,region:(sk==='int'?'Internal':'External')});}}
-      // Nurse visits (internal + UK)
-      if(['is','ie','ii','inv','env','ues','uee','uei'].indexOf(item.id)>=0&&(!fType||fType==='Nurse visit')){
-        var nv=idata.nv||'In Hours';var nf=0;
-        try{
-          if(sk==='extUK'){var fp=idata.feepaid;var fpAmt=parseFloat((fp&&fp.amount)||0);nf=fpAmt?Math.round(fpAmt*1.10*100)/100:((FEES.nurseUK&&FEES.nurseUK[nv])||275);}
-          else{nf=(FEES.nurse&&FEES.nurse[nv])||0;}
-        }catch(e){}
-        lines.push({type:'Nurse visit',item:item.label||'Nurse visit',detail:nv,cur:cur,amt:nf,isFU:false,region:(sk==='int'?'Internal':'External')});
-      }
+      // Physician Admin Time / Medical Concierge Coordination are intentionally NOT
+      // hand-computed here — buildBillTotal (the same calculator the bill's own card uses)
+      // already computes these correctly for every item, in whatever label format applies
+      // to that specific item. Computing them a second time here, independently, was
+      // exactly what caused real fee lines to be double-counted for many bills — removing
+      // the duplicate computation is safer than trying to pattern-match every label variant
+      // buildBillTotal can produce.
+      // Nurse visit fees are intentionally NOT hand-computed here — same reasoning as admin
+      // time above: buildBillTotal already computes these correctly (including externally
+      // settled amounts and non-GBP/AED currencies), and duplicating that logic here caused
+      // both phantom fees and missing ones for real bills.
     });
   }
   // Follow-ups
@@ -8093,14 +8089,20 @@ function _getDetailedBillLines(b,fType){
       (window._BILL_LINES||[]).forEach(function(l){
         var lbl=l.label||'';
         if(/^Lab tests \(/.test(lbl))return;
-        if(/Concierge/i.test(lbl))return; // Medical Concierge Coordination — already itemised above as Admin time
-        if(/^Physician Admin/i.test(lbl))return; // Physician Administrative Time — already itemised above
+        // Only exclude the SECS-style labels this function's own hand-written logic above
+        // already produces verbatim (exact match, no "Item — " prefix) — a UK rich-item
+        // line always carries that prefix (e.g. "Physician Services — Medical Concierge
+        // Coordination...") and was NEVER itemised above, since this function's hand-written
+        // loop only ever iterates SECS (UAE/Global), not UK's separate item structure. The
+        // previous broad substring match excluded both, silently dropping every UK Concierge/
+        // Admin/Nurse fee from this report even though buildBillTotal had correctly computed it.
         if(/^Follow-up \(/.test(lbl))return;
-        if(lbl.indexOf('Phlebotomy')>=0)return;
-        if(/Nurs/i.test(lbl))return; // Nursing Services / nurse visits — already itemised above
         var _region=(l._sk==='int'?'Internal':'External');
         var _t='Other fees';
         if(/^VAT/.test(lbl))_t='Tax/VAT';
+        else if(/Phlebotomy/i.test(lbl))_t='Phlebotomy';
+        else if(/Concierge|Admin/i.test(lbl))_t='Admin time';
+        else if(/Nurs/i.test(lbl))_t='Nurse visit';
         else if(/^Physician Services|Consultation/i.test(lbl))_t='Consultation Fee';
         else if(/Medication/i.test(lbl))_t='Medication Fee';
         else if(/referral/i.test(lbl))_t='Referral Fee';
@@ -12937,9 +12939,8 @@ function ukExternalItems(){
         {id:'hospital',l:'Facility',t:'contactsel',grp:'g1'},
         {id:'arr_date',l:'Arrangement Date',t:'date'},
         {id:'mode',l:'Consultation mode',t:'sel',o:['Home Visit','Face-to-Face Consultation','Virtual Consultation','Telephone Consultation','Patient Accompaniment']},
+        {id:'referred_by',l:'Referred by',t:'doctorsel'},
         {id:'ref',l:'Referral Prepared & Shared',t:'ihooh'},
-        {id:'rf_detail',l:'What needs to be taken (referral detail)',t:'txt',cond:{f:'ref',has:true}},
-        {id:'rf_when',l:'Referral needed by',t:'date',cond:{f:'ref',has:true}},
         {id:'cf',l:'Consultation fee (if settled by Amara)',t:'pass'},
         {id:'adh_on',l:'Medical Concierge Coordination',t:'tog'},
         {id:'al',l:'Coordination Location',t:'sel',o:['Local','International'],cond:{f:'adh_on',has:true},grp:'g2'},
@@ -12964,12 +12965,11 @@ function ukExternalItems(){
         {id:'nurse_custom',l:'Nurse visit fee (GBP)',t:'txt'},
         {id:'phleb',l:'Phlebotomy (if bloods collected)',t:'tog',cond:{f:'nvt',has:'Sample collection'}},
         {id:'lw',l:'Laboratory Tests Performed',t:'lab',cond:{f:'nvt',has:'Sample collection'}},
-        {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel',cond:{f:'nvt',has:'Sample collection'}},
-        {id:'ecg',l:'ECG fee (if settled by Amara)',t:'pass',cond:{f:'nvt',has:'Device fitting'}},
-        {id:'bp',l:'BP monitor fee (if settled by Amara)',t:'pass',cond:{f:'nvt',has:'Device fitting'}},
+        {id:'labwhere',l:'Laboratory (Sample Destination)',t:'labsel',cond:{f:'nvt',has:'Sample collection'},excludeLabs:['Freiburg Medical Lab','American Hospital Lab','Unilabs']},
+        {id:'ecg',l:'ECG fee',t:'tog',cond:{f:'nvt',has:'Device fitting'}},
+        {id:'bp',l:'BP monitor fee',t:'tog',cond:{f:'nvt',has:'Device fitting'}},
         {id:'inj',l:'Injection / IV fee (if settled by Amara)',t:'pass',cond:{f:'nvt',has:'Medication administration'}},
         {id:'vac',l:'Vaccination fee (if settled by Amara)',t:'pass',cond:{f:'nvt',has:'Medication administration'}},
-        {id:'presc',l:"Physician's prescription fee",t:'ihooh',cond:{f:'nvt',has:'Medication administration'}},
         {id:'courier',l:'Medical Courier',t:'sel',o:['Standard','Custom']},
         {id:'padh_on',l:"Physician's Administrative Time",t:'tog'},
         {id:'padh_dn',l:'Internal Clinician Name',t:'doctorsel',cond:{f:'padh_on',has:true}},
@@ -12981,7 +12981,7 @@ function ukExternalItems(){
         {id:'adh',l:'Coordination Duration',t:'hours',cond:{f:'adh_on',has:true},grp:'g_adh'},
         {id:'ccdesc',l:'Coordination Description',t:'mta',cond:{f:'adh_on',has:true}}
       ],
-      prices:{nurse:{'In Hours':275,'Out of Hours':375}, phleb:{'__on':55}, presc:{'In Hours':75,'Out of Hours':95}, courier:COURIER},
+      prices:{nurse:{'In Hours':275,'Out of Hours':375}, phleb:{'__on':55}, ecg:{'__on':298}, bp:{'__on':392}, courier:COURIER},
       rates:{},
       markup:{ecg:1.05, bp:1.05, inj:1.05, vac:1.05} },
 
@@ -13023,8 +13023,6 @@ function ukExternalItems(){
         {id:'arr_date',l:'Arrangement Date',t:'date'},
         {id:'when',l:'Hours',t:'when',o:['In Hours','Out of Hours'],grp:'g2'},
         {id:'ref',l:'Diagnostic Referral Fee',t:'ihooh',grp:'g2'},
-        {id:'rf_detail',l:'What needs to be taken (referral detail)',t:'txt',cond:{f:'ref',has:true},grp:'g2'},
-        {id:'rf_when',l:'Referral needed by',t:'date',cond:{f:'ref',has:true}},
         {id:'rr',l:'Medical Report Review & Re-reporting Fee',t:'feefield'},
         {id:'sf',l:'Diagnostic Imaging / Procedure Fee (if settled by Amara)',t:'pass'},
         {id:'padh_on',l:'Administrative Time',t:'tog'},
@@ -14109,6 +14107,7 @@ function renderUKField(item,idata,f,sk){
   if(f.t==='labsel'){
     var _ukLabSelVal=idata[fid]||'';
     var _ukMainLabs=['Freiburg Medical Lab','American Hospital Lab','Unilabs','TDL'];
+    if(f.excludeLabs)_ukMainLabs=_ukMainLabs.filter(function(l){return f.excludeLabs.indexOf(l)<0;});
     var _ukIsOthers=_ukLabSelVal&&_ukMainLabs.indexOf(_ukLabSelVal)<0;
     return '<div class="dr"><div class="dl">'+esc(lbl)+'</div>'+
       '<div class="chips" style="margin-bottom:5px;">'+
@@ -14511,7 +14510,7 @@ ensureRichRegions=function(){
     if(_adm)CFG.billingStructure.external_uk.push(_adm);
   }
   // Additive field merge — insert expected fields if a saved structure is missing them.
-  var EXTRA={uk_med:[{id:'prx_dest',l:'Pharmacy / sent to',t:'contactsel',after:'meds'},{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_doctor:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_scan:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}],uk_nurse:[{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}]};
+  var EXTRA={uk_med:[{id:'prx_dest',l:'Pharmacy / sent to',t:'contactsel',after:'meds'},{id:'adesc',l:'Admin time description',t:'admintmpl',after:'adh'}]};
   (CFG.billingStructure.external_uk||[]).forEach(function(it){
     var ex=EXTRA[it.id];if(!ex)return;if(!it.fields)it.fields=[];
     ex.forEach(function(ef){
