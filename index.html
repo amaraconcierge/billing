@@ -885,7 +885,7 @@ button{cursor:pointer;}
       <div class="fwrap">
         <button class="ab" onclick="toggleFpop()">&#9881; Filter &amp; Sort</button>
         <div class="fpop" id="fpop">
-          <label class="fp-lbl">Search</label><input class="fp-inp" id="qi" placeholder="Bill #, patient, team, notes&#8230;" oninput="render()">
+          <label class="fp-lbl">Search</label><input class="fp-inp" id="qi" placeholder="Bill #, patient, team, notes&#8230;" oninput="_debouncedRender()">
           <label class="fp-lbl">Who to Bill</label>
           <select class="fp-sel" id="fBto" onchange="render()"><option value="">All</option></select>
           <label class="fp-lbl">Rolling Invoice</label>
@@ -1402,6 +1402,29 @@ var FEES={
     'Food Intolerance IGG Immupro 300':2184,
     'Food Allergy IgE MADX Comprehensive Molecular':1638,
     'FML - Inhalant Allergy Screening (20 antigens)':260,
+    'FML - Protein/Creatinine Ratio in Urine':42,
+    'FML - Iron screen':31.2,
+    'Iron screen':31.2,
+    'FML - Blood Film':29,
+    'FML Lipid Profile Basic':68,
+    'Lipid Profile Basic':68,
+    'FML - von Willebrand factor (vWF) activity':625,
+    'FML - von Willebrand Antigen':0,
+    'FML - Allergy Screening: f2 Cow\'s milk':78,
+    'FML - Allergy Screening: f76 alpha-lactalbumin':78,
+    'FML - Allergy Screening: f77 beta-lactoglobulin':78,
+    'FML - Allergy Screening: f78 Casein':78,
+    'FML - Allergy Screening: f81 Cheese cheddar type':78,
+    'FML - Allergy Screening: f82 Cheese mould type':78,
+    'FML - Allergy Screening: f231 milk boiled':78,
+    'FML - Allergy Screening: f236 whey':78,
+    'FML - Allergy Screening: f286 Mare\'s milk':78,
+    'FML - Allergy Screening: f300 Goat Milk':78,
+    'FML - Allergy Screening: f325 sheep milk':78,
+    'FML - Allergy Screening: f326 Sheep whey':78,
+    'FML - Allergy Screening: f1 Egg white':78,
+    'FML - Allergy Screening: f75 Egg Yolk':78,
+    'FML - Allergy Screening: f245 Egg':78,
     'Fibromax':1200,
     'Mineral Profile (25 Elements)':1092,
     'IPM1 Profile (FML)':2730,
@@ -3608,6 +3631,20 @@ function groupLabel(txt,count,col){
     '<span style="font-size:10px;font-weight:700;color:var(--m2);letter-spacing:.05em;">'+count+' bill'+(count!==1?'s':'')+'</span>'+
     '</div>';
 }
+// Generic debounce — delays calling fn until `wait` ms after the last call. Used to stop
+// expensive full re-renders from firing on every single keystroke in a search/filter box.
+// The search box's own displayed text is native browser behaviour and is never delayed —
+// only the (expensive) recomputation of results waits for typing to pause. Whichever moment
+// it actually runs, it reads the current input value fresh, so nothing typed is ever lost or
+// skipped — it just avoids recomputing on every intermediate character.
+function _debounce(fn,wait){
+  var t;
+  return function(){
+    var args=arguments,ctx=this;
+    clearTimeout(t);
+    t=setTimeout(function(){fn.apply(ctx,args);},wait);
+  };
+}
 function render(){
   try{assignPatCodesAll();_updPrivBtn();}catch(e){}
   try{_popActingAs();}catch(e){}
@@ -3770,6 +3807,7 @@ function render(){
       '</tr></thead><tbody>'+rows+'</tbody></table></div>';
   }
 }
+var _debouncedRender=_debounce(render,300);
 
 async function refreshPatientsOnly(){
   var d=gDB();if(!d)return;
@@ -4908,10 +4946,28 @@ function setCourier(sk,itemId,fId,part,v){
 }
 function togLab(sk,itemId,fId,lab){
   var cur=(curBill.billingData[sk]&&curBill.billingData[sk][itemId]&&curBill.billingData[sk][itemId][fId])||[];
+  var isAdding=!cur.includes(lab);
   var next=cur.includes(lab)?cur.filter(function(l){return l!==lab;}):[].concat(cur,[lab]);
   if(!curBill.billingData[sk])curBill.billingData[sk]={};
   if(!curBill.billingData[sk][itemId])curBill.billingData[sk][itemId]={};
   curBill.billingData[sk][itemId][fId]=next;
+  // A test typed directly into "Add custom test" here was previously only ever added to
+  // THIS bill's selection — it never became a real, priced entry anywhere, so its fee
+  // silently computed as 0 every time (including on follow-ups, which recompute live).
+  // Registering it in the actual price list here is the fix: it's a real, reusable test
+  // from now on, and shows up in Settings so the team can set its correct fee.
+  if(isAdding&&lab&&lab.trim()){
+    try{
+      _lwEnsure();
+      var _reg=_skRegion(sk)||'UAE';
+      var _exists=(CFG.labWorks[_reg]||[]).some(function(x){return (x.name||'').trim().toLowerCase()===lab.trim().toLowerCase();});
+      if(!_exists){
+        CFG.labWorks[_reg].push({name:lab.trim(),fee:0});
+        saveCFG();
+        toast('"'+lab.trim()+'" added to the '+_reg+' lab price list at AED/GBP 0 — set its fee in Settings \u2192 Lab Works','in');
+      }
+    }catch(e){}
+  }
   renderBForm();
 }
 function togLabDD(sk,id){var k='lab_'+sk+'_'+id;openItems[k]=!openItems[k];renderBForm();}
@@ -6627,7 +6683,7 @@ function renderFees(){
      '<div class="s"><div class="v">'+filtered.length+'</div><div class="l">Payments</div></div></div>';
   var others=keys.filter(function(k){return k!=='AED';});
   if(others.length)h+='<div style="font-size:11.5px;color:var(--m2);margin-bottom:12px;">Also \u2014 '+others.map(function(k){return '<b style="color:var(--t)">'+k+'</b> paid '+m(cur[k].paid,k)+', settled '+m(cur[k].settled,k);}).join(' \u00B7 ')+'</div>';
-  h+='<input class="pa-in" id="fees-srch" placeholder="Search patient, consultant, hospital, item\u2026" value="'+esc(srch)+'" oninput="renderFees()" style="width:100%;max-width:330px;margin-bottom:14px;display:block;box-sizing:border-box;">';
+  h+='<input class="pa-in" id="fees-srch" placeholder="Search patient, consultant, hospital, item\u2026" value="'+esc(srch)+'" oninput="_debouncedRenderFees()" style="width:100%;max-width:330px;margin-bottom:14px;display:block;box-sizing:border-box;">';
   if(!filtered.length){pg.innerHTML=h+'<div class="pa-card"><div class="pa-empty">No external fees yet. They appear here once a bill has external fee fields filled in.</div></div></div>';return;}
   h+='<div class="pa-card" style="padding:8px 10px;"><div style="overflow-x:auto;"><table class="pa-led"><thead><tr>'+
      '<th>Patient</th><th>Consultant / provider</th><th>Item</th><th style="text-align:right;">Fee paid</th><th style="text-align:right;">Markup</th><th style="text-align:right;">Settled</th><th>Date</th></tr></thead><tbody>';
@@ -6644,6 +6700,7 @@ function renderFees(){
   h+='</tbody></table></div></div></div>';
   pg.innerHTML=h;
 }
+var _debouncedRenderFees=_debounce(renderFees,300);
 // ═══════════════════════════════════════════════════════════════
 // REPORTS PAGE
 // ═══════════════════════════════════════════════════════════════
@@ -7238,6 +7295,7 @@ function renderReports(){
 bills=_origBillsForRpt;
 pg.innerHTML=h;
 }
+var _debouncedRenderReports=_debounce(renderReports,300);
 // ── Report tile layout: persisted order + hidden state, drag-to-reorder ──
 var RPT_DEFAULT_TILE_ORDER=['rpt-t-overview','rpt-t-teamarr','rpt-t-billsbyteam','rpt-t-verify','rpt-t-needslink','rpt-t-extnurse','rpt-t-customfee','rpt-t-status','rpt-t-branchteam','rpt-t-teamrev','rpt-t-doctors','rpt-t-bills'];
 var rptArrangeMode=false;
@@ -8020,6 +8078,8 @@ function rptTeamReport(){
 // to one category (as rptBillsTable's own type filter does) — pass null/undefined for all.
 function _getDetailedBillLines(b,fType){
   var lines=[];
+  var _ctypeByItemLabel={};
+  var _medsByItemLabel={};
   for(var sk in SECS){
     var sd=b.billingData&&b.billingData[sk];if(!sd)continue;
     var reg=_skRegion(sk);var cur=reg==='UK'?'GBP':'AED';
@@ -8033,13 +8093,17 @@ function _getDetailedBillLines(b,fType){
         return v!==false&&v!=='';
       });
       if(!hasData)return;
-      // Consultation type line — with its real fee (internal doctor consultations)
+      // Consultation type/mode context (Brief/Standard, In/Out of Hours, mode) — attached
+      // as detail on the real Consultation Fee row below, not pushed as its own row. It
+      // used to be a separate row with a permanently-zero amount sitting next to the real
+      // fee row for the exact same consultation — confusing, and not what's here to convey;
+      // the type/mode is context for the fee, not a billable line in its own right.
       var ctypeLine='';
       if(idata.ctype)ctypeLine=idata.ctype;
       else if(idata.ct)ctypeLine=idata.ct;
       if(idata.ch||idata.when)ctypeLine+=(ctypeLine?' · ':'')+( idata.ch||idata.when||'');
       if(idata.mode)ctypeLine+=' · '+idata.mode;
-      if(ctypeLine&&(!fType||fType==='Consultation'))lines.push({type:'Consultation',item:item.label||item.id,detail:ctypeLine,cur:cur,amt:0,isFU:false,region:(sk==='int'?'Internal':'External')});
+      if(ctypeLine)_ctypeByItemLabel[item.label||item.id]=ctypeLine;
       // Lab work — itemised per test
       var lw=idata.lw;
       if(Array.isArray(lw)&&lw.length){
@@ -8053,8 +8117,11 @@ function _getDetailedBillLines(b,fType){
       // as above: this hardcoded amount-guessing logic disagreed with buildBillTotal's
       // actual computed value for real bills (a fixed-value guess can't account for every
       // region/rate variation buildBillTotal already handles correctly).
-      // Medications
-      if(idata.meds&&(!fType||fType==='Medication'))lines.push({type:'Medication',item:'Medication',detail:String(idata.meds).slice(0,80),cur:cur,amt:0,isFU:false,region:(sk==='int'?'Internal':'External')});
+      // Medication name/context — attached as detail on the real Medication Fee row below,
+      // not pushed as its own row. Same reasoning as the Consultation fix above: this used
+      // to be a separate row with a permanently-zero amount sitting next to the real fee
+      // row for the same medication arrangement.
+      if(idata.meds)_medsByItemLabel[item.label||item.id]=String(idata.meds).slice(0,80);
       // Admin / Physician time
       // Physician Admin Time / Medical Concierge Coordination are intentionally NOT
       // hand-computed here — buildBillTotal (the same calculator the bill's own card uses)
@@ -8100,15 +8167,28 @@ function _getDetailedBillLines(b,fType){
         var _region=(l._sk==='int'?'Internal':'External');
         var _t='Other fees';
         if(/^VAT/.test(lbl))_t='Tax/VAT';
+        else if(/Lab work/i.test(lbl))_t='Lab work'; // checked first: this can appear anywhere within a longer "Item — Lab work — ..." label (UK rich items), and must not be caught by the broader Physician Services/Nursing checks below
         else if(/Phlebotomy/i.test(lbl))_t='Phlebotomy';
         else if(/Concierge|Admin/i.test(lbl))_t='Admin time';
+        else if(/Diagnostic Imaging/i.test(lbl))_t='Diagnostic Imaging Fee';
+        else if(/referral/i.test(lbl))_t='Referral Fee'; // checked before Physician Services below — UK referral labels are also prefixed "Physician Services — Referral..."
+        else if(/Courier/i.test(lbl))_t='Courier Fee'; // checked before Physician Services below — same reasoning as referral, lab work, diagnostic imaging above
         else if(/Nurs/i.test(lbl))_t='Nurse visit';
         else if(/^Physician Services|Consultation/i.test(lbl))_t='Consultation Fee';
         else if(/Medication/i.test(lbl))_t='Medication Fee';
-        else if(/referral/i.test(lbl))_t='Referral Fee';
-        else if(/Courier/i.test(lbl))_t='Courier Fee';
         if(fType&&fType!==_t)return;
-        lines.push({type:_t,item:lbl,detail:l.desc||'',cur:l.cur||l.amtCur||'AED',amt:l.amount||l.fee||0,isFU:false,region:_region});
+        var _detail=l.desc||'';
+        if(_t==='Consultation Fee'&&!_detail){
+          for(var _il in _ctypeByItemLabel){
+            if(lbl.indexOf(_il)>=0){_detail=_ctypeByItemLabel[_il];break;}
+          }
+        }
+        if(_t==='Medication Fee'&&!_detail){
+          for(var _ml in _medsByItemLabel){
+            if(lbl.indexOf(_ml)>=0){_detail=_medsByItemLabel[_ml];break;}
+          }
+        }
+        lines.push({type:_t,item:lbl,detail:_detail,cur:l.cur||l.amtCur||'AED',amt:l.amount||l.fee||0,isFU:false,region:_region});
       });
     }catch(e){}
   }
@@ -8201,7 +8281,7 @@ function rptBillsTable(mode){
   var hasFilter=!!(fPat||fFrom||fTo||fType||fBillNo||fSort);
 
   var filterBar='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:12px;">'+
-    '<input type="text" id="'+pfx+'no" placeholder="Bill #" value="'+esc(fBillNo)+'" oninput="renderReports()" style="'+selStyle+';width:80px;">'+
+    '<input type="text" id="'+pfx+'no" placeholder="Bill #" value="'+esc(fBillNo)+'" oninput="_debouncedRenderReports()" style="'+selStyle+';width:80px;">'+
     '<select id="'+pfx+'p" onchange="renderReports()" style="'+selStyle+'">'+patOpts+'</select>'+
     '<select id="'+pfx+'type" onchange="renderReports()" style="'+selStyle+'">'+typeOpts+'</select>'+
     '<input type="date" id="'+pfx+'f" value="'+esc(fFrom)+'" onchange="renderReports()" style="'+selStyle+'">'+
@@ -15988,7 +16068,8 @@ function _seedUKLabs(){
     {name:'TDL CCP',fee:58.24},
     {name:'TDL IGE',fee:33.8},
     {name:'TDL MERC',fee:46.15},
-    {name:'TDL OMG3',fee:140.92},
+    {name:'TDL OMG3',fee:169.65},
+    {name:'TDL VSD venesection',fee:52.00},
     {name:'TDL PR2',fee:48.75},
     {name:'TDL SAVE',fee:15.6},
     {name:'TDL HOME',fee:227.5},
@@ -16011,7 +16092,515 @@ function _seedUKLabs(){
     {name:'TDL Copper',fee:81.2},
     {name:'TDL TPEX',fee:62.0},
     {name:'TDL TGAB',fee:62.0},
-    {name:'IPH 1 - Amara TDL Panel',fee:553.25}
+    {name:'IPH 1 - Amara TDL Panel',fee:553.25},
+    {name:'TDL Acute Viral Hepatitis Screen',fee:294},
+    {name:'TDL Albumin',fee:39.65},
+    {name:'TDL Aldosterone',fee:148},
+    {name:'TDL Aldolase',fee:138},
+    {name:'TDL Eczema Provoking Profile',fee:255},
+    {name:'TDL Allergy - Individual Allergen',fee:55},
+    {name:'TDL General food allergens',fee:275},
+    {name:'TDL Allergens: nuts and seeds.',fee:391.25},
+    {name:'TDL Allergy Profile (Mediterranean)',fee:187},
+    {name:'TDL Allergy Profile (Middle East)',fee:173},
+    {name:'TDL Alkaline Phosphatase',fee:39.65},
+    {name:'TDL Rhinitis Provoking Profile',fee:255},
+    {name:'TDL Alanine Aminotransferase',fee:39.65},
+    {name:'TDL Allergy Profile (UK)',fee:218},
+    {name:'TDL Amenorrhoea Profile',fee:165.75},
+    {name:'TDL Antimullerian Hormone (AMH Plus)',fee:169.65},
+    {name:'TDL Amylase',fee:75},
+    {name:'TDL Amylase lsoenzymes',fee:227},
+    {name:'TDL Antinuclear Antibodies (titre & pattern)',fee:75},
+    {name:'TDL Antineutrophil cytoplasmic antibodies',fee:137},
+    {name:'TDL Male hormone profile',fee:220},
+    {name:'TDL Androstenedione',fee:105},
+    {name:'TDL Anti CCP',fee:75},
+    {name:'TDL Anti-parietal cell Abs',fee:63.05},
+    {name:'TDL Anti Cyclic Citrullinated Peptide Abs',fee:63.05},
+    {name:'TDL Anti-Annexin IgG and IgM',fee:58.5},
+    {name:'TDL Antistreptolysin Titre/ASOT',fee:65},
+    {name:'TDL AP50 Alternative Hemolytic Complement',fee:151},
+    {name:'TDL Alpha 1 Antitrypsin (Serum)',fee:142},
+    {name:'TDL Apolipoprotein A1',fee:98.8},
+    {name:'TDL Apolipoprotein B',fee:98.8},
+    {name:'TDL Appointment',fee:100},
+    {name:'TDL Pneumonia (Atypical) Screen',fee:169},
+    {name:'TDL Aspartate Transaminase',fee:39.65},
+    {name:'TDL Hepatitis B Surface Antigen (Venous)',fee:68.25},
+    {name:'TDL Autoantibody profile - basic',fee:166},
+    {name:'TDL Autoantibody Profile I',fee:165},
+    {name:'TDL Vitamin B12 (Active)',fee:91.65},
+    {name:'TDL Vitamin B12 (Active)/ Red Cell Folate',fee:145.6},
+    {name:'TDL Beta 2 Glycoprotein 1 Abs',fee:145.6},
+    {name:'TDL Beta 2 Microglobulin (Serum)',fee:107},
+    {name:'TDL Blood Culture',fee:62},
+    {name:'TDL Bile Acids â€“ Serum',fee:81.9},
+    {name:'TDL Total Bilirubin',fee:39.65},
+    {name:'TDL Biotin',fee:166},
+    {name:'TDL Blood film inspection',fee:41.6},
+    {name:'TDL BASIC METABOLIC PROFILE',fee:480},
+    {name:'TDL BNP (NT-pro BNP)',fee:122.85},
+    {name:'TDL Bone Screen (Bloods only)',fee:168.35},
+    {name:'TDL Bone Screen',fee:87.75},
+    {name:'TDL Borrelia Confirmation (Immunoblot)',fee:390},
+    {name:'TDL Borrelia Antibodies (Lyme Disease) IgG, IgM',fee:101},
+    {name:'TDL Breast milk M,C&S',fee:40},
+    {name:'TDL Broad Respiratory Test',fee:300.3},
+    {name:'TDL Testosterone (Bioavailable)',fee:258},
+    {name:'TDL BUN (Blood Urea Nitrogen)',fee:43.55},
+    {name:'TDL C1q binding immune complex',fee:102},
+    {name:'TDL C2 Complement',fee:132},
+    {name:'TDL C3 Complement',fee:57},
+    {name:'TDL C4 complement',fee:88},
+    {name:'TDL Complement C5',fee:132},
+    {name:'TDL Tumour marker C 153',fee:165.1},
+    {name:'TDL Calcium',fee:39.65},
+    {name:'TDL CA 125',fee:165.1},
+    {name:'TDL CA 19-9',fee:165.1},
+    {name:'TDL Calprotectin',fee:119.6},
+    {name:'TDL Cardiac investigations',fee:300},
+    {name:'TDL Anti-cardiolipin antibodies',fee:128},
+    {name:'TDL Neurotransmitters - catecholamines',fee:184},
+    {name:'TDL Calcitonin',fee:163.15},
+    {name:'TDL CCAB: Voltage Gated Calcium Channel Antibodies',fee:316.55},
+    {name:'TDL CCAG: Candida Antigen',fee:171.6},
+    {name:'TDL CCP Anti-CCP Antibodies (RF)',fee:63},
+    {name:'TDL Carcino Embryonic Antigen',fee:104},
+    {name:'TDL Chikungunya Virus Abs',fee:147},
+    {name:'TDL Cholesterol',fee:36.4},
+    {name:'TDL Chromium (Blood)',fee:91},
+    {name:'TDL CK',fee:59},
+    {name:'TDL CK (MB Fraction)',fee:65.65},
+    {name:'TDL Creatine Kinase (CK, CPK)',fee:46.8},
+    {name:'TDL Chloride',fee:33.8},
+    {name:'TDL Coagulation Profile - advanced',fee:145},
+    {name:'TDL Coagulation Profile 1',fee:105},
+    {name:'TDL CMV',fee:79.56},
+    {name:'TDL Cobalt',fee:85},
+    {name:'TDL C3/C4 Complement',fee:112.45},
+    {name:'TDL Corrected Calcium',fee:75},
+    {name:'TDL Cortisol',fee:74.75},
+    {name:'TDL Courier',fee:35},
+    {name:'TDL Covid 19 IgG antibodies by ELISA',fee:55},
+    {name:'TDL SARS-CoV-2 Antibodies by ABBOTT',fee:70},
+    {name:'TDL Covid antibody profile',fee:88},
+    {name:'TDL Covid-19 antibodies',fee:125},
+    {name:'TDL Covid Day 2 tests',fee:63},
+    {name:'TDL COVID-19 PCR swab Private',fee:200},
+    {name:'TDL COVID-19 swab investigation by PCR',fee:200},
+    {name:'TDL PCR for SARS-CoV-2',fee:200},
+    {name:'TDL COVID-19 swab by PCR routine UKME rate',fee:184},
+    {name:'TDL CovUKME: TTR TEST - Day 5',fee:160},
+    {name:'TDL COVID-19 swab by PCR urgent UKME rate',fee:220},
+    {name:'TDL Card processing fee 1.5%',fee:338.33},
+    {name:'TDL Complex PSA (Prostate Specific Ag)',fee:104},
+    {name:'TDL Coenzyme Q10',fee:202.15},
+    {name:'TDL Creatinine',fee:39.65},
+    {name:'TDL C Reactive Protein',fee:70.2},
+    {name:'TDL Cryoglobulins',fee:88},
+    {name:'TDL CT Abdomen Pelvis with Contrast',fee:1166},
+    {name:'TDL CT Scan',fee:100},
+    {name:'TDL Culture (Any site)',fee:110.5},
+    {name:'TDL Cystatin C',fee:135.85},
+    {name:'TDL 1,25 Vitamin D',fee:175},
+    {name:'TDL Accompaniment.',fee:5950},
+    {name:'TDL Bilirubin (Direct/Indirect)',fee:39.65},
+    {name:'TDL D-Dimers (Fibrinogen Degradation Products',fee:80},
+    {name:'TDL Denosumab',fee:289},
+    {name:'TDL Mycology/Skin Scrapings by PCR',fee:122},
+    {name:'TDL Medical device',fee:160},
+    {name:'TDL Dexamethasone',fee:15},
+    {name:'TDL DHEA Sulphate',fee:108.55},
+    {name:'TDL DHEA',fee:108},
+    {name:'TDL Dihydrotestosterone',fee:150},
+    {name:'TDL Diabetic Profile 2',fee:145.6},
+    {name:'TDL Digoxin',fee:99},
+    {name:'TDL D-dimer',fee:85.15},
+    {name:'TDL Diphtheria Antibodies',fee:113.1},
+    {name:'TDL Biochemistry profile',fee:71.5},
+    {name:'TDL DL10 Cardiovascular Risk Profile 1',fee:325},
+    {name:'TDL DL11: CARDIOVASCULAR RISK PROFILE 2',fee:358},
+    {name:'TDL Broad sexual infection screen by PCR on urine',fee:182},
+    {name:'TDL Biochemistry profile + HDL Cholesterol',fee:71.5},
+    {name:'TDL Haematology and Biochemistry Profile',fee:78},
+    {name:'TDL DL2L',fee:91},
+    {name:'TDL Haematology Profile',fee:39},
+    {name:'TDL BIOCHEMISTRY (16 PARAMETERS) & HAEMATOLOGY PROFILE',fee:78},
+    {name:'TDL Well Person Profile',fee:132},
+    {name:'TDL Well person screen',fee:137},
+    {name:'TDL Preventative profile 7',fee:214.5},
+    {name:'TDL Basic Profile',fee:208},
+    {name:'TDL Well person profile with lipid screen',fee:214.5},
+    {name:'TDL DL9F',fee:436},
+    {name:'TDL SENIOR MALE PROFILE 60+',fee:423},
+    {name:'TDL AntiDNA antibodies',fee:76.7},
+    {name:'TDL DNA (Double Stranded) Antibodies IgG',fee:77},
+    {name:'TDL Drug screen urine',fee:85},
+    {name:'TDL Drugs of Abuse Profile â€“ Without Chain of Custody',fee:124.15},
+    {name:'TDL Drug screen blood',fee:145},
+    {name:'TDL Double-stranded DNA antibodies',fee:88},
+    {name:'TDL DVT/Pre-travel Screen',fee:220},
+    {name:'TDL Oestrone',fee:125.45},
+    {name:'TDL Oestriol (Estriol)',fee:85},
+    {name:'TDL HIV/HBV/HCV (Early detect PCR/NAAT) Syphilis',fee:285},
+    {name:'TDL Epstein-Barr Virus Antibodies IgG/IgM',fee:206.7},
+    {name:'TDL Epstein-Barr Virus PCR',fee:200.85},
+    {name:'TDL Endoscopy charge (Cromwell Hospital)',fee:1151},
+    {name:'TDL ECG',fee:116},
+    {name:'TDL Echocardiogram at Royal Brompton 77 Wimpole Street',fee:539},
+    {name:'TDL Elastase (RF / Self-collect)',fee:138.45},
+    {name:'TDL Electrolytes',fee:38},
+    {name:'TDL ELF/Enhanced Liver Fibrosis',fee:265.2},
+    {name:'TDL Extractable Nuclear Antibodies',fee:89},
+    {name:'TDL EORD Enteric Organism Rapid Detection',fee:276.9},
+    {name:'TDL ESR',fee:40.95},
+    {name:'TDL Extensive urgent respiratory',fee:475},
+    {name:'TDL Express SARS-Cov-2 PCR TEST',fee:230},
+    {name:'TDL Extensive urgent respiratory infection screen',fee:475},
+    {name:'TDL Swab (Eye)',fee:101.1},
+    {name:'TDL Factor V Leiden (F5)',fee:143.5},
+    {name:'TDL Factor V Assay',fee:107.25},
+    {name:'TDL Complement Factor H',fee:187},
+    {name:'TDL Free Androgen Index',fee:0},
+    {name:'TDL Full blood count',fee:63.7},
+    {name:'TDL FAST Chlamydia â€“ Urine',fee:133.9},
+    {name:'TDL Iron (TIBC included)',fee:43.55},
+    {name:'TDL Female hormone profile',fee:195},
+    {name:'TDL Ferritin',fee:108.55},
+    {name:'TDL FAST Gonorrhoea â€“ Urine',fee:133.9},
+    {name:'TDL Fibrinogen',fee:52},
+    {name:'TDL FLEA',fee:111.8},
+    {name:'TDL Flight',fee:1},
+    {name:'TDL Respiratory Viral RNA Screen by PCR',fee:364},
+    {name:'TDL Flu vaccine',fee:25},
+    {name:'TDL Quadrivalent flu vaccine',fee:25},
+    {name:'TDL Folate (Serum)',fee:68.25},
+    {name:'TDL Vitamin B9 (Folic acid) â€“ Red cell',fee:68.25},
+    {name:'TDL Food intolerance testing',fee:275},
+    {name:'TDL Free thyroid 3',fee:55},
+    {name:'TDL Fructosamine',fee:59.15},
+    {name:'TDL FSH',fee:71.5},
+    {name:'TDL Free T3 thyroid function',fee:71.5},
+    {name:'TDL Free T4 thyroid function',fee:71.5},
+    {name:'TDL FTES Testosterone (Free)',fee:146.9},
+    {name:'TDL Von Willebrands Profile',fee:215},
+    {name:'TDL Factor II Prothrombin â€“ G20210A Variant',fee:267.15},
+    {name:'TDL Factor V Leiden â€“ G1691A Variant',fee:267.15},
+    {name:'TDL Glucose-6-Phosphate Dehydrogenase (G6PD) Deficienc',fee:910},
+    {name:'TDL G6PD',fee:108},
+    {name:'TDL GAD65',fee:189.15},
+    {name:'TDL Gardasil vaccine',fee:157.7},
+    {name:'TDL Group B Strep',fee:55},
+    {name:'TDL SARS-CoV-2 (COVID-19) Abbott IgG Antibody',fee:78},
+    {name:'TDL Genetic testing Storegene',fee:0},
+    {name:'TDL Gamma GT',fee:36.4},
+    {name:'TDL Growth Hormone (Fasting)',fee:74},
+    {name:'TDL HbA1c',fee:71.5},
+    {name:'TDL GHYB',fee:586.3},
+    {name:'TDL Globulin',fee:43.55},
+    {name:'TDL Gluten Allergy Profile',fee:410.15},
+    {name:'TDL Coeliac/Gluten Sensitivity Profile',fee:165},
+    {name:'TDL Coeliac/Gluten Profile 2',fee:385},
+    {name:'TDL HLA B27',fee:262},
+    {name:'TDL Haemoglobin',fee:43.55},
+    {name:'TDL Hepatitis A Immunity (IgG/IgM)',fee:70.2},
+    {name:'TDL Appointment with Mr. Harris',fee:1935},
+    {name:'TDL H. pylori Antigen (Stool)',fee:100.1},
+    {name:'TDL Haemoglobin Electrophoresis',fee:130.65},
+    {name:'TDL Hepatitis B Immunity',fee:70.2},
+    {name:'TDL H. pylori Antibodies (IgG)',fee:65},
+    {name:'TDL Hepatitis B vaccine',fee:75},
+    {name:'TDL Beta HCG (Oncology)',fee:45},
+    {name:'TDL Bicarbonate',fee:33.8},
+    {name:'TDL C Reactive Protein (High Sensitivity)',fee:70.2},
+    {name:'TDL Homocysteine (Urine)',fee:160},
+    {name:'TDL HDL Cholesterol',fee:57.85},
+    {name:'TDL HIV 1&2 / p24Ag',fee:85},
+    {name:'TDL Hepatitis A Profile',fee:65},
+    {name:'TDL Hepatitis A and B vaccine booster',fee:75},
+    {name:'TDL Hepatitis B Profile',fee:185},
+    {name:'TDL Hepatitis C Antibodies',fee:117},
+    {name:'TDL Herpes Simplex I/II IgM',fee:95},
+    {name:'TDL Herpes Simplex I/II Antibody Profile (IgG)',fee:100},
+    {name:'TDL Herpes Simplex I/II Symp  lesion',fee:90},
+    {name:'TDL Histamine (Urine)',fee:104},
+    {name:'TDL HLA B27 protein test',fee:245},
+    {name:'TDL Haemochromatosis â€“ HFE common variants C282Y + H63',fee:289.9},
+    {name:'TDL Holotranscobalamin',fee:83},
+    {name:'TDL Homocysteine (Quantitative)',fee:119.6},
+    {name:'TDL Medical equipment: Home hospital bed',fee:2640},
+    {name:'TDL HRT Profile',fee:139.75},
+    {name:'TDL HSCRP',fee:63.05},
+    {name:'TDL Appointment with Prof Lindsay',fee:1125},
+    {name:'TDL Ionized Ca',fee:63},
+    {name:'TDL Ionised Calcium',fee:70.2},
+    {name:'TDL pneumophila (IF)',fee:160},
+    {name:'TDL Intrinsic Factor Antibodies',fee:127.4},
+    {name:'TDL Immunoglobulin A',fee:53.3},
+    {name:'TDL IgE (Total)',fee:78},
+    {name:'TDL IGF-1',fee:148.2},
+    {name:'TDL IGF-BP3',fee:133},
+    {name:'TDL Immunoglobulin G',fee:53.3},
+    {name:'TDL Immunoglobulin M',fee:53.3},
+    {name:'TDL Interleukin 6',fee:252},
+    {name:'TDL Interleukin-6',fee:244.4},
+    {name:'TDL Immunoglobulins (IgG, IgM, IgA)',fee:107.25},
+    {name:'TDL ImmunoBlot',fee:199},
+    {name:'TDL Erectile Dysfunction Profile',fee:223},
+    {name:'TDL Insulin Antibodies',fee:118.3},
+    {name:'TDL Injection',fee:50},
+    {name:'TDL INR',fee:36},
+    {name:'TDL Insulin',fee:78},
+    {name:'TDL Investigations',fee:605},
+    {name:'TDL Iodine â€“ Serum',fee:125},
+    {name:'TDL Iron Overload Profile',fee:335},
+    {name:'TDL IofPM profile 1',fee:486},
+    {name:'TDL IofPM profile 2',fee:389.35},
+    {name:'TDL Iron Status Profile',fee:126.1},
+    {name:'TDL K Potassium',fee:36.4},
+    {name:'TDL Lactose intolerance gene',fee:178},
+    {name:'TDL Lyca Credit Suisse health screen',fee:918},
+    {name:'TDL Lactate Dehydrogenase (LDH)',fee:46.8},
+    {name:'TDL LDH (lsoenzymes)',fee:102},
+    {name:'TDL LDL7 Subfractions',fee:336.7},
+    {name:'TDL Lead (Blood)',fee:74},
+    {name:'TDL Leptin',fee:202.15},
+    {name:'TDL Letter',fee:50},
+    {name:'TDL Liver Function Tests',fee:72.15},
+    {name:'TDL Luteinising Hormone (LH)',fee:71.5},
+    {name:'TDL Freestyle libre',fee:75},
+    {name:'TDL Lipase',fee:74.75},
+    {name:'TDL Lipid Profile',fee:72.15},
+    {name:'TDL Lipoprotein (a)',fee:79.3},
+    {name:'TDL Long Term Save',fee:24},
+    {name:'TDL Lupus Anticoagulant and Anticardiolipin Abs',fee:143.65},
+    {name:'TDL Lymphocyte Subsets (CD3/CD4/CD8)',fee:301.6},
+    {name:'TDL Meningitis ACWY',fee:75},
+    {name:'TDL Myelin Associated Glycoprotein Antibodies',fee:382.2},
+    {name:'TDL Malarone 12 tablets',fee:24},
+    {name:'TDL Malarial Parasites',fee:47},
+    {name:'TDL Malarial Antibodies (species specific)',fee:75},
+    {name:'TDL Manganese',fee:85},
+    {name:'TDL COVID-19 (SARS-CoV-2) Abbott IgM Antibody',fee:78},
+    {name:'TDL Medication',fee:298},
+    {name:'TDL Menopause Profile',fee:176},
+    {name:'TDL Mercury (Blood)',fee:81.25},
+    {name:'TDL Metabolic Syndrome Profile',fee:352},
+    {name:'TDL Magnesium (Serum)',fee:56.55},
+    {name:'TDL Complete Mineral Screen',fee:258.05},
+    {name:'TDL Whole blood mineral Screen',fee:195},
+    {name:'TDL MIPR Male Hormone Profile',fee:239.2},
+    {name:'TDL Methylmalonic Acid â€“ Serum',fee:275},
+    {name:'TDL MMR vaccination status',fee:174},
+    {name:'TDL Field expert reporting in London of full body MRI',fee:800},
+    {name:'TDL Field expert reporting in London for single scan',fee:500},
+    {name:'TDL MRSA (Rapid PCR) one swab per site',fee:95.55},
+    {name:'TDL MRSA nose and groin',fee:150},
+    {name:'TDL MTHFR â€“ common C677T + A1298C variants',fee:283.4},
+    {name:'TDL Mammogram, ultrasound and biopsy',fee:1592},
+    {name:'TDL Sodium',fee:36.4},
+    {name:'TDL NAG genetic testing and consultation',fee:2676.53},
+    {name:'TDL COVID-19 (SARS-CoV-2) RNA by PCR',fee:220},
+    {name:'TDL Neurological viral screen',fee:188},
+    {name:'TDL Nasal flu vaccine',fee:55},
+    {name:'TDL Immunophenotype of NK cells',fee:439.4},
+    {name:'TDL Non-HDL Cholesterol',fee:24},
+    {name:'TDL Nurse visit within office hours UKME Rate',fee:200},
+    {name:'TDL Nurse visit out of office hours UKME Rate',fee:260},
+    {name:'TDL Stool for OVA Cysts & Parasites by PCR',fee:45.5},
+    {name:'TDL Oestradiol (E2)',fee:71.5},
+    {name:'TDL Omega 3/Omega 6',fee:169.65},
+    {name:'TDL Swab (Oral)',fee:74},
+    {name:'TDL Osmolality (Serum)',fee:70.2},
+    {name:'TDL Prealbumin',fee:111.15},
+    {name:'TDL Pneumococcal Antibodies - Serotype Specific',fee:258},
+    {name:'TDL Procalcitonin',fee:148.2},
+    {name:'TDL Polycystic Ovary Syndrome Profile',fee:752.05},
+    {name:'TDL Polycystic Ovary Syndrome SHORT',fee:239.2},
+    {name:'TDL Procedure for removal (Cromwell Hospital)',fee:2760},
+    {name:'TDL Stool for OCP and Culture',fee:100.1},
+    {name:'TDL Phosphate',fee:36.4},
+    {name:'TDL Anti-Phosphatidylserine Antibodies',fee:177.45},
+    {name:'TDL Physiotherapy appointment.',fee:135},
+    {name:'TDL Pituitary Function Profile',fee:226},
+    {name:'TDL Lp-PLA2 (PLAC) Test',fee:161.2},
+    {name:'TDL Cardiovascular Risk Profile 1',fee:278},
+    {name:'TDL PP3_2025',fee:75.4},
+    {name:'TDL Pneumococcal polysaccharide vaccine (PPV)',fee:50},
+    {name:'TDL Prostate Profile (Total & Free PSA)',fee:126.1},
+    {name:'TDL Protein C',fee:82.55},
+    {name:'TDL Pregnenolone',fee:137},
+    {name:'TDL Propanalol',fee:142.35},
+    {name:'TDL Progesterone',fee:71.5},
+    {name:'TDL Prolactin',fee:71.5},
+    {name:'TDL Thrombotic Risk Profile',fee:649},
+    {name:'TDL Protein Total (Blood)',fee:36.4},
+    {name:'TDL Protein Electrophoresis inc. immunoglobin',fee:146.9},
+    {name:'TDL Protein S Activity',fee:79.95},
+    {name:'TDL PSA Free (Prostate Specific Antigen)',fee:20.74},
+    {name:'TDL Prostate Specific Antigen (Total',fee:92.95},
+    {name:'TDL Psychologist appointment.',fee:250},
+    {name:'TDL Prothrombin Time',fee:35.75},
+    {name:'TDL PTH',fee:162.5},
+    {name:'TDL Parathyroid Antibodies',fee:128.05},
+    {name:'TDL Parathyroid Hormone (Whole)',fee:155.35},
+    {name:'TDL Coeliac Disease â€“ HLA DQ2/DQ8 Genotype',fee:247},
+    {name:'TDL Faecal Occult Blood/FOB (immunochemical/FIT)',fee:70.2},
+    {name:'TDL Faecal Calprotectin/QFIT Profile (Combined)',fee:200.85},
+    {name:'TDL Beta HCG (Quantitative)',fee:79.3},
+    {name:'TDL Hepatitis C Quantification (Viral Load)',fee:293.8},
+    {name:'TDL Quadrivalent flu vaccine, equipment and prep',fee:144},
+    {name:'TDL Rapid detection of streptococcus and m,c&s',fee:108.55},
+    {name:'TDL Folate (Red Cell)',fee:65},
+    {name:'TDL Zinc (Whole Blood)',fee:70.2},
+    {name:'TDL Glucose',fee:37.7},
+    {name:'TDL Bence-Jones Protein',fee:113},
+    {name:'TDL Penicillin Antibiotic Panel (BaHRT)',fee:716},
+    {name:'TDL Swab (Rectal)',fee:105.3},
+    {name:'TDL Renin',fee:144},
+    {name:'TDL Reporting UKME in-hours',fee:475},
+    {name:'TDL Reporting UKME out-of-hours',fee:605},
+    {name:'TDL Viral Resp PCR',fee:175},
+    {name:'TDL Revaxis: tetanus vaccine.',fee:25},
+    {name:'TDL RF Rheumatoid Factor (Latex Test)',fee:46.8},
+    {name:'TDL Renal Function Panel',fee:84.5},
+    {name:'TDL Rheumatology Profile 1 (Screen)',fee:135},
+    {name:'TDL Rheumatology Profile 2 (Connective tissue)',fee:471},
+    {name:'TDL Connective tissue profile',fee:471},
+    {name:'TDL Rheumatology Profile 3 (Rheumatoid/Basic)',fee:223},
+    {name:'TDL Rheumatology Profile 4 (Systemic Lupus)',fee:344},
+    {name:'TDL Rheumatology Profile 5 (Mono Arthritis)',fee:338},
+    {name:'TDL Rheumatology Profile 6 (Rheumatoid Plus)',fee:117},
+    {name:'TDL Rheumatoid factor',fee:65},
+    {name:'TDL Hepatitis C Abs Confirmation (RIBA)',fee:245.05},
+    {name:'TDL Rickettsial Species Antibody Profile',fee:88},
+    {name:'TDL Mineral Screen (Whole blood)',fee:280.8},
+    {name:'TDL Osmolality (Urine)',fee:63.7},
+    {name:'TDL Rheumatology Profile connectiv',fee:388},
+    {name:'TDL Chlamydia/Gonorrhoea â€“ Rectal',fee:104},
+    {name:'TDL T3 (Reverse)',fee:176.8},
+    {name:'TDL Random urine for sodium',fee:53.3},
+    {name:'TDL Urgent 4 hour respiratory results.',fee:350},
+    {name:'TDL Serum Amyloid Protein',fee:141.05},
+    {name:'TDL Salivary Duct Antibodies',fee:69},
+    {name:'TDL Sanofi influenza vaccine',fee:150},
+    {name:'TDL SARS-CoV-2 PCR. Test.',fee:125},
+    {name:'TDL SARS-CoV-2 swabs routine',fee:200},
+    {name:'TDL SARS-CoV-2 swabs urgent',fee:230},
+    {name:'TDL SAV6: Sample saved for future tests',fee:50},
+    {name:'TDL SCOV COVID antibodies',fee:72.15},
+    {name:'TDL Selenium (Serum)',fee:100.1},
+    {name:'TDL Comprehensive semen analysis',fee:285},
+    {name:'TDL Syphilis IgG/IgM',fee:49},
+    {name:'TDL Serum iron',fee:14},
+    {name:'TDL Contact health',fee:492},
+    {name:'TDL Sex Hormone Binding Globulin',fee:85.15},
+    {name:'TDL Sickle Cell',fee:113},
+    {name:'TDL Secretory IgA',fee:132.6},
+    {name:'TDL SIND',fee:0},
+    {name:'TDL Bacterial skin swab',fee:73.45},
+    {name:'TDL Serum Free Light Chains',fee:425.1},
+    {name:'TDL Lung function test',fee:65},
+    {name:'TDL SPOT CR',fee:24},
+    {name:'TDL SPOT K+',fee:36},
+    {name:'TDL SPOT  NA+',fee:29},
+    {name:'TDL SPOT Urine chloride',fee:46},
+    {name:'TDL Serum save',fee:40},
+    {name:'TDL Medical equipment: stethoscope',fee:55},
+    {name:'TDL Stockholm3',fee:403},
+    {name:'TDL Stool Reducing Substances',fee:67.6},
+    {name:'TDL Early Detection Screen PCR/NAAT with Syphilis',fee:291.2},
+    {name:'TDL MEDICAL DEVICE SUCTION UNIT',fee:568.68},
+    {name:'TDL Swab for Culture',fee:75},
+    {name:'TDL Thyroxine',fee:62.5},
+    {name:'TDL Tissue Transglutaminase IgA (Coeliac)',fee:78},
+    {name:'TDL Tissue Transglutaminase IgG',fee:91.65},
+    {name:'TDL Tamiflu',fee:30},
+    {name:'TDL T-Cells SARS CoV2 immunity',fee:182},
+    {name:'TDL COVID-19 (SARS-CoV-2) Roche Elecsys Anti-SARS-CoV-',fee:78},
+    {name:'TDL Urea/Creatinine/eGFR (Self-collect)',fee:57.85},
+    {name:'TDL Testosterone',fee:71.5},
+    {name:'TDL Tetanus Antibody',fee:145.6},
+    {name:'TDL Thyroid Profile 1',fee:94.9},
+    {name:'TDL Thyroid Profile 2 (Venous)',fee:239.2},
+    {name:'TDL Thyroid Profile 3',fee:135.2},
+    {name:'TDL Toxoplasma Antibodies (IgG+IgM)',fee:91},
+    {name:'TDL Thyroglobulin Assay',fee:119.6},
+    {name:'TDL Thyroglobulin Abs',fee:62},
+    {name:'TDL Hepatitis C Antibodies (Self-collect)',fee:137.8},
+    {name:'TDL Hepatitis A and Typhoid vaccine',fee:75},
+    {name:'TDL Medical equipment: thermometer',fee:65},
+    {name:'TDL Thyroid peroxidase',fee:65},
+    {name:'TDL Throat Culture',fee:77.93},
+    {name:'TDL Swab (Throat)',fee:100},
+    {name:'TDL Thyroid Peroxidase Antibodies/Anti TPO',fee:65.65},
+    {name:'TDL TPPA',fee:52.65},
+    {name:'TDL Thiopurine Methyl Transferase',fee:154},
+    {name:'TDL Trace Metal (Blood) Profile',fee:407.55},
+    {name:'TDL Transferrin',fee:111.8},
+    {name:'TDL Triglycerides',fee:43.55},
+    {name:'TDL Troponin I (High sensitive)',fee:130},
+    {name:'TDL Tropical Screen',fee:270},
+    {name:'TDL Troponin I',fee:98.8},
+    {name:'TDL Troponin T (High sensitive)',fee:141.05},
+    {name:'TDL TSH',fee:71.5},
+    {name:'TDL TSH-Receptor Antibodies TSI B',fee:178},
+    {name:'TDL tTG IgA',fee:33.8},
+    {name:'TDL Toxoplasma by PCR',fee:190},
+    {name:'TDL Typhoid vaccine',fee:75},
+    {name:'TDL Urea and Electrolytes',fee:73.45},
+    {name:'TDL Uric Acid (Serum)',fee:43.55},
+    {name:'TDL Random urine for calcium',fee:40.95},
+    {name:'TDL Urine analysis',fee:89.05},
+    {name:'TDL Protein/Creatinine Ratio',fee:100.1},
+    {name:'TDL Creatinine (Urine)',fee:54.6},
+    {name:'TDL Urea Electrolytes (Urine)',fee:56.55},
+    {name:'TDL Urine Free Light Chains',fee:435},
+    {name:'TDL Urinary Methyl Histamine',fee:98},
+    {name:'TDL Microalbumin (Urine)',fee:100.1},
+    {name:'TDL Urine Organic Acids',fee:333.45},
+    {name:'TDL Protein (Urine)',fee:44},
+    {name:'TDL Urine Cytology',fee:187.2},
+    {name:'TDL Urea',fee:43.55},
+    {name:'TDL Mercury (Urine)',fee:98.15},
+    {name:'TDL Urinalysis',fee:50},
+    {name:'TDL Urine dip',fee:94.9},
+    {name:'TDL Lead (Urine)',fee:73.45},
+    {name:'TDL Vaccination Boostrix Polio',fee:118.01},
+    {name:'TDL Vitamin B5 (Pantothenic Acid)',fee:180.7},
+    {name:'TDL VBP Vitamin B Profile',fee:618.15},
+    {name:'TDL VENOUS BICARBONATE',fee:78},
+    {name:'TDL Vitamin B2 (Riboflavin)',fee:208},
+    {name:'TDL Vitamin B3 (Nicotinamide)',fee:208},
+    {name:'TDL Fatigue Profile',fee:350},
+    {name:'TDL Viral Antibody Screen',fee:124},
+    {name:'TDL Vitamin Profile 1',fee:420},
+    {name:'TDL Vitamin Profile 2',fee:585},
+    {name:'TDL Vitamin A (Retinol)',fee:197.6},
+    {name:'TDL Vitamin B6 (Pyridoxine)',fee:197.6},
+    {name:'TDL Vitamin B6',fee:187.85},
+    {name:'TDL Vitamin C',fee:208},
+    {name:'TDL Vitamin D (25-OH)',fee:108.55},
+    {name:'TDL Vitamin E (Alpha Tocopherol)',fee:207.35},
+    {name:'TDL Vitamin K',fee:365},
+    {name:'TDL Vitamin K (Nutritional)',fee:100},
+    {name:'TDL VLDL Cholesterol',fee:105.95},
+    {name:'TDL Viral Eye by PCR',fee:159.6},
+    {name:'TDL Urgent broad resp infection screen',fee:426.4},
+    {name:'TDL Skin/Mucosal Swab for possible viral infection',fee:150},
+    {name:'TDL Skin/Mucosal Swab',fee:150},
+    {name:'TDL VON WILLEBRAND PROFILE',fee:205},
+    {name:'TDL Varicella zoster antibodies IgG',fee:85},
+    {name:'TDL Zinc (Serum/Plasma)',fee:66.95},
+    {name:'TDL - Broad respiratory panel',fee:1365},
+    {name:'TDL RAPS',fee:108.55},
+    {name:'TDL UA  Urate (Uric acid)',fee:43.55},
+    {name:'TDL LDH Lactate Dehydrogenase (LDH)',fee:46.8},
+    {name:'TDL FERR',fee:108.55},
+    {name:'TDL Thyroid Profile 3 (FT3/FT4/TSH)',fee:135.2},
+    {name:'TDL AFP',fee:70},
+    {name:'TDL AFP - Alpha Feto Protein',fee:70},
   ];
   // Remove any existing entries whose names are in toAdd (to update fees + fix duplicates)
   // Also remove any FML-prefixed labs — those belong only in UAE, not UK
