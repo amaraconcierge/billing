@@ -2009,7 +2009,9 @@ function calcLabTotal(labArr){
 
 var SURL='https://ddicbzvtaxoxgyujiwat.supabase.co', SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaWNienZ0YXhveGd5dWppd2F0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzIxMjEsImV4cCI6MjA5NjE0ODEyMX0.M3CFWu2lza1e2G1n1mgbV0rr_qTr_CFIzGWIC3fexXM';
 var db=null, bills=[], patients=[], filteredBills=[];
-var curBill=null, curTab='i', openItems={}, curPat=null, viewId=null, activeSF='', _savingBill=false;
+var curBill=null, curTab='i', openItems={}, curPat=null, viewId=null, activeSF='', _savingBill=false, _lastSyncAt=0;
+var SYNC_COOLDOWN_MS=120000; // 2 minutes — gates tab-refocus/window-focus auto-sync only; a quick alt-tab shouldn't cost a full re-fetch + render, but a genuinely longer absence still catches up automatically
+function _dueSync(){return !_lastSyncAt||(Date.now()-_lastSyncAt)>=SYNC_COOLDOWN_MS;}
 
 var _EYE='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.6"/></svg>';
 var _EYEOFF='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.7 9.7 0 0 1 12 6c6.5 0 10 6 10 6a16.7 16.7 0 0 1-3.4 4M6.2 7.2A16.7 16.7 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 3.4-.6"/><path d="M9.9 9.9a2.6 2.6 0 0 0 3.7 3.7"/></svg>';
@@ -2939,7 +2941,7 @@ async function dbLoad(){
         rollingInvoice:ri,rollingColor:rc,
         links:_lks,createdAt:x.created_at};
     });try{assignPatCodesAll();}catch(e){}
-    setSS('ok','Synced '+_nowHM());updCts();render();refreshPatientsPage();popBillTo();
+    setSS('ok','Synced '+_nowHM());_lastSyncAt=Date.now();updCts();render();refreshPatientsPage();popBillTo();
     // Load shared team settings from cloud (non-blocking — already have local fallback)
     dbLoadSettings().then(function(loaded){
       if(loaded){popTeam();popStatuses();renderStats();render();}
@@ -3178,8 +3180,13 @@ function APP_INIT(){
   // (one changed bill, not the whole table), and the safety-net full syncs below
   // (tab refocus, coming back online) remain exactly as they were, for anything
   // the real-time channel might miss during a brief disconnect.
-  document.addEventListener('visibilitychange',function(){if(!document.hidden&&!_busy())dbLoad();});
-  window.addEventListener('focus',function(){if(!_busy())dbLoad();});
+  // A cooldown gates the tab-refocus/window-focus triggers specifically: a quick alt-tab
+  // or glance at another app is the overwhelmingly common case and shouldn't cost a full
+  // re-fetch + render every time — only a genuinely longer absence (SYNC_COOLDOWN_MS) does.
+  // 'online' is intentionally NOT gated — reconnecting after a real network outage should
+  // always sync immediately, since that's exactly the moment data is most likely stale.
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&!_busy()&&_dueSync())dbLoad();});
+  window.addEventListener('focus',function(){if(!_busy()&&_dueSync())dbLoad();});
   window.addEventListener('online',function(){setSS('sy','Reconnecting…');dbLoad();});
   window.addEventListener('offline',function(){setSS('er','Offline — will sync when back');});
   window.addEventListener('beforeunload',function(){if(_cfgSaveTimer){clearTimeout(_cfgSaveTimer);_cfgSaveTimer=null;try{dbSaveSettings();}catch(e){}}});
@@ -3652,6 +3659,11 @@ function render(){
   var g=document.getElementById('bg');
   g.style.display=''; // reset any inline override from date-grouped views
   if(!filteredBills.length){g.innerHTML='<div class="empty"><div class="ei">&#128221;</div><div class="et">'+(bills.length===0?'No bills yet':'No results found')+'</div><div class="es">'+(bills.length===0?'Click "New Patient Bill" to get started.':'Try adjusting your filters.')+'</div></div>';return;}
+  // Pre-computed once instead of calling filteredBills.indexOf(b) inside each of the three
+  // per-bill loops below — indexOf is an O(n) scan, so doing it once per bill turned grouping
+  // into an O(n²) pattern as the bill count grew. Same exact index values either way, just
+  // computed in O(1) per lookup instead.
+  var _fbIndexMap=new Map();filteredBills.forEach(function(b,i){_fbIndexMap.set(b,i);});
   if(curView==='grid'||!curView){
     // Group by date (day), newest first, alpha by patient within each day
     // Same clean pattern as patient A-Z view
@@ -3666,7 +3678,7 @@ function render(){
       // e.g. "Sunday, 8 June 2026"
       var k=d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
       if(!bDayMap[k]){bDayMap[k]=[];bDayOrder.push(k);}
-      bDayMap[k].push({b:b,i:filteredBills.indexOf(b)});
+      bDayMap[k].push({b:b,i:_fbIndexMap.get(b)});
     });
     g.style.display='block'; // override the CSS grid on #bg so date groups stack vertically
     g.innerHTML='<div style="display:flex;flex-direction:column;gap:0;">'+bDayOrder.map(function(k){
@@ -3692,7 +3704,7 @@ function render(){
       var d=new Date(b.createdAt||Date.now());
       var k=d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
       if(!dtMap[k]){dtMap[k]=[];dtOrder.push(k);}
-      dtMap[k].push({b:b,i:filteredBills.indexOf(b)});
+      dtMap[k].push({b:b,i:_fbIndexMap.get(b)});
     });
     g.style.display='block';
     g.innerHTML='<div style="display:flex;flex-direction:column;gap:0;">'+dtOrder.map(function(k){
@@ -3711,7 +3723,7 @@ function render(){
     filteredBills.forEach(function(b){
       var k=b.patientName||'Unknown';
       if(!pats[k]){pats[k]=[];porder.push(k);}
-      pats[k].push({b:b,i:filteredBills.indexOf(b)});
+      pats[k].push({b:b,i:_fbIndexMap.get(b)});
     });
     porder.sort(function(a,b){return a.localeCompare(b);});
     porder.forEach(function(k){
@@ -5095,6 +5107,12 @@ function fuServiceFee(fu,idx,billingData,billRegion){
       return{amount:Math.round(_feeAmt*100)/100,cur:_feeCur};
     }
     return{amount:0,cur:cur};
+  } else if(item.id==='fu_courier'){
+    if(idata.ctype==='Custom'){
+      if(idata.customFee&&parseFloat(idata.customFee.amount)>0)total+=parseFloat(idata.customFee.amount);
+    } else {
+      total+=(region==='UK')?(FEES.courierUK||35):(region==='Global')?(FEES.courierGlobal||0):(FEES.courierUAE||135);
+    }
   } else {
     return{amount:0,cur:cur,unsupported:true};
   }
@@ -5239,19 +5257,31 @@ function _fuUKExternalItemsEnriched(){
 function fuServiceCatalog(region,section){
   if(region==='UAE'){
     var sk=section==='Internal'?'int':'ext';
-    return SECS[sk].items.filter(function(x){return !x.hidden;}).map(function(x){return{id:x.id,label:x.label,system:'secs',sk:sk};});
+    var list=SECS[sk].items.filter(function(x){return !x.hidden;}).map(function(x){return{id:x.id,label:x.label,system:'secs',sk:sk};});
+    if(section==='External')list.push({id:'fu_courier',label:'Courier Fee',system:'fu_only'});
+    return list;
   }
   if(region==='UK'){
     if(section==='Internal')return (_seedUKInt()||[]).map(function(x){return{id:x.id,label:x.displayName||x.name,system:'rich',sk:'intUK'};});
-    return _fuUKExternalItemsEnriched().map(function(x){return{id:x.id,label:x.displayName||x.name,system:'rich',sk:'extUK'};});
+    var ukList=_fuUKExternalItemsEnriched().map(function(x){return{id:x.id,label:x.displayName||x.name,system:'rich',sk:'extUK'};});
+    ukList.push({id:'fu_courier',label:'Courier Fee',system:'fu_only'});
+    return ukList;
   }
   if(region==='Global'){
     if(section==='Internal')return (typeof richInternalGlobalItems==='function'?richInternalGlobalItems():[]).map(function(x){return{id:x.id,label:x.displayName||x.name,system:'rich',sk:'intGL'};});
-    return SECS.extGlobal.items.filter(function(x){return !x.hidden;}).map(function(x){return{id:x.id,label:x.label,system:'secs',sk:'extGlobal'};});
+    var glList=SECS.extGlobal.items.filter(function(x){return !x.hidden;}).map(function(x){return{id:x.id,label:x.label,system:'secs',sk:'extGlobal'};});
+    glList.push({id:'fu_courier',label:'Courier Fee',system:'fu_only'});
+    return glList;
   }
   return [];
 }
 function fuServiceItem(region,section,itemId){
+  if(itemId==='fu_courier'){
+    return {id:'fu_courier',label:'Courier Fee',system:'fu_only',fields:[
+      {id:'ctype',l:'Type',t:'sel',o:['Standard','Custom'],req:1},
+      {id:'customFee',l:'Custom fee amount',t:'feefield',cond:{f:'ctype',has:'Custom'}}
+    ]};
+  }
   var list=fuServiceCatalog(region,section);
   var entry=list.find(function(x){return x.id===itemId;});
   var full;
@@ -7213,28 +7243,32 @@ function renderReports(){
   var thisMonth=bills.filter(function(b){var d=new Date(b.createdAt);var n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).length;
 
   var h; try{
-    // ── Tile content (same calculations/markup as before — only the container changed) ──
-    var tileContent={
-      'rpt-t-overview':'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">'+
+    // ── Tile content — LAZY: each entry is a function, only actually called for a tile
+    // that's currently visible. Previously every tile was computed unconditionally on every
+    // render, even ones the team had explicitly hidden — this wastes real time recomputing
+    // reports nobody is looking at. Every function body below is byte-for-byte identical to
+    // what used to sit directly in the object literal; only whether/when it executes changed.
+    var tileContentFns={
+      'rpt-t-overview':function(){return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">'+
         rptCard('Total Bills',bills.length,null,'#2C4A6E')+
         rptCard('In Progress',bills.filter(function(b){return b.status==='In progress';}).length,null,'#5A7A55')+
         rptCard('Final',bills.filter(function(b){return b.status==='Final';}).length,null,'#8B6914')+
         rptCard('Patients',Object.keys(byPatient).length,null,'#5A4F8A')+
-        '</div>',
-      'rpt-t-status':'<div id="rpt-bystatus">'+rptTable('Bills by Status',byStatus,'status')+'</div>',
-      'rpt-t-branchteam':'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'+
+        '</div>';},
+      'rpt-t-status':function(){return '<div id="rpt-bystatus">'+rptTable('Bills by Status',byStatus,'status')+'</div>';},
+      'rpt-t-branchteam':function(){return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'+
         '<div id="rpt-bybranch">'+rptTable('By Branch',byBranch,'branch')+'</div>'+
         '<div id="rpt-byteam">'+rptTable('By Team Member',byTeam,'team')+'</div>'+
-        '</div>',
-      'rpt-t-teamarr':rptBillsTable('team'),
-      'rpt-t-billsbyteam':rptBillNumbersByTeam(),
-      'rpt-t-verify':rptVerifyReconciliation(),
-      'rpt-t-needslink':rptNeedsLinking(),
-      'rpt-t-extnurse':rptExternalNurseVisits(),
-      'rpt-t-customfee':rptCustomFeeGapsAudit(),
-      'rpt-t-teamrev':rptTeamRevenue(),
-      'rpt-t-doctors':rptDoctorArrangements(),
-      'rpt-t-bills':rptBillsTable()
+        '</div>';},
+      'rpt-t-teamarr':function(){return rptBillsTable('team');},
+      'rpt-t-billsbyteam':function(){return rptBillNumbersByTeam();},
+      'rpt-t-verify':function(){return rptVerifyReconciliation();},
+      'rpt-t-needslink':function(){return rptNeedsLinking();},
+      'rpt-t-extnurse':function(){return rptExternalNurseVisits();},
+      'rpt-t-customfee':function(){return rptCustomFeeGapsAudit();},
+      'rpt-t-teamrev':function(){return rptTeamRevenue();},
+      'rpt-t-doctors':function(){return rptDoctorArrangements();},
+      'rpt-t-bills':function(){return rptBillsTable();}
     };
     var TILE_LABELS={
       'rpt-t-overview':'Overview',
@@ -7252,16 +7286,16 @@ function renderReports(){
     };
     var layout=rptLoadLayout();
     var arranging=!!rptArrangeMode;
-    var order=layout.order.filter(function(id){return tileContent.hasOwnProperty(id);});
+    var order=layout.order.filter(function(id){return tileContentFns.hasOwnProperty(id);});
     var tilesHtml=order.map(function(id){
-      if(layout.hidden.indexOf(id)>=0)return '';
-      var c=tileContent[id];
+      if(layout.hidden.indexOf(id)>=0)return ''; // hidden — never call the function, never pay its cost
+      var c=tileContentFns[id]();
       if(!c)return '';
       var bar=arranging?('<div class="rpt-tile-bar"><span class="rpt-tile-handle">&#9776; '+(TILE_LABELS[id]||id)+'</span><button class="rpt-tile-hide" onclick="rptHideTile(\''+id+'\')">Hide</button></div>'):'';
       var dragAttrs=arranging?(' draggable="true" ondragstart="rptTileDragStart(event,\''+id+'\')" ondragover="rptTileDragOver(event,\''+id+'\')" ondrop="rptTileDrop(event,\''+id+'\')" ondragend="rptTileDragEnd(event)"'):'';
       return '<div class="rpt-tile'+(arranging?' arranging':'')+'" data-tile-id="'+id+'"'+dragAttrs+'>'+bar+c+'</div>';
     }).join('');
-    var hiddenChips=layout.hidden.filter(function(id){return tileContent.hasOwnProperty(id);}).map(function(id){
+    var hiddenChips=layout.hidden.filter(function(id){return tileContentFns.hasOwnProperty(id);}).map(function(id){
       return '<button class="rpt-restore-chip" onclick="rptRestoreTile(\''+id+'\')">+ '+(TILE_LABELS[id]||id)+'</button>';
     }).join('');
     var restoreBar=hiddenChips?('<div class="rpt-restore-bar"><span class="rpt-restore-lbl">Hidden — click to restore:</span>'+hiddenChips+'</div>'):'';
@@ -14875,14 +14909,27 @@ function _billIdx(b){
   // bills could swap positions between sessions — which is how two different invoices can end
   // up both showing as the same bill number. Bills with distinct createdAt values are completely
   // unaffected by this change; only same-day ties are now resolved deterministically.
-  var sorted=bills.slice().sort(function(a,x){
-    var d=new Date(a.createdAt||a.billDate||0)-new Date(x.createdAt||x.billDate||0);
-    if(d!==0)return d;
-    return String(a.id||'').localeCompare(String(x.id||''));
-  });
-  var i=sorted.findIndex(function(x){return x.id===b.id;});
+  // Cached by the bills array's own reference: dbLoad() always assigns bills to a brand-new
+  // array on every sync, so comparing references reliably detects staleness. Without this,
+  // _billIdx() was re-sorting the entire bills array from scratch on every single call — and
+  // since it's called once per bill card in the main list (plus every _billNo() call used
+  // throughout the reports), that meant re-sorting hundreds of times per render for a result
+  // that's identical every time until bills itself actually changes. Sort order, tiebreak,
+  // and the bills.indexOf(b) fallback are all byte-for-byte the same as before.
+  if(_billIdxCache.bills!==bills){
+    var sorted=bills.slice().sort(function(a,x){
+      var d=new Date(a.createdAt||a.billDate||0)-new Date(x.createdAt||x.billDate||0);
+      if(d!==0)return d;
+      return String(a.id||'').localeCompare(String(x.id||''));
+    });
+    var map=new Map();
+    sorted.forEach(function(x,idx){if(x.id!=null&&!map.has(x.id))map.set(x.id,idx);});
+    _billIdxCache={bills:bills,map:map};
+  }
+  var i=_billIdxCache.map.has(b.id)?_billIdxCache.map.get(b.id):-1;
   return i>=0?i:bills.indexOf(b);
 }
+var _billIdxCache={bills:null,map:null};
 function _billNo(b){return '#'+String(_billIdx(b)+1).padStart(4,'0');}
 
 // Reuse the bill's computed line items (set by buildBillTotal).
