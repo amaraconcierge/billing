@@ -8594,6 +8594,7 @@ function viewPat(id){
   var h='<div class="arow"><button class="ab" onclick="curPatViewId=null;renderPats()">&#8592; All Patients</button>'+
     '<button class="ab" onclick="editPat(\''+p.id+'\')">Edit</button>'+
     '<button class="ab" onclick="openPatientDetailEditor(\''+p.id+'\')" style="background:var(--ocb);border-color:rgba(184,129,58,.35);color:var(--oc);">🎨 Sections</button>'+
+    '<button class="ab" onclick="openRelinkBills(\''+p.id+'\')" title="If this patient was renamed and some bills are missing, find them under the old name">🔗 Find Bills Under Old Name</button>'+
     '<button class="ab d" onclick="delPat(\''+p.id+'\')" style="border-color:rgba(150,48,48,.22);color:var(--re);">Remove</button></div>';
   h+=renderPatCard(p);
   h+=_renderPatBillBreakdown(p,pb);
@@ -8890,11 +8891,81 @@ async function savePat(){
   var _oldP=patients.find(function(p){return p.id===curPat.id;});var _oldName=_oldP?_oldP.name:'';
   // Assign region/code BEFORE saving so dbSavePat picks up the correct region from patientMeta
   try{_pcfg3();var _nk2=_pnorm(curPat.name),_ok3=_pnorm(_oldName);if(_ok3&&_ok3!==_nk2&&CFG.patientMeta[_ok3]){CFG.patientMeta[_nk2]=CFG.patientMeta[_ok3];delete CFG.patientMeta[_ok3];}assignPatCode(curPat.name,curPat.region||'UAE');}catch(e){}
-  var ok=await dbSavePat(curPat);if(ok){try{saveCFG();}catch(e){}closeMod('pmod');toast('Patient saved','ok');popBillTo();refreshPatientsPage();}
+  var ok=await dbSavePat(curPat);
+  if(ok){
+    try{saveCFG();}catch(e){}
+    // Carry the patient's existing bills along with them when their name changes — without
+    // this, a rename would silently orphan every bill already saved under the old name,
+    // since patient\u2192bill matching is done by comparing name text, not a permanent ID.
+    var _relinkedCount=0;
+    if(_oldName&&_oldName.trim().toLowerCase()!==(curPat.name||'').trim().toLowerCase()){
+      var _affected=bills.filter(function(b){return (b.patientName||'').trim().toLowerCase()===_oldName.trim().toLowerCase();});
+      for(var _ri=0;_ri<_affected.length;_ri++){
+        _affected[_ri].patientName=curPat.name;
+        try{await dbSave(_affected[_ri]);_relinkedCount++;}catch(e){}
+      }
+    }
+    closeMod('pmod');
+    toast(_relinkedCount>0?('Renamed \u2014 '+_relinkedCount+' existing bill'+(_relinkedCount!==1?'s':'')+' moved to the new name automatically'):'Patient saved','ok');
+    popBillTo();refreshPatientsPage();
+  }
 }
 async function delPat(id){
   if(!confirm('Remove this patient? Their bills will not be deleted.'))return;
   await dbDelPat(id);refreshPatientsPage();
+}
+
+// Manually relink bills that were orphaned by an earlier rename — before the auto-relink
+// safeguard existed in savePat(), any bills already saved under an old name stayed there
+// permanently. This searches by exact (case-insensitive) name match, shows exactly what it
+// found for confirmation, and only touches those specific bills once confirmed.
+function openRelinkBills(patId){
+  var p=patients.find(function(x){return x.id==patId;});if(!p)return;
+  var modal=document.createElement('div');
+  modal.id='relink-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(2,22,32,.5);z-index:9400;display:flex;align-items:center;justify-content:center;padding:16px;';
+  modal.innerHTML=
+    '<div style="background:var(--wh);border-radius:var(--rl);width:100%;max-width:480px;box-shadow:0 8px 40px rgba(0,0,0,.25);">'+
+    '<div style="padding:16px 20px;border-bottom:1px solid var(--bo);display:flex;align-items:center;justify-content:space-between;">'+
+    '<div style="font-family:var(--serif);font-size:16px;font-style:italic;">Find Bills Under Old Name</div>'+
+    '<button onclick="document.getElementById(\'relink-modal\').remove()" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--bo);background:transparent;cursor:pointer;">&#215;</button>'+
+    '</div>'+
+    '<div style="padding:18px 20px;">'+
+    '<div style="font-size:11px;color:var(--m2);margin-bottom:10px;line-height:1.5;">If <strong>'+esc(p.name)+'</strong> was renamed recently, any bills saved before that rename may still be sitting under the old name. Type it below to find and relink them.</div>'+
+    '<div class="dl">Old / alternate name</div>'+
+    '<input id="relink-oldname" class="dfi" style="width:100%;margin-bottom:10px;" placeholder="e.g. Latifa A.M (daughter of Sh Maryam)">'+
+    '<button class="ab" onclick="searchRelinkBills(\''+patId+'\')" style="width:100%;">Search</button>'+
+    '<div id="relink-results" style="margin-top:12px;"></div>'+
+    '</div></div>';
+  document.body.appendChild(modal);
+}
+function searchRelinkBills(patId){
+  var p=patients.find(function(x){return x.id==patId;});if(!p)return;
+  var oldName=(document.getElementById('relink-oldname').value||'').trim();
+  var out=document.getElementById('relink-results');
+  if(!oldName){out.innerHTML='<div style="font-size:11px;color:var(--re);">Type the old name to search for.</div>';return;}
+  var found=bills.filter(function(b){return (b.patientName||'').trim().toLowerCase()===oldName.toLowerCase();});
+  if(!found.length){out.innerHTML='<div style="font-size:11px;color:var(--m2);">No bills found under that exact name.</div>';return;}
+  out.innerHTML='<div style="font-size:11px;font-weight:700;margin-bottom:6px;">Found '+found.length+' bill'+(found.length!==1?'s':'')+' under "'+esc(oldName)+'":</div>'+
+    '<div style="max-height:180px;overflow-y:auto;border:1px solid var(--bo);border-radius:var(--r);margin-bottom:10px;">'+
+    found.map(function(b){return '<div style="padding:7px 10px;font-size:11px;border-bottom:1px solid var(--bo);display:flex;justify-content:space-between;"><span>'+esc(_billNo(b))+' — '+fdt(b.createdAt)+'</span><span style="color:var(--m2);">'+esc(b.branch||'')+'</span></div>';}).join('')+
+    '</div>'+
+    '<button class="ab" onclick="confirmRelinkBills(\''+patId+'\',\''+esc(oldName).replace(/'/g,"\\'")+'\')" style="width:100%;background:var(--g);color:#FBF7EC;border-color:var(--g);">Relink these '+found.length+' bill'+(found.length!==1?'s':'')+' to '+esc(p.name)+'</button>';
+}
+async function confirmRelinkBills(patId,oldName){
+  var p=patients.find(function(x){return x.id==patId;});if(!p)return;
+  var found=bills.filter(function(b){return (b.patientName||'').trim().toLowerCase()===oldName.toLowerCase();});
+  if(!found.length)return;
+  var out=document.getElementById('relink-results');
+  if(out)out.innerHTML='<div style="font-size:11px;color:var(--m2);">Relinking\u2026</div>';
+  var count=0;
+  for(var i=0;i<found.length;i++){
+    found[i].patientName=p.name;
+    try{await dbSave(found[i]);count++;}catch(e){}
+  }
+  var modal=document.getElementById('relink-modal');if(modal)modal.remove();
+  toast('Relinked '+count+' bill'+(count!==1?'s':'')+' to '+p.name,'ok');
+  viewPat(patId);
 }
 
 // Bulk patient import
