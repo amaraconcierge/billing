@@ -2482,7 +2482,65 @@ var CFG={
     'DL8L Panel (FML)',
     'Blood Group & RH (FML)',
     'Hb Electrophoresis (FML)',
-    'Immunoglobulin G (FML)'
+    'Immunoglobulin G (FML)',
+    'FML Albumin/Creatinine Ratio In Urin',
+    'FML Urine Analysis (Stix & Sediment)',
+    'FML Protein In Urine',
+    'FML Celiac Disease Profile',
+    'FML Zinc',
+    'FML PTH (Parathormone)',
+    'FML Vitamin A (Retinol)',
+    'FML Vitamin B1 (Thiamine)',
+    'FML Vitamin E (Tocopherol)',
+    'FML Vitamin K (Phylloquinone)',
+    'FML Lipid Profile A (Basic)',
+    'FML AH - Amara Core Profile',
+    'FML Thyroid Profile (FT3 / FT4 / TSH)',
+    'FML HbA1c (Glycohaemoglobin A1)',
+    'FML Vitamin D Total (D2 + D3)',
+    'FML Thyroid Profile - Complete',
+    'FML Transferrin',
+    'FML Androstenedione',
+    'FML Progesterone',
+    'FML Prolactin',
+    'FML DHEA-S (Dehydroepiandosterone',
+    'FML Estradiol',
+    'FML Cortisol P.m.',
+    'FML Anti Muellerian Hormone (AMH)',
+    'FML AH - Amara Complete Profile',
+    'FML AH - Amara Female Hormones',
+    'FML AH - Cardiac Risk Profile Advance',
+    'FML Protein Electrophoresis In Blood',
+    'FML Hb Electrophoresis/HPLC',
+    'FML Reticulocyte Count',
+    'FML Lipase',
+    'FML C-Peptide',
+    'FML Amylase In Blood',
+    'FML CEA (Carcino Embryonic Antigen',
+    'FML Cell Blood Count (CBC) (Cell Bloo',
+    'FML CK (Creatine Kinase)',
+    'FML AST = GOT (Glutamate Oxalacet',
+    'FML Ferritin',
+    'FML TSH (Thyroid Stimulating Hormo',
+    'FML ALT = GPT (Glutamate Pyruvic Tr',
+    'FML Respiratory Pathogen Panel PCR',
+    'FML Copper In Blood',
+    'FML Immunoglobulin E (IgE), Total',
+    'FML Allergy Screening, Specific IgE (S',
+    'FML Culture Urine',
+    'FML Renal Function Profile',
+    'FML Magnesium In Blood',
+    'FML Free T3',
+    'FML Free T4',
+    'FML Iron In Blood',
+    'FML C-Reactive Protein (CRP)',
+    'FML STD Profile 1',
+    'FML Vitamin Panel',
+    'FML Liver Function Test',
+    'FML Comprehensive Genital Culture (',
+    'FML Mineral Panel',
+    'FML Omega 3 Fatty Acids',
+    'FML Omega 6 Fatty Acids',
   ],
   extLabs:['Freiburg Medical Lab','American Hospital Lab','Unilabs','TDL','Others (Global – case fee applies)'],
   rollingInvoices:[]
@@ -6005,6 +6063,15 @@ function buildBillTotal(b){
   // Global internal lines (AED)
   (typeof computeGlobalLines==='function'?computeGlobalLines(b):[]).forEach(function(l){var _ga=l.amount||0;lines.push({label:l.label,amount:_ga,cur:'AED'});grandTotal+=_ga;});
   var _vatTot=_billStdTaxTotal(b);if(_vatTot>0){lines.push({label:'VAT (Standard Rate 5%)',amount:_vatTot,tax:true});grandTotal+=_vatTot;}
+  // Goodwill must win over everything computed above — UK lines, Global lines, and VAT
+  // all run after the original goodwill check further up, and were adding their amounts
+  // back on top of a total that had already been zeroed, so a bill correctly marked
+  // Goodwill could still show Accounts a confusing non-zero figure. Re-asserting it here,
+  // after every other computation, guarantees nothing downstream can undo it.
+  if(disc.type==='Out of goodwill — not billing'){
+    lines.forEach(function(ln){if(!ln.isGoodwill)ln.amount=0;});
+    grandTotal=0;
+  }
   window._BILL_LINES=lines.slice();window._BILL_GT=grandTotal;
   if(!lines.length&&grandTotal<=0&&!disc.type)return'';
   return '<div style="margin:16px 0 4px;padding:14px 16px;background:linear-gradient(135deg,#021620 0%,#0A3050 100%);border-radius:var(--rl);color:#FBF7EC;">'+
