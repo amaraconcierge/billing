@@ -22751,6 +22751,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
       var b = document.getElementById('tc-dash'); if (b) b.style.display = 'none';
       return prevLogin.apply(this, arguments);
     };
+    if (prevLogin.__amara) window._showLogin.__amara = true;   // keep Amara's sign-in keeper from wrapping twice (caused an endless sign-in loop)
   }
 
   // Load-trace for support (shown only in the "didn't finish loading" box)
@@ -22758,7 +22759,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
     var tr = window.amaraTrace; if (!tr) return;
     tr('host block ran');
     if (typeof window._loadProfile === 'function') { var pl = window._loadProfile; window._loadProfile = function(){ tr('_loadProfile'); return pl.apply(this, arguments); }; }
-    if (typeof window._showLogin === 'function') { var sl = window._showLogin; window._showLogin = function(){ tr('_showLogin'); return sl.apply(this, arguments); }; }
+    if (typeof window._showLogin === 'function') { var sl = window._showLogin; window._showLogin = function(){ tr('_showLogin'); return sl.apply(this, arguments); }; if (sl.__amara) window._showLogin.__amara = true; }
     try { var d0 = typeof gDB === 'function' && gDB(); if (d0) d0.auth.onAuthStateChange(function(ev, ses){ tr('auth ' + ev + (ses ? ' (session)' : ' (none)')); }); else tr('no db yet'); } catch(e){ tr('auth trace err ' + e.message); }
   })();
 
@@ -22784,7 +22785,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-02-0750'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-02-0819'; window.AMARA_BUILD = BUILD;
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
     fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(t){
@@ -22882,6 +22883,7 @@ body.msg-on .amara-ask-fab{display:none!important;}   /* the Ask Amara button wo
       var b = document.getElementById('tc-msg'); if (b) b.style.display = 'none';
       return prevLogin.apply(this, arguments);
     };
+    if (prevLogin.__amara) window._showLogin.__amara = true;   // keep Amara's sign-in keeper from wrapping twice (caused an endless sign-in loop)
   }
   window.addEventListener('hashchange', function(){
     var app = document.getElementById('app'); if (!app || getComputedStyle(app).display === 'none') return;
