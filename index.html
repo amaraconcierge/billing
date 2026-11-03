@@ -4,6 +4,11 @@
 /* AMARA load guard: if a browser (e.g. an older Safari) leaves the screen blank, show what went wrong
    instead of an empty page, with Reload / Open Bills buttons and a "Copy details" button for support. */
 (function(){
+  // Password reset links arrive as …/billing/#access_token=…&type=recovery: remember it before anything reads the address
+  try { window.__amaraRecovery = /(^|[#&?])type=recovery(&|$)/.test(location.hash + '&' + location.search.slice(1)); } catch(_){}
+  // Amara stays signed in until Log out (no more 1-hour sign-out): refresh the "last used" time before Amara's
+  // older sign-in code checks it, so opening Amara after a break doesn't sign you out.
+  try { if (localStorage.getItem('amara_session')) localStorage.setItem('amara_last_active', String(Date.now())); } catch(_){}
   // A reload that skips the browser's saved copy (Safari can keep serving an old page on a normal reload)
   window.amaraFreshReload = function(){ location.replace(location.pathname + '?r=' + Date.now() + location.hash); };
   try { if (/[?&]r=\d+/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash); } catch(_){}
@@ -22810,6 +22815,58 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
     };
   }
 
+  // Passwords: "Change password" in the account menu, and the page a password-reset email link opens.
+  // (Amara's sign-in code called openPasswordReset() after a reset link, but that screen didn't exist.)
+  (function(){
+    var open = false;
+    window.openPasswordReset = function(opts){
+      if (open) return; open = true;
+      var recovery = !!(opts && opts.recovery) || !!window.__amaraRecovery;
+      var box = document.createElement('div'); box.id = 'amara-pw';
+      box.innerHTML = '<div style="position:fixed;inset:0;background:rgba(2,22,32,.5);z-index:3200" data-x="1"></div>' +
+        '<div role="dialog" aria-label="Password" style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3201;width:min(420px,94vw);background:var(--wh,#FFFCF4);border-radius:14px;box-shadow:0 20px 50px rgba(2,22,32,.3);overflow:hidden;font-family:var(--sans)">' +
+        '<div style="padding:16px 20px;background:#021620;color:#FBF7EC;display:flex;align-items:center"><b style="flex:1;font:italic 500 24px var(--serif,Georgia)">' + (recovery ? 'Set a new password' : 'Change password') + '</b>' + (recovery ? '' : '<button data-x="1" style="border:1px solid rgba(251,247,236,.3);background:none;color:#FBF7EC;border-radius:50%;width:28px;height:28px;cursor:pointer">×</button>') + '</div>' +
+        '<div style="padding:16px 20px;display:flex;flex-direction:column;gap:10px">' +
+        (recovery ? '<p style="margin:0;font-size:12.5px;color:var(--mu,#5C5347)">Choose a new password for ' + String((window._authUser && window._authUser.email) || 'your account').replace(/</g, '&lt;') + '.</p>' : '') +
+        '<label style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--m2,#8A8275)">New password<input id="pw-1" type="password" autocomplete="new-password" class="fi" style="margin-top:4px;width:100%"></label>' +
+        '<label style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--m2,#8A8275)">Type it again<input id="pw-2" type="password" autocomplete="new-password" class="fi" style="margin-top:4px;width:100%"></label>' +
+        '<label style="font-size:12px;display:flex;gap:6px;align-items:center;color:var(--mu,#5C5347)"><input type="checkbox" id="pw-show"> Show password</label>' +
+        '<div style="font-size:11.5px;color:var(--m2,#8A8275)">At least 8 characters. A short sentence is easy to remember and hard to guess.</div>' +
+        '<div id="pw-err" style="display:none;font-size:12.5px;color:#963030;background:#FCEAEA;border-radius:8px;padding:8px 10px"></div></div>' +
+        '<div style="padding:12px 20px;border-top:1px solid rgba(26,26,26,.08);display:flex;gap:8px;justify-content:flex-end">' + (recovery ? '' : '<button data-x="1" class="ab">Cancel</button>') + '<button id="pw-save" class="ab pri">Save password</button></div></div>';
+      document.body.appendChild(box);
+      var p1 = box.querySelector('#pw-1'), p2 = box.querySelector('#pw-2'), err = box.querySelector('#pw-err'), btn = box.querySelector('#pw-save');
+      setTimeout(function(){ p1.focus(); }, 50);
+      function close(){ box.remove(); open = false; }
+      function fail(m){ err.textContent = m; err.style.display = ''; btn.disabled = false; btn.textContent = 'Save password'; }
+      box.addEventListener('click', function(ev){ if (ev.target.getAttribute('data-x')) close(); });
+      box.querySelector('#pw-show').onchange = function(ev){ p1.type = p2.type = ev.target.checked ? 'text' : 'password'; };
+      p2.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') btn.click(); });
+      btn.onclick = async function(){
+        err.style.display = 'none';
+        if (p1.value.length < 8) return fail('Use at least 8 characters.');
+        if (p1.value !== p2.value) return fail('The two passwords don’t match.');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+          var r = await gDB().auth.updateUser({ password: p1.value });
+          if (r.error) {
+            var m = r.error.message || '', c = r.error.code || '';
+            if (/same|different/i.test(m) || c === 'same_password') return fail('That’s your current password. Choose a different one.');
+            if (/weak|pwned|leaked/i.test(m) || c === 'weak_password') return fail('That password is too easy to guess or has appeared in a data leak. Try a longer one.');
+            if (/reauth|recent|nonce/i.test(m) || c === 'reauthentication_needed') return fail('For security, please Log out and sign in again, then change your password straight away.');
+            if (/session|expired|jwt|missing/i.test(m)) return fail('This link has expired. On the sign-in screen, enter your email and press “Forgot password?” to get a new one.');
+            return fail('Couldn’t save: ' + m);
+          }
+          window.__amaraRecovery = false;
+          try { if (/access_token|type=recovery/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search); } catch(x){}
+          close(); if (typeof window.toast === 'function') window.toast('Password changed. Use it next time you sign in.', 'ok');
+        } catch(x) { fail('Couldn’t save: ' + (x.message || x)); }
+      };
+    };
+    try { var d2 = typeof gDB === 'function' && gDB(); if (d2) d2.auth.onAuthStateChange(function(ev){ if (ev === 'PASSWORD_RECOVERY') window.__amaraRecovery = true; }); } catch(x){}
+    if (typeof window._showApp === 'function') { var sa3 = window._showApp; window._showApp = function(){ try { return sa3.apply(this, arguments); } finally { if (window.__amaraRecovery) setTimeout(function(){ window.openPasswordReset({ recovery: true }); }, 700); } }; }
+  })();
+
   // Account menu (top right): your name and team, My account, Settings, Sounds, Backup and Log out in one place
   (function(){
     var bar = document.querySelector('#app .topbar > div:last-child'); if (!bar) return;
@@ -22852,6 +22909,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
       menu.innerHTML = '<div class="hd"><b>' + e(m.name) + '</b><span>' + e(m.email) + '</span><span class="rl">' + (m.admin ? 'Admin' : 'Team member') + '</span></div>' +
         '<div class="tm"><b>Teams</b>' + (teams === null ? 'Loading…' : teams.length ? e(teams.join(', ')) : 'Not in a team yet') + '</div>' +
         '<button data-acct="account" role="menuitem">👤 My account</button>' +
+        '<button data-acct="password" role="menuitem">🔑 Change password</button>' +
         '<button data-acct="dash" role="menuitem">🗂 Dashboard settings &amp; teams</button>' +
         (canSettings ? '<button data-acct="settings" role="menuitem">⚙️ Amara settings</button>' : '') +
         (m.admin ? '<button data-acct="access" role="menuitem">🔐 Access by team</button>' : '') +
@@ -22867,6 +22925,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
         if (k === 'sound'){ var on = !window.amaraSoundOn(); window.amaraSetSound(on); b.querySelector('.sw').classList.toggle('on', on); if (on) window.amaraChime('task', true); return; }
         close();
         if (k === 'account' && typeof window.openAccountSettings === 'function') window.openAccountSettings();
+        if (k === 'password' && window.openPasswordReset) window.openPasswordReset();
         if (k === 'settings') window.showPage('settings');
         if (k === 'dash' && window.amaraDashSettings) window.amaraDashSettings();
         if (k === 'backup' && typeof window.openMod === 'function') window.openMod('kmod');
@@ -22944,7 +23003,8 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
         if (c && ((c.billingStructure && Object.keys(c.billingStructure).length) || (c.labs && c.labs.length))){ c.billingStructure = {}; c.labs = []; localStorage.setItem('amara_cfg4', JSON.stringify(c)); return true; } } catch(e){}
       return false;
     };
-    function canSave(){ try { localStorage.setItem('amara_last_active', String(mem)); return true; } catch(e){ return false; } }
+    // No automatic sign-out any more (Amara is the team's messaging): always tell Amara's older idle check that you're active
+    function canSave(){ try { localStorage.setItem('amara_last_active', String(Date.now())); return true; } catch(e){ return false; } }
     if (!canSave() && window.amaraFreeStorage()) canSave();
     setInterval(function(){ if (!canSave() && window.amaraFreeStorage()) canSave(); }, 30000);
     if (typeof window.logout === 'function'){
@@ -22952,8 +23012,8 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
       window.logout = function(){
         var has = false; try { has = !!localStorage.getItem('amara_session'); } catch(e){}
         var userAsked = Date.now() - clicked < 3000;
-        if (!userAsked && has && Date.now() - mem < 60 * 60e3){                           // not really idle: stay signed in
-          if (window.amaraTrace) window.amaraTrace('kept you signed in (Amara thought you were idle; storage ' + (canSave() ? 'ok' : 'full') + ')');
+        if (!userAsked && has){                                                           // only Log out signs you out
+          if (window.amaraTrace) window.amaraTrace('kept you signed in (automatic sign-out is off; storage ' + (canSave() ? 'ok' : 'full') + ')');
           canSave(); return;
         }
         return lo.apply(this, arguments);
@@ -22983,7 +23043,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-03-1605'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-03-1620'; window.AMARA_BUILD = BUILD;
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
     fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(t){
@@ -23394,12 +23454,16 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
       case 'team': return who + ' added your team to a task';
       case 'mention': return who + ' mentioned you';
       case 'dm': return (c ? c + ' new messages from ' : 'New message from ') + who;
+      case 'chat': { var cv = convs[n.conversation_id];
+        if (cv && cv.kind === 'direct') return (c ? c + ' new messages from ' : 'New message from ') + who;
+        return (c ? c + ' new messages' : 'New message') + ' in ' + (cv ? (cv.name || 'a group chat') : 'Messages'); }
       case 'bell': return who + ' sent you a reminder' + (n.detail && n.detail.overdue ? ': ' + n.detail.overdue + ' overdue task' + (n.detail.overdue === 1 ? '' : 's') : '');
       default: return who + ' sent you a notification';
     }
   }
   function sub(n){
     if (n.task_id) return tasks[n.task_id] || 'A task';
+    if (n.kind === 'chat' && n.detail && n.detail.preview) return (names[n.actor] || 'Someone') + ': ' + n.detail.preview;
     if (n.conversation_id){ var c = convs[n.conversation_id]; return c ? (c.kind === 'direct' ? 'Direct message' : c.name || 'Group chat') : 'Messages'; }
     if (n.kind === 'bell') return 'Open your dashboard to see them';
     return '';
