@@ -22869,6 +22869,28 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
     if (typeof window._showApp === 'function') { var sa3 = window._showApp; window._showApp = function(){ try { return sa3.apply(this, arguments); } finally { if (window.__amaraRecovery) setTimeout(function(){ window.openPasswordReset({ recovery: true }); }, 700); } }; }
   })();
 
+  // Settings safety: Amara builds the cloud copy of its settings from this browser's saved copy. If that saved
+  // copy is missing the item structure or lab lists (a full browser storage, or an older trim), fill them in
+  // from what's loaded in memory before sending, so the cloud can never lose them.
+  if (typeof window._dbSaveSettingsRaw === 'function'){
+    var rawSave = window._dbSaveSettingsRaw;
+    window._dbSaveSettingsRaw = function(){
+      var gi = Storage.prototype.getItem;
+      Storage.prototype.getItem = function(k){
+        var v = gi.call(this, k); if (k !== 'amara_cfg4' || this !== window.localStorage) return v;
+        try {
+          var c = JSON.parse(v || '{}'), C = window.CFG || {}, fixed = false;
+          var emptyObj = function(o){ return !o || typeof o !== 'object' || !Object.keys(o).length; };
+          if (emptyObj(c.billingStructure) && !emptyObj(C.billingStructure)) { c.billingStructure = C.billingStructure; fixed = true; }
+          if ((!Array.isArray(c.labs) || !c.labs.length) && Array.isArray(C.labs) && C.labs.length) { c.labs = C.labs; fixed = true; }
+          if (fixed && window.amaraTrace) window.amaraTrace('settings save: filled in item structure / labs from memory');
+          return fixed ? JSON.stringify(c) : v;
+        } catch(x){ return v; }
+      };
+      try { return rawSave.apply(this, arguments); } finally { Storage.prototype.getItem = gi; }
+    };
+  }
+
   // Account menu (top right): your name and team, My account, Settings, Sounds, Backup and Log out in one place
   (function(){
     var bar = document.querySelector('#app .topbar > div:last-child'); if (!bar) return;
@@ -23004,11 +23026,9 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
     ['pointerdown','keydown','touchstart','wheel','scroll','mousemove'].forEach(function(ev){ window.addEventListener(ev, act, { capture: true, passive: true }); });
     var pt2 = window.amaraTouch; if (typeof pt2 === 'function') window.amaraTouch = function(){ act(); try { return pt2.apply(this, arguments); } catch(e){} };
     document.addEventListener('click', function(e){ if (e.target.closest && e.target.closest('[onclick^="logout"],[data-acct="logout"]')) clicked = Date.now(); }, true);
-    window.amaraFreeStorage = function(){
-      try { var c = JSON.parse(localStorage.getItem('amara_cfg4') || 'null');           // Amara's own "light" settings copy (the full copy loads from the cloud)
-        if (c && ((c.billingStructure && Object.keys(c.billingStructure).length) || (c.labs && c.labs.length))){ c.billingStructure = {}; c.labs = []; localStorage.setItem('amara_cfg4', JSON.stringify(c)); return true; } } catch(e){}
-      return false;
-    };
+    // (No longer trims Amara's settings copy to make room: Amara sends that copy to the cloud, so a trimmed
+    //  copy could remove item structure and lab lists for everyone. Staying signed in no longer needs storage.)
+    window.amaraFreeStorage = function(){ return false; };
     // No automatic sign-out any more (Amara is the team's messaging): always tell Amara's older idle check that you're active
     function canSave(){ try { localStorage.setItem('amara_last_active', String(Date.now())); return true; } catch(e){ return false; } }
     if (!canSave() && window.amaraFreeStorage()) canSave();
@@ -23049,7 +23069,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-05-0849'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-05-0959'; window.AMARA_BUILD = BUILD;
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
     fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(t){
