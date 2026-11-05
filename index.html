@@ -23069,7 +23069,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-05-0959'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-05-1050'; window.AMARA_BUILD = BUILD;
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
     fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(t){
@@ -23737,7 +23737,12 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     if (window.settOpen === 'protpins' || window.settOpen === 'pin'){ window.settOpen = null; return window.renderSettings(); }
     // one-off banners
     ['Patient region migration needed'].forEach(function(t){ var el = textEl(pg, t); var top = el && topChild(pg, el); if (top) top.remove(); });
-    Array.prototype.forEach.call(pg.querySelectorAll('span'), function(sp){ if (/^Rolling invoice cleanup/.test((sp.textContent || '').trim())) { var top = topChild(pg, sp); if (top) top.remove(); } });
+    // Rolling invoices: keep Amara's check-and-fix tool (merges "M - M's rolling invoice" into M, applies the
+    // master list of who is on which invoice, and sets the standard colours: M green, Family blue, Sh Hamdan pink)
+    Array.prototype.forEach.call(pg.querySelectorAll('span'), function(sp){ if (/^Rolling invoice cleanup/.test((sp.textContent || '').trim())) {
+      sp.innerHTML = '<b style="color:var(--tx)">Rolling invoices</b> \u2014 check every patient is on the right invoice and colour: <span style="color:#639922;font-weight:700">M green</span> \u00b7 <span style="color:#378ADD;font-weight:700">Family blue</span> \u00b7 <span style="color:#D4537E;font-weight:700">Sh Hamdan pink</span>. Shows a preview first; nothing changes until you confirm.';
+      var bt = sp.parentElement && sp.parentElement.querySelector('button'); if (bt) bt.textContent = '\ud83e\uddf9 Check & fix rolling invoices';
+    } });
     // retired PIN controls
     ['Access PINs', 'Change PIN'].forEach(function(t){ var el = textEl(pg, t); var c = el && el.closest('.sett-card'); if (c) c.remove(); });
     Array.prototype.forEach.call(pg.querySelectorAll('button'), function(b){ if (/Lock Settings/.test(b.textContent || '')) b.remove(); });
@@ -23765,6 +23770,45 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     });
   }
   function card(k, t, s){ return '<div class="sett-card" data-aset="' + k + '" role="button" tabindex="0"><div class="sett-card-body"><div class="sett-card-title">' + t + '</div><div class="sett-card-sub">' + s + '</div></div><span class="sett-card-arrow">→</span></div>'; }
+
+
+  // Standard rolling-invoice colours, applied to the list and to each patient on M / Family / Sh Hamdan
+  var RI_STD = { 'M': '#639922', 'Family': '#378ADD', 'Sh Hamdan': '#D4537E' };
+  function colourMismatches(){
+    var pats = (window.patients || []).filter(function(p){ return RI_STD[p.rollingInvoice] && (p.rollingColor || '').toLowerCase() !== RI_STD[p.rollingInvoice].toLowerCase(); });
+    var list = (window.CFG && CFG.rollingInvoices || []).filter(function(r){ return RI_STD[r.name] && (r.color || '').toLowerCase() !== RI_STD[r.name].toLowerCase(); });
+    var missing = Object.keys(RI_STD).filter(function(n){ return !(window.CFG && CFG.rollingInvoices || []).some(function(r){ return r.name === n; }); });
+    return { pats: pats, list: list, missing: missing, n: pats.length + list.length + missing.length };
+  }
+  async function fixColours(){
+    var m = colourMismatches(); if (!m.n) return 0;
+    if (!CFG.rollingInvoices) CFG.rollingInvoices = [];
+    m.missing.forEach(function(n){ CFG.rollingInvoices.push({ name: n, color: RI_STD[n] }); });
+    CFG.rollingInvoices.forEach(function(r){ if (RI_STD[r.name]) r.color = RI_STD[r.name]; });
+    var done = 0;
+    for (var i = 0; i < m.pats.length; i++){ var p = m.pats[i]; var p2 = Object.assign({}, p, { rollingColor: RI_STD[p.rollingInvoice] }); try { if (await window.dbSavePat(p2)) { p.rollingColor = p2.rollingColor; done++; } } catch(x){} }
+    if (typeof window.saveCFG === 'function') window.saveCFG();
+    if (typeof window.toast === 'function') window.toast('Rolling-invoice colours fixed: ' + done + ' patient' + (done === 1 ? '' : 's') + ' updated (M green, Family blue, Sh Hamdan pink)', 'ok');
+    return done;
+  }
+  window.amaraFixRollingColours = fixColours;
+  if (typeof window.applyRollingInvoiceCleanup === 'function'){
+    var applyRI = window.applyRollingInvoiceCleanup;
+    window.applyRollingInvoiceCleanup = async function(){ var r = await applyRI.apply(this, arguments); try { await fixColours(); } catch(x){} return r; };
+  }
+  if (typeof window.previewRollingInvoiceCleanup === 'function'){
+    var previewRI = window.previewRollingInvoiceCleanup;
+    window.previewRollingInvoiceCleanup = function(){
+      var mod = document.getElementById('lmod'), before = mod && !mod.classList.contains('h');
+      var r = previewRI.apply(this, arguments);
+      var opened = mod && !mod.classList.contains('h') && !before;
+      if (!opened){                                   // "Nothing to do" for names: still check the colours
+        var m = colourMismatches();
+        if (m.n && confirm('Every patient is on the right rolling invoice, but ' + (m.pats.length ? m.pats.length + ' patient' + (m.pats.length === 1 ? ' has' : 's have') + ' the wrong colour' : 'the invoice list has the wrong colours') + ' (M should be green, Family blue, Sh Hamdan pink).\n\nFix the colours now? Bills are not changed.')) fixColours();
+      }
+      return r;
+    };
+  }
 
   var renderSettingsOrig = window.renderSettings;
   window.renderSettings = function(){ var r = renderSettingsOrig.apply(this, arguments); try { tidy(); } catch(x){ console.warn('settings tidy', x); } return r; };
