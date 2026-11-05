@@ -3994,7 +3994,8 @@ function billCardHtml(b,i){
   var extFee=_billExtFee(b);
   var _bt='';
   var _riName=_effectiveRI(b);
-  var _riClass=({'M':'bcard-ri-green','Family':'bcard-ri-blue','Sh Hamdan':'bcard-ri-pink'})[_riName]||'';
+  var _riKey=String(_riName||'').trim().toLowerCase().replace(/\s+/g,' ');
+  var _riClass=(_riKey==='m'||/^m\s*[-\u2013\u2014']/.test(_riKey)||/^m'?s rolling/.test(_riKey))?'bcard-ri-green':/^family/.test(_riKey)?'bcard-ri-blue':/^sh\.?\s*hamdan/.test(_riKey)?'bcard-ri-pink':'';
   return '<div class="bcard'+(_riClass?' '+_riClass:'')+'" onclick="viewBill(\''+b.id+'\')">'+
     '<div class="bc-edge" style="background:'+_edgeColorFor(b)+'"></div>'+
     '<div class="bc2-r1"><span class="bc2-date">'+fdt(b.createdAt)+'</span>'+
@@ -23075,7 +23076,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-05-1331'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-05-1405'; window.AMARA_BUILD = BUILD;
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
     fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(t){
