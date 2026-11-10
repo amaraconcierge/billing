@@ -23077,7 +23077,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-10a'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-10c'; window.AMARA_BUILD = BUILD;
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
     fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(t){
@@ -23888,5 +23888,564 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
 })();
 </script>
 <!-- /AMARA MODULES: billing checks -->
+
+<!-- AMARA MODULES: Invoice / SO report. Reports → "Invoice / SO" (Carmela only). Bills grouped by invoice number
+     (else SO number), oldest to latest, with four views: Invoice lines (laid out like the invoice), Bill cards
+     (everything arranged, follow-ups, fees, times), Time sheet (every timed entry with In / Out of Hours) and
+     Summary by number. Every amount comes from the same calculator as the bill card, so totals match the bills. -->
+<style>
+#ivr{--ivr-line:rgba(26,26,26,.09)}
+#ivr .ivr-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);padding:12px 14px;margin:0 0 12px;box-shadow:var(--sh)}
+#ivr .ivr-f{display:flex;flex-direction:column;gap:3px;min-width:0}
+#ivr .ivr-f>span{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--m2)}
+#ivr .ivr-f input,#ivr .ivr-f select{font:12px var(--sans);padding:6px 8px;border:1px solid var(--bo2);border-radius:8px;background:var(--wh);color:var(--tx);max-width:190px}
+#ivr .ivr-chk{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--mu);align-items:center;padding:6px 0}
+#ivr .ivr-chk label{display:flex;gap:4px;align-items:center;cursor:pointer;white-space:nowrap}
+#ivr .ivr-views{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+#ivr .ivr-v{font:600 12px var(--sans);padding:7px 14px;border-radius:99px;border:1px solid var(--bo2);background:var(--wh);color:var(--tx);cursor:pointer}
+#ivr .ivr-v.on{background:var(--g);color:#FBF7EC;border-color:var(--g)}
+#ivr .ivr-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+#ivr .ivr-title{font-family:var(--serif);font-size:24px;font-style:italic}
+#ivr .ivr-stats{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+#ivr .ivr-stat{background:var(--wh);border:1px solid var(--bo);border-radius:var(--r);padding:8px 12px;min-width:110px}
+#ivr .ivr-stat b{display:block;font-size:16px;font-variant-numeric:tabular-nums}
+#ivr .ivr-stat span{font-size:10px;color:var(--m2);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+#ivr .ivr-grp{background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);margin:0 0 16px;overflow:hidden;box-shadow:var(--sh)}
+#ivr .ivr-gh{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;background:var(--wh2);border-bottom:1px solid var(--bo)}
+#ivr .ivr-gh .n{font:700 15px var(--sans);color:var(--tx)}
+#ivr .ivr-gh .s{font-size:11px;color:var(--m2);margin-top:2px}
+#ivr .ivr-due{text-align:right}
+#ivr .ivr-due .l{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--m2)}
+#ivr .ivr-due .a{font:700 18px var(--sans);font-variant-numeric:tabular-nums}
+#ivr table.ivr-t{width:100%;border-collapse:collapse;font-size:12px}
+#ivr table.ivr-t th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--m2);padding:8px 10px;border-bottom:1px solid var(--ivr-line);white-space:nowrap;background:var(--wh);position:sticky;top:0;z-index:1}
+#ivr table.ivr-t th.sort{cursor:pointer;user-select:none}
+#ivr table.ivr-t th.sort:hover{color:var(--tx)}
+#ivr table.ivr-t th .ar{font-size:9px;margin-left:3px;color:var(--oc)}
+#ivr table.ivr-t td{padding:8px 10px;border-bottom:1px solid var(--ivr-line);vertical-align:top}
+#ivr table.ivr-t td.num,#ivr table.ivr-t th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#ivr table.ivr-t tr.tot td{font-weight:700;background:var(--wh2)}
+#ivr table.ivr-t tr.sub td{font-weight:700;background:rgba(194,138,58,.07)}
+#ivr .ivr-scroll{overflow:auto;max-height:70vh}
+#ivr .ivr-desc{white-space:pre-line;line-height:1.45}
+#ivr .ivr-desc .pt{color:var(--mu)}
+#ivr .pill{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+#ivr .pill.in{background:#DCE8D4;color:#3B5E38}#ivr .pill.out{background:#E4DCF0;color:#4D3B7A}#ivr .pill.none{background:#F6E1C8;color:#8A4A10}
+#ivr .pill.ri-m{background:rgba(99,153,34,.15);color:#3E6A12}#ivr .pill.ri-f{background:rgba(55,138,221,.14);color:#1F5E9E}#ivr .pill.ri-h{background:rgba(212,83,126,.14);color:#9B2C55}#ivr .pill.ri-o{background:var(--tb);color:var(--g)}
+#ivr .ivr-card{border-top:1px solid var(--bo);padding:12px 16px}
+#ivr .ivr-card:first-child{border-top:0}
+#ivr .ivr-ch{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+#ivr .ivr-ch .t{font-weight:700;font-size:13px}
+#ivr .ivr-ch .m{font-size:11px;color:var(--m2)}
+#ivr .ivr-sec{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--oc);margin:10px 0 4px}
+#ivr .ivr-mini{width:100%;border-collapse:collapse;font-size:12px}
+#ivr .ivr-mini td{padding:3px 6px 3px 0;vertical-align:top;border-bottom:1px dashed var(--ivr-line)}
+#ivr .ivr-mini td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+#ivr .ivr-ab{font:600 11px var(--sans);padding:5px 11px;border-radius:99px;border:1px solid var(--bo2);background:var(--wh);cursor:pointer;color:var(--tx)}
+#ivr .ivr-warn{background:#FCF4E3;border:1px solid rgba(194,138,58,.35);color:#8A5A1A;border-radius:var(--r);padding:8px 12px;font-size:12px;margin:0 0 12px}
+#ivr .ivr-rec{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--m2);margin-top:6px;justify-content:flex-end;flex-wrap:wrap}
+#ivr .ivr-rec input{width:110px;font:12px var(--sans);padding:4px 6px;border:1px solid var(--bo2);border-radius:6px;text-align:right}
+#ivr .ok{color:#3B5E38;font-weight:700}#ivr .bad{color:#963030;font-weight:700}
+#ivr .muted{color:var(--m2)}
+@media (max-width:640px){#ivr .ivr-f input,#ivr .ivr-f select{max-width:none;width:100%}#ivr .ivr-f{flex:1 1 45%}}
+</style>
+<script>
+(function(){
+  'use strict';
+  if (typeof window.renderReportsPage !== 'function') return;
+  var OWNER = 'cm@amarahealthcare.com';               // only Carmela sees this report
+  function allowed(){ var e = ((window._authUser && _authUser.email) || '').toLowerCase().trim(); return e === OWNER; }
+  var E = function(s){ return typeof esc === 'function' ? esc(s) : String(s == null ? '' : s); };
+
+  // ── State (remembered on this device) ──────────────────────────────────────
+  var KEY = 'amara_invso_v1';
+  var DEF = { view: 'lines', from: '', to: '', preset: 'all', basis: 'arr', q: '', num: '', pat: '', ri: '', br: '', st: '', by: '', who: '', cat: '', cur: '', hrs: '',
+              showInv: true, showSO: true, showNone: false, fus: true, zero: false, merge: true, order: 'asc', gsort: 'date',
+              sort: { lines: ['date', 1], time: ['date', 1], sum: ['first', 1] } };
+  var S = (function(){ try { var x = JSON.parse(localStorage.getItem(KEY) || 'null'); if (x) return Object.assign({}, DEF, x, { sort: Object.assign({}, DEF.sort, x.sort || {}) }); } catch(e){} return JSON.parse(JSON.stringify(DEF)); })();
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+  var REC_KEY = 'amara_invso_rec';                     // amounts typed from the real invoice, to reconcile against
+  function recGet(){ try { return JSON.parse(localStorage.getItem(REC_KEY) || '{}'); } catch(e){ return {}; } }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  var HRS = /\b(In Hours|Out of Hours)\b/i;
+  function normH(v){ v = String(v || ''); var m = HRS.exec(v); return m ? (/^out/i.test(m[1]) ? 'Out of Hours' : 'In Hours') : ''; }
+  function mins(v){ if (!v || typeof v !== 'object' || v.amount != null) return 0; return (parseInt(v.h) || 0) * 60 + (parseInt(v.m) || 0); }
+  function hm(m){ m = Math.round(m || 0); var h = Math.floor(m / 60), r = m % 60; return h + ':' + (r < 10 ? '0' : '') + r; }
+  function hmWords(m){ m = Math.round(m || 0); var h = Math.floor(m / 60), r = m % 60; return (h ? h + 'h' : '') + (h && r ? ' ' : '') + (r || !h ? r + 'min' : ''); }
+  function money(n, c){ n = Math.round((n || 0) * 100) / 100; return (c ? c + ' ' : '') + n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function curSym(c){ return c === 'GBP' ? '£' : c === 'USD' ? '$' : c === 'EUR' ? '€' : c + ' '; }
+  function ymd(d){ if (!d) return ''; var s = String(d); if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10); var x = new Date(d); return isNaN(x) ? '' : x.toISOString().slice(0, 10); }
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function dShow(d){ if (!d) return '\u2014'; var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d)); if (!m) return '\u2014'; return m[3] + '-' + MON[+m[2] - 1] + '-' + m[1].slice(2); }
+  function riClass(n){ var k = String(n || '').trim().toLowerCase(); if (!k) return ''; if (k === 'm' || /^m\s*[-–—']/.test(k) || /^m'?s rolling/.test(k)) return 'ri-m'; if (/^family/.test(k)) return 'ri-f'; if (/^sh\.?\s*hamdan/.test(k)) return 'ri-h'; return 'ri-o'; }
+  function riName(n){ var c = riClass(n); return c === 'ri-m' ? 'M' : c === 'ri-f' ? 'Family' : c === 'ri-h' ? 'Sh Hamdan' : String(n || '').trim(); }
+  function hPill(h){ return h ? '<span class="pill ' + (h === 'In Hours' ? 'in' : 'out') + '">' + E(h) + '</span>' : '<span class="pill none" title="In / Out of Hours not chosen">Not set</span>'; }
+  function addTo(o, c, v){ o[c] = (o[c] || 0) + (v || 0); }
+  function curList(o){ return Object.keys(o).filter(function(c){ return Math.abs(o[c]) >= 0.005; }).sort(function(a, b){ return a === 'AED' ? -1 : b === 'AED' ? 1 : a.localeCompare(b); }); }
+  function totText(o, sep){ var l = curList(o); return l.length ? l.map(function(c){ return money(o[c], c); }).join(sep || ' · ') : money(0, 'AED'); }
+  function alias(n){ try { return typeof _resolveAlias === 'function' ? _resolveAlias(n || '') : (n || ''); } catch(e){ return n || ''; } }
+
+  // Field definitions for every item, by section + item id (so labels and conditions are the app's own)
+  var DEFS = null;
+  function defs(){
+    if (DEFS) return DEFS; DEFS = {};
+    function put(sk, items){ (items || []).forEach(function(it){ if (!it || !it.id) return; var v = { label: it.label || it.displayName || it.name || it.id, fields: it.fields || [] }; DEFS[sk + '|' + it.id] = v; if (!DEFS['*|' + it.id]) DEFS['*|' + it.id] = v; }); }
+    try { Object.keys(SECS).forEach(function(sk){ put(sk, SECS[sk].items); }); } catch(e){}
+    try { put('intUK', _seedUKInt()); } catch(e){}
+    try { put('extUK', _fuUKExternalItemsEnriched()); } catch(e){}
+    try { if (typeof richInternalGlobalItems === 'function') put('intGL', richInternalGlobalItems()); } catch(e){}
+    return DEFS;
+  }
+  function def(sk, iid){ var D = defs(); return D[sk + '|' + iid] || D['*|' + iid] || null; }
+  function condOk(f, d){
+    var c = f && f.cond; if (!c) return true; var v = d[c.f];
+    if (c.hasNot) return !(v === true || v === 'true' || (Array.isArray(v) && v.length));
+    if (c.has === true) return v === true || v === 'true' || (!!v && v !== 'false');
+    if (c.has != null) return Array.isArray(v) ? v.indexOf(c.has) >= 0 : String(v || '') === String(c.has);
+    return true;
+  }
+  var ADMIN_ITEMS = { iadm: 1, eadm: 1, uk_admin: 1, admin_uki: 1, admin_gli: 1 };
+  var MED_ITEMS = { im: 1, em: 1, uem: 1, gem: 1, uk_med: 1, rx_uki: 1, rx_gli: 1 };
+  var CONS_ITEMS = { ic: 1, ec: 1, gec: 1, uec: 1, doctor_uki: 1, doctor_gli: 1, uk_doctor: 1 };
+  var NURSE_ITEMS = { inv: 1, env: 1, ges: 1, nurse_uki: 1, nurse_gli: 1, uk_nurse: 1, es: 1, ee: 1, ei: 1, ues: 1, uee: 1, uei: 1, is: 1, ie: 1, ii: 1 };
+  var PAIR = { dur: ['ch', 'nv', 'when', 'dh', 'ph2', 'adh_h'], padh: ['padh_h'], adh: ['adh_h', 'ph2'] };
+  function hoursFor(d, k, fields){
+    var c = PAIR[k] || [];
+    for (var i = 0; i < c.length; i++){ var h = normH(d[c[i]]); if (h) return h; }
+    var f = (fields || []).find(function(x){ return x.id === k; });
+    if (f && f.grp){ var g = (fields || []).find(function(x){ return x.grp === f.grp && x.t === 'sel' && (x.o || []).indexOf('In Hours') >= 0 && d[x.id]; }); if (g) return normH(d[g.id]); }
+    var any = Object.keys(d).map(function(x){ return normH(d[x]); }).filter(Boolean);
+    return any.length && any.every(function(x){ return x === any[0]; }) ? any[0] : '';
+  }
+  function catFor(iid, k, d, itemLabel){
+    if (k === 'padh') return 'Physician admin time';
+    if (k === 'adh') return MED_ITEMS[iid] ? 'Medication admin time' : 'Concierge coordination';
+    if (k === 'dur'){
+      if (ADMIN_ITEMS[iid]) return 'Concierge coordination';
+      if (NURSE_ITEMS[iid] || d.nu) return 'Nurse visit';
+      if (CONS_ITEMS[iid] || d.dn || d.cn || /physician|doctor|consult/i.test(itemLabel)) return 'Consultation';
+    }
+    return itemLabel || 'Time';
+  }
+  function whoFor(cat, d, b){
+    if (cat === 'Physician admin time') return alias(d.padh_dn || d.dn || d.cn || '');
+    if (cat === 'Consultation') return alias(d.dn || d.cn || '');
+    if (cat === 'Nurse visit') return alias(d.nu || d.nn || '');
+    return alias(b.billedBy || '');
+  }
+
+  // ── One bill → everything the report needs ─────────────────────────────────
+  var CACHE = new Map();
+  function model(b){
+    var sig = b.id + '|' + (b.updatedAt || '') + '|' + (b.invoiceNo || '') + '|' + (b.soNumber || '') + '|' + (b.status || '');
+    var c = CACHE.get(b.id); if (c && c.sig === sig) return c;
+    var bd = b.billingData || {}, items = [], times = [], arrDates = [];
+    // items in every section (main bill) and their times
+    Object.keys(bd).forEach(function(sk){
+      if (sk.charAt(0) === '_') return; var sd = bd[sk]; if (!sd || typeof sd !== 'object' || Array.isArray(sd)) return;
+      Object.keys(sd).forEach(function(iid){
+        var d = sd[iid]; if (!d || typeof d !== 'object' || Array.isArray(d)) return;
+        var df = def(sk, iid), lab = (df && df.label) || iid, fields = (df && df.fields) || [];
+        if (d.arr_date) arrDates.push(ymd(d.arr_date));
+        items.push({ sk: sk, iid: iid, d: d, label: lab, fields: fields, date: ymd(d.arr_date) });
+        Object.keys(d).forEach(function(k){
+          var m = mins(d[k]); if (!m) return;
+          var f = fields.find(function(x){ return x.id === k; });
+          if (f && f.t && f.t !== 'hours') return;
+          if (f && !condOk(f, d)) return;                              // switched-off section: not billed, not counted
+          if (k === 'dur' && (d.no_consult === true || d.no_consult === 'true')) return;
+          var cat = catFor(iid, k, d, lab);
+          times.push({ fu: false, sk: sk, iid: iid, item: lab, field: (f && (f.l || f.label)) || k, cat: cat, mins: m, hours: hoursFor(d, k, fields), who: whoFor(cat, d, b), date: ymd(d.arr_date), desc: d.adesc ? String(d.adesc) : '' });
+        });
+      });
+    });
+    arrDates = arrDates.filter(Boolean).sort();
+    var arr = arrDates[0] || ymd(b.billDate) || ymd(b.createdAt);
+    times.forEach(function(t){ if (!t.date) t.date = arr; });
+    // follow-ups
+    var fus = [];
+    (Array.isArray(bd._followUps) ? bd._followUps : []).forEach(function(fu, i){
+      if (!fu) return;
+      var fee = { amount: 0, cur: 'AED' }; try { fee = fuEffectiveFee(fu, i, bd, b.branch) || fee; } catch(e){}
+      var label = fu.type || (fu.service && typeof fuServiceLabel === 'function' ? fuServiceLabel(fu) : 'Follow-up');
+      var desc = (fu.desc && String(fu.desc).trim()) || ''; if (!desc && fu.service && typeof fuServiceDesc === 'function'){ try { desc = String(fuServiceDesc(fu, i, bd) || ''); } catch(e){} }
+      var sd = bd['_fu' + i] && fu.service ? bd['_fu' + i][fu.service] : null, hrs = normH(fu.fuWhen), fuTimes = [];
+      if (fu.type === 'Admin time'){ var mm = (parseInt(fu.durH) || 0) * 60 + (parseInt(fu.durM) || 0); if (mm) fuTimes.push({ cat: 'Concierge coordination', field: 'Time spent', mins: mm, hours: hrs, who: alias(b.billedBy || ''), d: fu }); }
+      if (sd && typeof sd === 'object'){
+        var df = def(fu.section === 'External' ? 'ext' : 'int', fu.service) || def('*', fu.service), fields = (df && df.fields) || [];
+        Object.keys(sd).forEach(function(k){ var m = mins(sd[k]); if (!m) return; var f = fields.find(function(x){ return x.id === k; }); if (f && f.t && f.t !== 'hours') return; if (f && !condOk(f, sd)) return;
+          var cat = catFor(fu.service, k, sd, label); fuTimes.push({ cat: cat, field: (f && (f.l || f.label)) || k, mins: m, hours: hoursFor(sd, k, fields), who: whoFor(cat, sd, b), d: sd }); });
+        if (!hrs) hrs = hoursFor(sd, 'dur', fields);
+      }
+      var rec = { idx: i, date: ymd(fu.date) || arr, time: fu.time || '', label: label, desc: desc, fee: fee, hours: hrs, region: fu.region || b.branch || '', section: fu.section || '', times: fuTimes };
+      fuTimes.forEach(function(t){ times.push({ fu: true, fuIdx: i, item: 'Follow-up — ' + label, field: t.field, cat: t.cat, mins: t.mins, hours: t.hours, who: t.who, date: rec.date, desc: desc }); });
+      fus.push(rec);
+    });
+    // billable lines: the same lines the bill card adds up (frozen prices respected)
+    var raw = []; try { var gl = getBillLines(b); raw = (gl.lines || gl || []).slice(); } catch(e){}
+    var lines = [], fuQ = fus.filter(function(f){ return (f.fee && f.fee.amount) > 0; }), usedT = {};
+    raw.forEach(function(l){
+      if (!l) return; var lbl = String(l.label || ''), amt = +l.amount || 0, cur = l.cur || 'AED';
+      var o = { label: lbl, amt: amt, cur: cur, ext: !!l.external, disc: !!l.isDiscount, tax: !!l.tax, gw: !!l.isGoodwill, fu: false, date: arr, hours: normH(lbl), mins: 0, desc: l.desc || '', cat: '' };
+      if (/^Follow-up \(/.test(lbl)){
+        var f = fuQ.shift(); o.fu = true;
+        if (f){ o.date = f.date; o.hours = o.hours || f.hours; o.fuIdx = f.idx; o.mins = f.times.reduce(function(s, t){ return s + t.mins; }, 0); o.label = 'Follow-up — ' + f.label; o.desc = f.desc; }
+      } else {
+        // which item this line came from (longest item name the line starts with) → its date, hours and time
+        var best = null, L = lbl.toLowerCase();
+        items.forEach(function(it){ if (l._sk && it.sk !== l._sk && !/UK|GL/.test(it.sk)) return; var n = String(it.label || '').toLowerCase(); if (n && L.indexOf(n) === 0 && (!best || n.length > best.label.length)) best = it; });
+        if (!best && l._sk){ var inSk = items.filter(function(it){ return it.sk === l._sk; }); if (inSk.length === 1) best = inSk[0]; }
+        var tk = /Physician Administrative/i.test(lbl) ? 'padh' : /Concierge Coordination|additional time|admin/i.test(lbl) ? 'adh' : '';
+        var cands = times.filter(function(t){ return !t.fu && !usedT[times.indexOf(t)] && (best ? t.iid === best.iid && t.sk === best.sk : (l._sk ? t.sk === l._sk : true)) && (tk === 'padh' ? t.cat === 'Physician admin time' : tk === 'adh' ? (t.cat === 'Concierge coordination' || t.cat === 'Medication admin time') : t.cat === 'Consultation' || t.cat === 'Nurse visit'); });
+        if (best){ o.date = best.date || arr; o.item = best.label; if (!o.hours) o.hours = tk === 'padh' ? normH(best.d.padh_h) : tk === 'adh' ? (normH(best.d.adh_h) || normH(best.d.ph2)) : (normH(best.d.ch) || normH(best.d.nv) || normH(best.d.ph2) || normH(best.d.when));
+          if (!tk && /physician services|consult/i.test(lbl) && (best.d.dn || best.d.cn)){ var _dn = String(best.d.dn || best.d.cn).trim(); o.desc = o.desc || [best.d.ct, best.d.mode].filter(Boolean).join(' ') + ' consultation with ' + (typeof _withDr === 'function' ? _withDr(_dn) : _dn); } if (/medication/i.test(lbl) && best.d.meds) o.desc = o.desc || String(best.d.meds).trim(); }
+        if (cands.length && (tk || /consult|physician services|nurs|visit/i.test(lbl))){ var t0 = cands[0]; usedT[times.indexOf(t0)] = 1; o.mins = t0.mins; if (!o.hours) o.hours = t0.hours; }
+      }
+      o.cat = lineCat(o);
+      lines.push(o);
+    });
+    var tot = {}; lines.forEach(function(l){ addTo(tot, l.cur, l.amt); });
+    var inv = String(b.invoiceNo || '').trim(), so = String(b.soNumber || '').trim();
+    var m = { sig: sig, b: b, id: b.id, no: (typeof _billNo === 'function' ? _billNo(b) : ''), patient: b.patientName || '', code: (function(){ try { return pCode(b.patientName) || ''; } catch(e){ return ''; } })(),
+      branch: b.branch || 'UAE', status: b.status || 'Draft', by: alias(b.billedBy || ''), ri: (function(){ try { return _effectiveRI(b) || ''; } catch(e){ return ''; } })(),
+      inv: inv, so: so, gtype: inv ? 'Invoice' : so ? 'SO' : 'None', gkey: inv ? 'I:' + inv.toUpperCase() : so ? 'S:' + so.toUpperCase() : 'N:', glabel: inv ? inv : so ? so : 'Not yet on an invoice',
+      arr: arr, created: ymd(b.createdAt), lines: lines, times: times, fus: fus, tot: tot,
+      arranged: (function(){ try { return billArrangementLines(b) || []; } catch(e){ return []; } })(),
+      people: (function(){ try { return _billPeople(b); } catch(e){ return {}; } })() };
+    m.date = function(){ return S.basis === 'created' ? m.created : m.arr; };
+    CACHE.set(b.id, m); return m;
+  }
+  function lineCat(o){
+    var l = o.label;
+    if (o.disc) return 'Discount'; if (o.tax) return 'VAT'; if (o.gw) return 'Goodwill';
+    if (o.fu) return 'Follow-up';
+    if (/Settlement markup/i.test(l)) return 'Settlement markup';
+    if (/Lab work|Lab Works|Lab tests/i.test(l)) return 'Lab work';
+    if (/Phlebotomy/i.test(l)) return 'Phlebotomy';
+    if (/Physician Administrative/i.test(l)) return 'Physician admin time';
+    if (/Concierge|Coordination|Admin/i.test(l)) return 'Concierge coordination';
+    if (/Medication|Prescription/i.test(l)) return 'Medication';
+    if (/Diagnostic Imaging|Scan/i.test(l)) return 'Imaging';
+    if (/referral/i.test(l)) return 'Referral';
+    if (/Courier/i.test(l)) return 'Courier';
+    if (/Nurs|Visit/i.test(l)) return 'Nurse visit';
+    if (/Physician Services|Consultation|Doctor/i.test(l)) return 'Consultation';
+    if (/ECG|BP|Injection|IV|Vaccin/i.test(l)) return 'Procedures';
+    return 'Other';
+  }
+
+  // ── Filtering ───────────────────────────────────────────────────────────────
+  function presetRange(p){
+    var n = new Date(), y = n.getFullYear(), mo = n.getMonth(), f = '', t = '';
+    function iso(d){ return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+    if (p === 'month'){ f = iso(new Date(y, mo, 1)); t = iso(new Date(y, mo + 1, 0)); }
+    else if (p === 'last'){ f = iso(new Date(y, mo - 1, 1)); t = iso(new Date(y, mo, 0)); }
+    else if (p === 'quarter'){ var q = Math.floor(mo / 3) * 3; f = iso(new Date(y, q, 1)); t = iso(new Date(y, q + 3, 0)); }
+    else if (p === 'year'){ f = y + '-01-01'; t = y + '-12-31'; }
+    else if (p === 'lastyear'){ f = (y - 1) + '-01-01'; t = (y - 1) + '-12-31'; }
+    return { f: f, t: t };
+  }
+  function inRange(d){ if (!d) return !S.from && !S.to; if (S.from && d < S.from) return false; if (S.to && d > S.to) return false; return true; }
+  function lineOk(l){
+    if (!S.fus && l.fu) return false;
+    if (!S.zero && !(Math.abs(l.amt) >= 0.005)) return false;
+    if (S.cat && l.cat !== S.cat) return false;
+    if (S.cur && l.cur !== S.cur) return false;
+    if (S.hrs && (S.hrs === 'none' ? l.hours : l.hours !== S.hrs)) return false;
+    return true;
+  }
+  function timeOk(t){
+    if (!S.fus && t.fu) return false;
+    if (S.who && t.who !== S.who) return false;
+    if (S.cat && t.cat !== S.cat && !(S.cat === 'Follow-up' && t.fu)) return false;
+    if (S.hrs && (S.hrs === 'none' ? t.hours : t.hours !== S.hrs)) return false;
+    return true;
+  }
+  function billsIn(){
+    var all = (window._rptAllBills || window.bills || []).filter(function(b){ return b && !b._isQuote; });
+    var q = S.q.trim().toLowerCase(), num = S.num.trim().toLowerCase(), pat = S.pat.trim().toLowerCase();
+    var out = [];
+    all.forEach(function(b){
+      // cheap checks before the price calculation
+      var inv = String(b.invoiceNo || '').trim(), so = String(b.soNumber || '').trim();
+      var gt = inv ? 'Invoice' : so ? 'SO' : 'None';
+      if (gt === 'Invoice' && !S.showInv) return; if (gt === 'SO' && !S.showSO) return; if (gt === 'None' && !S.showNone) return;
+      if (num && (inv + ' ' + so).toLowerCase().indexOf(num) < 0) return;
+      if (S.br && (b.branch || 'UAE') !== S.br) return;
+      if (S.st && (b.status || 'Draft') !== S.st) return;
+      if (pat && (String(b.patientName || '') + ' ' + (function(){ try { return pCode(b.patientName) || ''; } catch(e){ return ''; } })()).toLowerCase().indexOf(pat) < 0) return;
+      var m = model(b);
+      if (!inRange(m.date())) {
+        // a follow-up dated inside the range still brings its bill in, when the range is by arrangement date
+        if (!(S.fus && S.basis === 'arr' && (S.from || S.to) && m.fus.some(function(f){ return inRange(f.date); }))) return;
+      }
+      if (S.ri && riName(m.ri) !== S.ri && !(S.ri === '__none' && !m.ri)) return;
+      if (S.by && m.by !== S.by) return;
+      if (S.who && !m.times.some(function(t){ return t.who === S.who; }) && [m.people.doctor, m.people.external, m.people.nurse].join(', ').split(/,\s*/).indexOf(S.who) < 0) return;
+      if (q){ var hay = [m.no, m.patient, m.code, m.inv, m.so, m.by, m.ri, m.status, m.branch].concat(m.lines.map(function(l){ return l.label + ' ' + l.desc; }), m.fus.map(function(f){ return f.label + ' ' + f.desc; }), m.times.map(function(t){ return t.who; })).join(' ').toLowerCase(); if (hay.indexOf(q) < 0) return; }
+      if ((S.cat || S.cur || S.hrs) && !m.lines.some(lineOk) && !m.times.some(timeOk)) return;
+      out.push(m);
+    });
+    return out;
+  }
+  function lineInRange(l){ return S.basis !== 'arr' || inRange(l.date) || (!S.from && !S.to); }
+  function groups(ms){
+    var G = new Map();
+    ms.forEach(function(m){ var g = G.get(m.gkey); if (!g){ g = { key: m.gkey, label: m.glabel, type: m.gtype, inv: new Set(), so: new Set(), bills: [] }; G.set(m.gkey, g); } g.bills.push(m); if (m.inv) g.inv.add(m.inv); if (m.so) g.so.add(m.so); });
+    var arr = Array.from(G.values()), dir = S.order === 'desc' ? -1 : 1;
+    arr.forEach(function(g){
+      g.bills.sort(function(a, b){ return dir * (String(a.date()).localeCompare(String(b.date())) || String(a.no).localeCompare(String(b.no))); });
+      g.tot = {}; g.min = {}; g.patients = new Set(); g.first = ''; g.last = '';
+      g.bills.forEach(function(m){ g.patients.add(m.patient);
+        m.lines.filter(lineOk).filter(lineInRange).forEach(function(l){ addTo(g.tot, l.cur, l.amt); });
+        m.times.filter(timeOk).filter(lineInRange).forEach(function(t){ addTo(g.min, t.hours || 'Not set', t.mins); });
+        var d = m.date(); if (d && (!g.first || d < g.first)) g.first = d; if (d && (!g.last || d > g.last)) g.last = d; });
+    });
+    arr.sort(function(a, b){
+      if (a.type === 'None' && b.type !== 'None') return 1; if (b.type === 'None' && a.type !== 'None') return -1;
+      if (S.gsort === 'num') return dir * String(a.label).localeCompare(String(b.label), undefined, { numeric: true });
+      if (S.gsort === 'total') return dir * (((a.tot.AED || 0) - (b.tot.AED || 0)) || ((a.tot.GBP || 0) - (b.tot.GBP || 0)) || ((a.tot.USD || 0) - (b.tot.USD || 0)));
+      return dir * (String(a.first).localeCompare(String(b.first)) || String(a.label).localeCompare(String(b.label)));
+    });
+    return arr;
+  }
+
+  // Lines laid out like the invoice (settlement markup folded into its fee, as the invoice does)
+  function invLines(m){
+    var out = [];
+    m.lines.filter(lineInRange).forEach(function(l){
+      if (S.merge && /^Settlement markup/i.test(l.label) && out.length && out[out.length - 1].cur === l.cur){ var p = out[out.length - 1]; p.amt += l.amt; p.merged = (p.merged || 0) + l.amt; return; }
+      out.push(Object.assign({}, l));
+    });
+    return out.filter(lineOk);
+  }
+
+  // ── Views ───────────────────────────────────────────────────────────────────
+  function th(view, col, label, num){ var s = S.sort[view] || [], on = s[0] === col; return '<th class="sort' + (num ? ' num' : '') + '" data-sort="' + view + ':' + col + '">' + label + (on ? '<span class="ar">' + (s[1] > 0 ? '▲' : '▼') + '</span>' : '') + '</th>'; }
+  function sorter(view, get){
+    var s = S.sort[view] || ['date', 1], col = s[0], dir = s[1];
+    return function(a, b){ var x = get(a, col), y = get(b, col); var r = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x == null ? '' : x).localeCompare(String(y == null ? '' : y), undefined, { numeric: true, sensitivity: 'base' }); return dir * r || String(get(a, 'date')).localeCompare(String(get(b, 'date'))) || String(a.m ? a.m.no : '').localeCompare(String(b.m ? b.m.no : '')); };
+  }
+  function recOne(g, tot, c){ var r = recGet()[g.key + '|' + c]; var v = r != null && r !== '' ? +r : null; return v == null || isNaN(v) ? null : Math.round(((tot[c] || 0) - v) * 100) / 100; }
+  function recBox(g, tot){
+    if (g.type === 'None') return '';
+    return (curList(tot).length ? curList(tot) : ['AED']).map(function(c){
+      var r = recGet()[g.key + '|' + c];
+      var d = recOne(g, tot, c), res = d == null ? '' : Math.abs(d) < 0.005 ? '<span class="ok">\u2713 matches</span>' : '<span class="bad">Difference ' + money(d, c) + '</span>';
+      return '<div class="ivr-rec">Amount on the invoice (' + E(c) + '): <input type="number" step="0.01" data-rec="' + E(g.key + '|' + c) + '" value="' + (r == null || r === '' ? '' : r) + '" placeholder="type to check"> ' + res + '</div>';
+    }).join('');
+  }
+  function groupHead(g, tot, extra){
+    var nums = (g.type === 'Invoice' ? 'Invoice ' + Array.from(g.inv).join(', ') + (g.so.size ? ' · SO ' + Array.from(g.so).join(', ') : '') : g.type === 'SO' ? 'SO ' + Array.from(g.so).join(', ') + ' · no invoice number yet' : 'Not yet on an invoice or SO');
+    return '<div class="ivr-gh"><div><div class="n">' + E(nums) + '</div><div class="s">' + g.bills.length + ' bill' + (g.bills.length === 1 ? '' : 's') + ' · ' + g.patients.size + ' patient' + (g.patients.size === 1 ? '' : 's') + ' · ' + dShow(g.first) + ' to ' + dShow(g.last) + (extra || '') + '</div></div>' +
+      '<div class="ivr-due"><div class="l">Amount due</div><div class="a">' + curList(tot).map(function(c){ return E(curSym(c) + money(tot[c])); }).join('<br>') + (curList(tot).length ? '' : '—') + '</div>' + recBox(g, tot) + '</div></div>';
+  }
+  function vLines(G){
+    if (!G.length) return empty();
+    return G.map(function(g){
+      var rows = [], tot = {};
+      g.bills.forEach(function(m){ invLines(m).forEach(function(l){ rows.push({ m: m, l: l }); addTo(tot, l.cur, l.amt); }); });
+      rows.sort(sorter('lines', function(r, c){ var l = r.l, m = r.m; return c === 'date' ? l.date : c === 'pat' ? m.patient : c === 'desc' ? l.label : c === 'bill' ? m.no : c === 'cat' ? l.cat : c === 'hrs' ? l.hours : c === 'amt' ? l.amt : c === 'cur' ? l.cur : l.date; }));
+      var multi = curList(tot).length > 1;
+      return '<div class="ivr-grp">' + groupHead(g, tot) + '<div class="ivr-scroll"><table class="ivr-t"><thead><tr>' + th('lines', 'date', 'Date') + th('lines', 'desc', 'Description') + th('lines', 'cat', 'Type') + th('lines', 'hrs', 'Hours') + th('lines', 'bill', 'Bill') + '<th class="num">Qty</th>' + th('lines', 'amt', 'Price', 1) + th('lines', 'amt', 'Amount', 1) + '</tr></thead><tbody>' +
+        rows.map(function(r){ var l = r.l, m = r.m;
+          return '<tr><td style="white-space:nowrap">' + dShow(l.date) + '</td><td class="ivr-desc"><span class="pt">Patient Name: ' + E(m.patient) + (m.code ? ' (' + E(m.code) + ')' : '') + '</span>\n' + E(l.label) + (l.desc && l.label.indexOf(l.desc) < 0 ? '\n<span class="muted">' + E(String(l.desc).slice(0, 220)) + '</span>' : '') + (l.mins ? '\n<span class="muted">Time: ' + hmWords(l.mins) + '</span>' : '') + (l.merged ? '\n<span class="muted">Includes settlement markup ' + money(l.merged, l.cur) + '</span>' : '') + '</td>' +
+            '<td>' + E(l.cat) + '</td><td>' + (l.hours ? hPill(l.hours) : (/admin|coordination|consult|nurse/i.test(l.cat) ? hPill('') : '<span class="muted">—</span>')) + '</td>' +
+            '<td style="white-space:nowrap"><a href="#" data-open="' + E(m.id) + '">' + E(m.no) + '</a></td><td class="num">1</td><td class="num">' + (multi ? E(l.cur) + ' ' : '') + money(l.amt) + '</td><td class="num">' + (multi ? E(l.cur) + ' ' : '') + money(l.amt) + '</td></tr>'; }).join('') +
+        curList(tot).map(function(c){ return '<tr class="tot"><td colspan="7">Total ' + E(c) + ' · ' + rows.filter(function(r){ return r.l.cur === c; }).length + ' lines</td><td class="num">' + money(tot[c], c) + '</td></tr>'; }).join('') +
+        '</tbody></table></div></div>';
+    }).join('');
+  }
+  function vCards(G){
+    if (!G.length) return empty();
+    return G.map(function(g){
+      return '<div class="ivr-grp">' + groupHead(g, g.tot, timeSplit(g.min)) + g.bills.map(card).join('') + '</div>';
+    }).join('');
+  }
+  function timeSplit(mm){ var k = Object.keys(mm).filter(function(x){ return mm[x]; }); return k.length ? ' · Time: ' + k.map(function(x){ return x + ' ' + hmWords(mm[x]); }).join(', ') : ''; }
+  function card(m){
+    var ls = m.lines.filter(function(l){ return !l.fu; }).filter(lineOk), tot = {};
+    m.lines.filter(lineOk).forEach(function(l){ addTo(tot, l.cur, l.amt); });
+    var ts = m.times.filter(function(t){ return !t.fu; }).filter(timeOk), fs = S.fus ? m.fus : [];
+    var rc = riClass(m.ri);
+    return '<div class="ivr-card"><div class="ivr-ch"><div><span class="t">' + E(m.no) + ' · ' + E(m.patient) + (m.code ? ' <span class="muted">(' + E(m.code) + ')</span>' : '') + '</span>' +
+      (m.ri ? ' <span class="pill ' + rc + '">' + E(riName(m.ri)) + '</span>' : '') + '<div class="m">' + dShow(m.arr) + ' · ' + E(m.branch) + ' · ' + E(m.status) + (m.by ? ' · Billed by ' + E(m.by) : '') + (m.inv ? ' · Invoice ' + E(m.inv) : '') + (m.so ? ' · SO ' + E(m.so) : '') + ' · created ' + dShow(m.created) + '</div></div>' +
+      '<div style="text-align:right"><div style="font-weight:700;font-variant-numeric:tabular-nums">' + E(totText(tot, '<br>')).replace(/&lt;br&gt;/g, '<br>') + '</div><button class="ivr-ab" data-open="' + E(m.id) + '" style="margin-top:4px">Open bill</button></div></div>' +
+      (m.arranged.length ? '<div class="ivr-sec">Arranged</div><table class="ivr-mini">' + m.arranged.map(function(a){ return '<tr><td>' + E(a.t) + '</td><td class="num muted">' + (a.d ? dShow(a.d) : '') + '</td></tr>'; }).join('') + '</table>' : '') +
+      (ls.length ? '<div class="ivr-sec">Billable</div><table class="ivr-mini">' + ls.map(function(l){ return '<tr><td>' + E(l.label) + (l.desc && l.label.indexOf(l.desc) < 0 ? ' <span class="muted">— ' + E(String(l.desc).slice(0, 120)) + '</span>' : '') + '</td><td>' + (l.hours ? hPill(l.hours) : '') + '</td><td class="num muted">' + (l.mins ? hmWords(l.mins) : '') + '</td><td class="num">' + money(l.amt, l.cur) + '</td></tr>'; }).join('') + '</table>' : '') +
+      (ts.length ? '<div class="ivr-sec">Times</div><table class="ivr-mini">' + ts.map(function(t){ return '<tr><td>' + E(t.cat) + ' <span class="muted">· ' + E(t.item) + '</span></td><td>' + E(t.who || '') + '</td><td>' + hPill(t.hours) + '</td><td class="num">' + hmWords(t.mins) + '</td></tr>'; }).join('') + '</table>' : '') +
+      (fs.length ? '<div class="ivr-sec">Follow-ups</div><table class="ivr-mini">' + fs.map(function(f){ var tm = f.times.reduce(function(s, t){ return s + t.mins; }, 0); return '<tr><td style="white-space:nowrap">' + dShow(f.date) + (f.time ? ' ' + E(f.time) : '') + '</td><td>' + E(f.label) + (f.region ? ' <span class="muted">· ' + E(f.region) + (f.section ? ' ' + E(f.section) : '') + '</span>' : '') + (f.desc ? '<div class="muted">' + E(f.desc.slice(0, 200)) + '</div>' : '') + '</td><td>' + (f.hours || tm ? hPill(f.hours) : '') + '</td><td class="num muted">' + (tm ? hmWords(tm) : '') + '</td><td class="num">' + (f.fee && f.fee.amount ? money(f.fee.amount, f.fee.cur) : '<span class="muted">no fee</span>') + '</td></tr>'; }).join('') + '</table>' : '') +
+      '</div>';
+  }
+  function vTime(G){
+    var rows = [];
+    G.forEach(function(g){ g.bills.forEach(function(m){ m.times.filter(timeOk).filter(lineInRange).forEach(function(t){ rows.push({ m: m, g: g, t: t }); }); }); });
+    if (!rows.length) return empty('No timed entries match these filters.');
+    rows.sort(sorter('time', function(r, c){ var t = r.t, m = r.m; return c === 'date' ? t.date : c === 'num' ? r.g.label : c === 'bill' ? m.no : c === 'pat' ? m.patient : c === 'cat' ? t.cat : c === 'item' ? t.item : c === 'who' ? t.who : c === 'hrs' ? (t.hours || 'zz') : c === 'mins' ? t.mins : t.date; }));
+    var byCat = {}, byWho = {}, all = { 'In Hours': 0, 'Out of Hours': 0, 'Not set': 0 };
+    rows.forEach(function(r){ var h = r.t.hours || 'Not set'; all[h] += r.t.mins; var c = byCat[r.t.cat] = byCat[r.t.cat] || { 'In Hours': 0, 'Out of Hours': 0, 'Not set': 0 }; c[h] += r.t.mins; var w = r.t.who || '(not named)'; var x = byWho[w] = byWho[w] || { 'In Hours': 0, 'Out of Hours': 0, 'Not set': 0 }; x[h] += r.t.mins; });
+    function split(title, o){ return '<div class="ivr-grp"><div class="ivr-gh"><div class="n">' + title + '</div></div><table class="ivr-t"><thead><tr><th></th><th class="num">In Hours</th><th class="num">Out of Hours</th><th class="num">Not set</th><th class="num">Total</th></tr></thead><tbody>' +
+      Object.keys(o).sort().map(function(k){ var v = o[k]; return '<tr><td>' + E(k) + '</td><td class="num">' + hm(v['In Hours']) + '</td><td class="num">' + hm(v['Out of Hours']) + '</td><td class="num">' + (v['Not set'] ? '<span class="bad">' + hm(v['Not set']) + '</span>' : '0:00') + '</td><td class="num"><b>' + hm(v['In Hours'] + v['Out of Hours'] + v['Not set']) + '</b></td></tr>'; }).join('') +
+      '<tr class="tot"><td>Total</td><td class="num">' + hm(all['In Hours']) + '</td><td class="num">' + hm(all['Out of Hours']) + '</td><td class="num">' + hm(all['Not set']) + '</td><td class="num">' + hm(all['In Hours'] + all['Out of Hours'] + all['Not set']) + '</td></tr></tbody></table></div>'; }
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">' + split('Time by type (hours:minutes)', byCat) + split('Time by person', byWho) + '</div>' +
+      '<div class="ivr-grp"><div class="ivr-scroll"><table class="ivr-t"><thead><tr>' + th('time', 'date', 'Date') + th('time', 'num', 'Invoice / SO') + th('time', 'bill', 'Bill') + th('time', 'pat', 'Patient') + th('time', 'cat', 'Type') + th('time', 'item', 'Item') + th('time', 'who', 'Who') + th('time', 'hrs', 'Hours') + th('time', 'mins', 'Time', 1) + '</tr></thead><tbody>' +
+      rows.map(function(r){ var t = r.t, m = r.m; return '<tr><td style="white-space:nowrap">' + dShow(t.date) + '</td><td>' + E(r.g.type === 'None' ? '—' : r.g.label) + '</td><td><a href="#" data-open="' + E(m.id) + '">' + E(m.no) + '</a></td><td>' + E(m.patient) + '</td><td>' + E(t.cat) + (t.fu ? ' <span class="muted">(follow-up)</span>' : '') + '</td><td>' + E(t.item) + (t.desc ? '<div class="muted">' + E(t.desc.slice(0, 120)) + '</div>' : '') + '</td><td>' + E(t.who || '') + '</td><td>' + hPill(t.hours) + '</td><td class="num">' + hm(t.mins) + '</td></tr>'; }).join('') +
+      '</tbody></table></div></div>';
+  }
+  function vSum(G){
+    if (!G.length) return empty();
+    var curs = {}; G.forEach(function(g){ curList(g.tot).forEach(function(c){ curs[c] = 1; }); }); curs = curList(Object.keys(curs).reduce(function(o, c){ o[c] = 1; return o; }, {}));
+    if (!curs.length) curs = ['AED'];
+    var rows = G.map(function(g){ return { g: g }; });
+    rows.sort(sorter('sum', function(r, c){ var g = r.g; return c === 'num' ? g.label : c === 'type' ? g.type : c === 'bills' ? g.bills.length : c === 'pats' ? g.patients.size : c === 'first' ? g.first : c === 'last' ? g.last : c === 'in' ? (g.min['In Hours'] || 0) : c === 'out' ? (g.min['Out of Hours'] || 0) : c === 'ns' ? (g.min['Not set'] || 0) : c.indexOf('cur_') === 0 ? (g.tot[c.slice(4)] || 0) : g.first; }));
+    var T = {}, TB = 0, TM = {};
+    rows.forEach(function(r){ curs.forEach(function(c){ addTo(T, c, r.g.tot[c] || 0); }); TB += r.g.bills.length; Object.keys(r.g.min).forEach(function(k){ addTo(TM, k, r.g.min[k]); }); });
+    return '<div class="ivr-grp"><div class="ivr-scroll"><table class="ivr-t"><thead><tr>' + th('sum', 'num', 'Invoice / SO') + th('sum', 'type', 'Type') + th('sum', 'pats', 'Patients', 1) + th('sum', 'bills', 'Bills', 1) + th('sum', 'first', 'First date') + th('sum', 'last', 'Last date') +
+      curs.map(function(c){ return th('sum', 'cur_' + c, 'Total ' + c, 1); }).join('') + th('sum', 'in', 'In Hours', 1) + th('sum', 'out', 'Out of Hours', 1) + th('sum', 'ns', 'Hours not set', 1) + '<th>Check</th></tr></thead><tbody>' +
+      rows.map(function(r){ var g = r.g, ds = (curList(g.tot).length ? curList(g.tot) : ['AED']).map(function(c){ return [c, recOne(g, g.tot, c)]; }).filter(function(x){ return x[1] != null; }), chk = !ds.length ? '<span class="muted">\u2014</span>' : ds.every(function(x){ return Math.abs(x[1]) < 0.005; }) ? '<span class="ok">\u2713</span>' : ds.filter(function(x){ return Math.abs(x[1]) >= 0.005; }).map(function(x){ return '<span class="bad">\u2260 ' + money(x[1], x[0]) + '</span>'; }).join('<br>');
+        return '<tr><td><a href="#" data-goto="' + E(g.key) + '"><b>' + E(g.label) + '</b></a>' + (g.type === 'Invoice' && g.so.size ? '<div class="muted">SO ' + E(Array.from(g.so).join(', ')) + '</div>' : '') + '<div class="muted" style="max-width:260px">' + E(Array.from(g.patients).slice(0, 4).join(', ') + (g.patients.size > 4 ? ' +' + (g.patients.size - 4) : '')) + '</div></td><td>' + E(g.type === 'None' ? 'None yet' : g.type) + '</td><td class="num">' + g.patients.size + '</td><td class="num">' + g.bills.length + '</td><td style="white-space:nowrap">' + dShow(g.first) + '</td><td style="white-space:nowrap">' + dShow(g.last) + '</td>' +
+          curs.map(function(c){ return '<td class="num">' + (g.tot[c] ? money(g.tot[c]) : '<span class="muted">—</span>') + '</td>'; }).join('') + '<td class="num">' + hm(g.min['In Hours']) + '</td><td class="num">' + hm(g.min['Out of Hours']) + '</td><td class="num">' + (g.min['Not set'] ? '<span class="bad">' + hm(g.min['Not set']) + '</span>' : '0:00') + '</td><td>' + chk + '</td></tr>'; }).join('') +
+      '<tr class="tot"><td colspan="3">Total · ' + rows.length + ' numbers</td><td class="num">' + TB + '</td><td colspan="2"></td>' + curs.map(function(c){ return '<td class="num">' + money(T[c] || 0) + '</td>'; }).join('') + '<td class="num">' + hm(TM['In Hours']) + '</td><td class="num">' + hm(TM['Out of Hours']) + '</td><td class="num">' + hm(TM['Not set']) + '</td><td></td></tr></tbody></table></div></div>';
+  }
+  function empty(t){ return '<div class="ivr-grp" style="padding:28px;text-align:center;color:var(--m2)">' + E(t || 'No bills match these filters.') + '</div>'; }
+
+  // ── Page ────────────────────────────────────────────────────────────────────
+  function opts(list, cur, all){ return '<option value="">' + E(all) + '</option>' + list.map(function(v){ var val = Array.isArray(v) ? v[0] : v, lab = Array.isArray(v) ? v[1] : v; return '<option value="' + E(val) + '"' + (String(cur) === String(val) ? ' selected' : '') + '>' + E(lab) + '</option>'; }).join(''); }
+  function uniq(a){ return Array.from(new Set(a.filter(Boolean))).sort(function(x, y){ return String(x).localeCompare(String(y)); }); }
+  var LAST = { ms: [], G: [] };
+  function render(){
+    var pg = document.getElementById('page-reports'); if (!pg) return;
+    if (!allowed()){ pg.innerHTML = '<div style="padding:40px;text-align:center;color:var(--m2)">This report is private.</div>'; return; }
+    var t0 = performance.now();
+    var all = (window._rptAllBills || window.bills || []).filter(function(b){ return b && !b._isQuote; });
+    var ms = billsIn(), G = groups(ms); LAST = { ms: ms, G: G };
+    var allM = all.map(model);
+    var ris = uniq(allM.map(function(m){ return riName(m.ri); })), bys = uniq(allM.map(function(m){ return m.by; })), sts = uniq(allM.map(function(m){ return m.status; }));
+    var whos = uniq([].concat.apply([], allM.map(function(m){ return m.times.map(function(t){ return t.who; }); })));
+    var cats = uniq([].concat.apply([], allM.map(function(m){ return m.lines.map(function(l){ return l.cat; }).concat(m.times.map(function(t){ return t.cat; })); })));
+    var curs = uniq([].concat.apply([], allM.map(function(m){ return m.lines.map(function(l){ return l.cur; }); })));
+    var tot = {}, nl = 0, tm = { 'In Hours': 0, 'Out of Hours': 0, 'Not set': 0 };
+    G.forEach(function(g){ curList(g.tot).forEach(function(c){ addTo(tot, c, g.tot[c]); }); Object.keys(g.min).forEach(function(k){ tm[k] += g.min[k]; }); g.bills.forEach(function(m){ nl += invLines(m).length; }); });
+    var unset = ms.filter(function(m){ return m.times.some(function(t){ return !t.hours && timeOk(t); }); });
+    var V = { lines: 'Invoice lines', cards: 'Bill cards', time: 'Time sheet', sum: 'Summary by number' };
+    var h = '<div id="ivr">' +
+      '<div class="ivr-head"><div><div class="ivr-title">Invoice / SO report</div><div class="muted" style="font-size:12px">Bills grouped by invoice number (or SO number), with the same amounts as each bill card. Only you can see this report.</div></div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="ab" id="ivr-xl">&#8595; Excel</button><button class="ab" id="ivr-pr">&#128438; Print / PDF</button><button class="ab" id="ivr-reset">Reset filters</button></div></div>' +
+      '<div class="ivr-views">' + Object.keys(V).map(function(k){ return '<button class="ivr-v' + (S.view === k ? ' on' : '') + '" data-view="' + k + '">' + V[k] + '</button>'; }).join('') + '</div>' +
+      '<div class="ivr-bar">' +
+        '<label class="ivr-f"><span>Period</span><select data-k="preset">' + [['all', 'All dates'], ['month', 'This month'], ['last', 'Last month'], ['quarter', 'This quarter'], ['year', 'This year'], ['lastyear', 'Last year'], ['custom', 'Custom']].map(function(o){ return '<option value="' + o[0] + '"' + (S.preset === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
+        '<label class="ivr-f"><span>From</span><input type="date" data-k="from" value="' + E(S.from) + '"></label>' +
+        '<label class="ivr-f"><span>To</span><input type="date" data-k="to" value="' + E(S.to) + '"></label>' +
+        '<label class="ivr-f"><span>Date is</span><select data-k="basis"><option value="arr"' + (S.basis === 'arr' ? ' selected' : '') + '>Arrangement date</option><option value="created"' + (S.basis === 'created' ? ' selected' : '') + '>Bill created</option></select></label>' +
+        '<label class="ivr-f"><span>Invoice / SO no.</span><input data-k="num" value="' + E(S.num) + '" placeholder="e.g. INV-5401"></label>' +
+        '<label class="ivr-f"><span>Patient</span><input data-k="pat" value="' + E(S.pat) + '" placeholder="name or code"></label>' +
+        '<label class="ivr-f"><span>Search all</span><input data-k="q" value="' + E(S.q) + '" placeholder="any word"></label>' +
+        '<label class="ivr-f"><span>Rolling invoice</span><select data-k="ri">' + opts(ris.concat([['__none', 'None']]), S.ri, 'All') + '</select></label>' +
+        '<label class="ivr-f"><span>Branch</span><select data-k="br">' + opts(['UAE', 'UK', 'Global'], S.br, 'All') + '</select></label>' +
+        '<label class="ivr-f"><span>Status</span><select data-k="st">' + opts(sts, S.st, 'All') + '</select></label>' +
+        '<label class="ivr-f"><span>Billed by</span><select data-k="by">' + opts(bys, S.by, 'Everyone') + '</select></label>' +
+        '<label class="ivr-f"><span>Doctor / person</span><select data-k="who">' + opts(whos, S.who, 'Anyone') + '</select></label>' +
+        '<label class="ivr-f"><span>Type</span><select data-k="cat">' + opts(cats, S.cat, 'All types') + '</select></label>' +
+        '<label class="ivr-f"><span>Hours</span><select data-k="hrs">' + opts([['In Hours', 'In Hours'], ['Out of Hours', 'Out of Hours'], ['none', 'Not set']], S.hrs, 'In & Out') + '</select></label>' +
+        '<label class="ivr-f"><span>Currency</span><select data-k="cur">' + opts(curs, S.cur, 'All') + '</select></label>' +
+        '<label class="ivr-f"><span>Order</span><select data-k="order"><option value="asc"' + (S.order === 'asc' ? ' selected' : '') + '>Oldest first</option><option value="desc"' + (S.order === 'desc' ? ' selected' : '') + '>Latest first</option></select></label>' +
+        '<label class="ivr-f"><span>Numbers by</span><select data-k="gsort"><option value="date"' + (S.gsort === 'date' ? ' selected' : '') + '>First date</option><option value="num"' + (S.gsort === 'num' ? ' selected' : '') + '>Number</option><option value="total"' + (S.gsort === 'total' ? ' selected' : '') + '>Total</option></select></label>' +
+        '<div class="ivr-chk" style="flex-basis:100%">' +
+          '<label><input type="checkbox" data-c="showInv"' + (S.showInv ? ' checked' : '') + '> With invoice no.</label>' +
+          '<label><input type="checkbox" data-c="showSO"' + (S.showSO ? ' checked' : '') + '> SO only</label>' +
+          '<label><input type="checkbox" data-c="showNone"' + (S.showNone ? ' checked' : '') + '> Not yet on an invoice</label>' +
+          '<label><input type="checkbox" data-c="fus"' + (S.fus ? ' checked' : '') + '> Include follow-ups</label>' +
+          '<label><input type="checkbox" data-c="zero"' + (S.zero ? ' checked' : '') + '> Show zero lines</label>' +
+          '<label title="The invoice shows a settled fee and its 10% markup as one line"><input type="checkbox" data-c="merge"' + (S.merge ? ' checked' : '') + '> Fold settlement markup into its fee (as on the invoice)</label>' +
+        '</div></div>' +
+      '<div class="ivr-stats">' +
+        '<div class="ivr-stat"><span>Numbers</span><b>' + G.filter(function(g){ return g.type !== 'None'; }).length + '</b></div>' +
+        '<div class="ivr-stat"><span>Bills</span><b>' + ms.length + '</b></div>' +
+        '<div class="ivr-stat"><span>Lines</span><b>' + nl + '</b></div>' +
+        curList(tot).map(function(c){ return '<div class="ivr-stat"><span>Total ' + E(c) + '</span><b>' + money(tot[c]) + '</b></div>'; }).join('') +
+        '<div class="ivr-stat"><span>In Hours time</span><b>' + hm(tm['In Hours']) + '</b></div>' +
+        '<div class="ivr-stat"><span>Out of Hours time</span><b>' + hm(tm['Out of Hours']) + '</b></div>' +
+      '</div>' +
+      (unset.length ? '<div class="ivr-warn">⚠ ' + unset.length + ' bill' + (unset.length === 1 ? ' has' : 's have') + ' time with no In / Out of Hours chosen (shown as <b>Not set</b>): ' + unset.slice(0, 8).map(function(m){ return '<a href="#" data-open="' + E(m.id) + '">' + E(m.no) + '</a>'; }).join(', ') + (unset.length > 8 ? ' …' : '') + '. Choose Hours on those bills so the right rate is charged.</div>' : '') +
+      '<div id="ivr-body">' + (S.view === 'cards' ? vCards(G) : S.view === 'time' ? vTime(G) : S.view === 'sum' ? vSum(G) : vLines(G)) + '</div>' +
+      '<div class="muted" style="font-size:10px;margin-top:8px">Built in ' + Math.round(performance.now() - t0) + ' ms · amounts from each bill’s own calculation (locked prices respected) · arrangement date = earliest date on the bill; follow-ups use their own date.</div>' +
+      '</div>';
+    pg.innerHTML = h;
+    pg.insertAdjacentHTML('afterbegin', subBar(tabs(), 'invso', 'rptTab'));
+    wire(pg);
+  }
+  function tabs(){ var t = [['reports', 'Reports'], ['accounts', 'Accounts']]; if (allowed()) t.push(['invso', 'Invoice / SO']); return t; }
+  var deb = null;
+  function wire(pg){
+    var root = pg.querySelector('#ivr'); if (!root) return;
+    root.addEventListener('change', function(e){
+      var k = e.target.getAttribute('data-k'), c = e.target.getAttribute('data-c'), rk = e.target.getAttribute('data-rec');
+      if (rk){ var r = recGet(); if (e.target.value === '') delete r[rk]; else r[rk] = parseFloat(e.target.value); try { localStorage.setItem(REC_KEY, JSON.stringify(r)); } catch(x){} return later(0); }
+      if (c){ S[c] = e.target.checked; save(); return render(); }
+      if (!k) return;
+      S[k] = e.target.value;
+      if (k === 'preset' && S.preset !== 'custom'){ var r2 = presetRange(S.preset); S.from = r2.f; S.to = r2.t; }
+      if (k === 'from' || k === 'to') S.preset = 'custom';
+      save(); render();
+    });
+    root.addEventListener('input', function(e){ var k = e.target.getAttribute('data-k'); if (k === 'q' || k === 'num' || k === 'pat'){ S[k] = e.target.value; save(); later(350, k); } });
+    root.addEventListener('click', function(e){
+      var v = e.target.closest('[data-view]'); if (v){ S.view = v.getAttribute('data-view'); save(); return render(); }
+      var s = e.target.closest('[data-sort]'); if (s){ var p = s.getAttribute('data-sort').split(':'), cur = S.sort[p[0]] || []; S.sort[p[0]] = [p[1], cur[0] === p[1] ? -cur[1] : 1]; save(); return render(); }
+      var o = e.target.closest('[data-open]'); if (o){ e.preventDefault(); var id = o.getAttribute('data-open'); if (typeof viewBill === 'function') viewBill(id); return; }
+      var gk = e.target.closest('[data-goto]'); if (gk){ e.preventDefault(); var key = gk.getAttribute('data-goto'); S.view = 'lines'; S.num = key.slice(2); save(); return render(); }
+      if (e.target.id === 'ivr-reset'){ var keep = { view: S.view, sort: S.sort }; S = Object.assign(JSON.parse(JSON.stringify(DEF)), keep); save(); return render(); }
+      if (e.target.id === 'ivr-xl') return excel();
+      if (e.target.id === 'ivr-pr') return printIt();
+    });
+  }
+  function later(ms, focusKey){ clearTimeout(deb); deb = setTimeout(function(){ var el = document.activeElement, pos = el && el.selectionStart; render(); if (focusKey){ var n = document.querySelector('#ivr [data-k="' + focusKey + '"]'); if (n){ n.focus(); try { n.setSelectionRange(pos, pos); } catch(x){} } } }, ms); }
+
+  // ── Excel: four sheets, the filtered set on screen; amounts as numbers ──────
+  function excel(){
+    if (typeof _loadXLSX !== 'function'){ alert('Excel export is not available.'); return; }
+    _loadXLSX(function(){
+      var G = LAST.G, wb = XLSX.utils.book_new();
+      var L = [['Invoice / SO', 'Type', 'Date', 'Bill', 'Patient', 'Patient code', 'Rolling invoice', 'Branch', 'Status', 'Billed by', 'Description', 'Detail', 'Line type', 'Hours', 'Time (min)', 'Qty', 'Currency', 'Amount']];
+      G.forEach(function(g){ g.bills.forEach(function(m){ invLines(m).forEach(function(l){ L.push([g.type === 'None' ? '' : g.label, g.type, l.date, m.no, m.patient, m.code, riName(m.ri), m.branch, m.status, m.by, l.label, l.desc || '', l.cat, l.hours || '', l.mins || '', 1, l.cur, Math.round(l.amt * 100) / 100]); }); }); });
+      var T = [['Invoice / SO', 'Date', 'Bill', 'Patient', 'Type', 'Item', 'Field', 'Who', 'Hours', 'Minutes', 'Time (h:mm)', 'Follow-up']];
+      G.forEach(function(g){ g.bills.forEach(function(m){ m.times.filter(timeOk).filter(lineInRange).forEach(function(t){ T.push([g.type === 'None' ? '' : g.label, t.date, m.no, m.patient, t.cat, t.item, t.field, t.who || '', t.hours || 'Not set', t.mins, hm(t.mins), t.fu ? 'Yes' : '']); }); }); });
+      var curs = {}; G.forEach(function(g){ curList(g.tot).forEach(function(c){ curs[c] = 1; }); }); curs = Object.keys(curs).sort();
+      var Su = [['Invoice / SO', 'Type', 'SO numbers', 'Patients', 'Bills', 'First date', 'Last date'].concat(curs.map(function(c){ return 'Total ' + c; }), ['In Hours (min)', 'Out of Hours (min)', 'Hours not set (min)'], curs.map(function(c){ return 'Difference vs invoice ' + c; }))];
+      G.forEach(function(g){ Su.push([g.label, g.type, Array.from(g.so).join(', '), g.patients.size, g.bills.length, g.first, g.last].concat(curs.map(function(c){ return Math.round((g.tot[c] || 0) * 100) / 100; }), [g.min['In Hours'] || 0, g.min['Out of Hours'] || 0, g.min['Not set'] || 0], curs.map(function(c){ var d = recOne(g, g.tot, c); return d == null ? '' : d; }))); });
+      var B = [['Invoice / SO', 'Bill', 'Arrangement date', 'Created', 'Patient', 'Patient code', 'Rolling invoice', 'Branch', 'Status', 'Billed by', 'Invoice no.', 'SO no.', 'Follow-ups', 'Time (min)'].concat(curs.map(function(c){ return 'Total ' + c; }))];
+      G.forEach(function(g){ g.bills.forEach(function(m){ var t = {}; m.lines.filter(lineOk).forEach(function(l){ addTo(t, l.cur, l.amt); }); B.push([g.type === 'None' ? '' : g.label, m.no, m.arr, m.created, m.patient, m.code, riName(m.ri), m.branch, m.status, m.by, m.inv, m.so, m.fus.length, m.times.reduce(function(s, x){ return s + x.mins; }, 0)].concat(curs.map(function(c){ return Math.round((t[c] || 0) * 100) / 100; }))); }); });
+      function sheet(rows, name, widths){ var ws = XLSX.utils.aoa_to_sheet(rows); ws['!cols'] = widths.map(function(w){ return { wch: w }; }); ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length - 1, 0), c: rows[0].length - 1 } }) }; XLSX.utils.book_append_sheet(wb, ws, name); }
+      sheet(Su, 'Summary', [18, 9, 18, 9, 7, 12, 12].concat(curs.map(function(){ return 14; }), [12, 12, 12], curs.map(function(){ return 16; })));
+      sheet(L, 'Invoice lines', [16, 9, 11, 8, 22, 10, 14, 8, 12, 14, 46, 30, 18, 13, 10, 5, 8, 12]);
+      sheet(T, 'Time sheet', [16, 11, 8, 22, 22, 30, 24, 18, 13, 9, 10, 9]);
+      sheet(B, 'Bills', [16, 8, 13, 11, 22, 10, 14, 8, 12, 14, 14, 14, 10, 10].concat(curs.map(function(){ return 14; })));
+      XLSX.writeFile(wb, 'Amara invoice-SO report ' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    });
+  }
+  function printIt(){
+    var body = document.getElementById('ivr-body'); if (!body) return;
+    var w = window.open('', '_blank'); if (!w){ alert('Allow pop-ups to print.'); return; }
+    var css = Array.from(document.querySelectorAll('style')).map(function(s){ return s.textContent; }).filter(function(t){ return t.indexOf('#ivr') >= 0 || t.indexOf(':root{') >= 0; }).join('\n');
+    var f = []; if (S.from || S.to) f.push((S.from ? dShow(S.from) : '…') + ' to ' + (S.to ? dShow(S.to) : '…')); ['num', 'pat', 'ri', 'br', 'st', 'by', 'who', 'cat', 'hrs', 'cur', 'q'].forEach(function(k){ if (S[k]) f.push(k + ': ' + S[k]); });
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Amara invoice / SO report</title><style>' + css + ' body{background:#fff;font-family:-apple-system,Helvetica,Arial,sans-serif;padding:16px;font-size:12px} #ivr .ivr-scroll{max-height:none;overflow:visible} #ivr .ivr-rec input{border:0} #ivr .ivr-ab,#ivr a{color:inherit;text-decoration:none} #ivr .ivr-ab{display:none} #ivr .ivr-grp{break-inside:auto;box-shadow:none} #ivr tr{break-inside:avoid} @page{margin:12mm}</style></head><body><div id="ivr"><div class="ivr-title" style="font-family:Georgia,serif;font-style:italic;font-size:22px">Amara · Invoice / SO report</div><div class="muted" style="margin:2px 0 12px">' + E(f.join(' · ') || 'All bills') + ' · printed ' + new Date().toLocaleString('en-GB') + '</div>' + body.innerHTML + '</div></body></html>');
+    w.document.close(); setTimeout(function(){ try { w.focus(); w.print(); } catch(e){} }, 400);
+  }
+
+  // ── Hook into Reports: a third tab next to Reports and Accounts ─────────────
+  var prevPage = window.renderReportsPage;
+  window.renderReportsPage = function(){
+    if (window._rptSub === 'invso' || (typeof _rptSub !== 'undefined' && _rptSub === 'invso')){ if (allowed()) return render(); try { _rptSub = 'reports'; } catch(e){} }
+    var r = prevPage.apply(this, arguments);
+    try { if (allowed()){ var nav = document.querySelector('#page-reports .sub-nav'); if (nav && !nav.querySelector('[data-invso]')){ nav.insertAdjacentHTML('beforeend', '<button class="sub-pill" data-invso="1" onclick="rptTab(\'invso\')">Invoice / SO</button>'); } } } catch(e){}
+    return r;
+  };
+  window.amaraInvSoReport = function(){ try { _rptSub = 'invso'; } catch(e){} if (typeof showPage === 'function') showPage('reports'); else render(); };
+  // bills change (save, realtime) → recompute only those bills
+  window.amaraInvSoInvalidate = function(id){ if (id) CACHE.delete(id); else CACHE.clear(); DEFS = null; };
+})();
+</script>
+<!-- /AMARA MODULES: Invoice / SO report -->
 </body>
 </html>
