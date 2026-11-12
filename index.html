@@ -22964,6 +22964,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
         (canSettings ? '<button data-acct="settings" role="menuitem">🛠 Amara settings</button>' : '') +
         (m.admin ? '<button data-acct="access" role="menuitem">🔐 Roles &amp; access</button>' : '') +
         '<button data-acct="push" role="menuitemcheckbox">📣 Pop-ups on this device<span class="sw" id="acct-push-sw"><i></i></span></button>' +
+        (window.amaraPhoneLayoutPicker && window.matchMedia && matchMedia('(max-width:760px)').matches ? '<button data-acct="phone" role="menuitem">📱 Phone layout</button>' : '') +
         '<button data-acct="sound" role="menuitemcheckbox">🔔 Sounds<span class="sw' + (window.amaraSoundOn() ? ' on' : '') + '"><i></i></span></button>' +
         '<div class="sep"></div>' +
         '<button data-acct="logout" class="out" role="menuitem">↪ Log out</button>';
@@ -22983,6 +22984,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
         if (k === 'dash' && window.amaraDashSettings) window.amaraDashSettings();
         if (k === 'backup' && typeof window.openMod === 'function') window.openMod('kmod');
         if (k === 'access' && window.amaraAccessTool) window.amaraAccessTool();
+        if (k === 'phone' && window.amaraPhoneLayoutPicker) window.amaraPhoneLayoutPicker();
         if (k === 'logout' && typeof window.logout === 'function') window.logout();
       });
     }
@@ -23095,7 +23097,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-12e'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-12h'; window.AMARA_BUILD = BUILD;
   var seenNewer = '';
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
@@ -24806,5 +24808,245 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
 })();
 </script>
 <!-- /AMARA MODULES: Global items + medication as concierge time -->
+
+<!-- AMARA MODULES: phone layouts. On a phone (screen up to 760px wide) Amara can use one of three layouts, chosen per
+     device in the account menu → Phone layout:
+       App      — slim header, tabs in a bar at the bottom (Dashboard, Messages, Bills, + New, More)
+       Menu     — slim header with a ☰ menu that slides in with every tab
+       Classic  — today's tabs at the top, but the header tucks away while you scroll down and comes back when you scroll up
+     All three: the header clears the iPhone notch / clock, floating buttons stay above the home bar and hide while a
+     bill or form is open, and the bottom of every page and pop-up clears the home bar. -->
+<style>
+@media (max-width:760px){
+  html.amob .topbar{padding-top:calc(env(safe-area-inset-top,0px) + 8px)!important;padding-bottom:8px!important;min-height:0!important;gap:8px!important;flex-wrap:nowrap!important}
+  html.amob .topbar .blogo{width:28px!important;height:28px!important}
+  html.amob .topbar .bname{font-size:20px!important}
+  html.amob #cloud-status,html.amob #slbl,html.amob #actingAs{display:none!important}
+  html.amob .topbar > div:last-child{flex-wrap:nowrap!important;gap:6px!important}
+  html.amob #amara-acct .nm{display:none!important}
+  html.amob #amara-acct{padding:3px!important}
+  html.amob .topbar .tbtn.solid{padding:7px 12px!important;font-size:12px!important;white-space:nowrap}
+  html.amob #amc-fab,html.amob #nt-ask{bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;transition:opacity .2s,transform .2s}
+  html.amob #amc-fab{bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}
+  html.amob.amob-modal #amc-fab,html.amob.amob-modal #nt-ask{opacity:0!important;pointer-events:none!important}
+  html.amob .ov > div{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 4px)}
+  html.amob .page{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))!important}
+  /* App: bottom bar */
+  html.amob-app #nav-main,html.amob-app #nav-tools{display:none!important}
+  html.amob-app #amc-fab{display:none!important}
+  html.amob-app #nt-ask{display:none!important}
+  html.amob-app .page{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
+  html.amob-app #amob-bar{display:flex}
+  html.amob-app.amob-modal #amob-bar{display:none!important}
+  html.amob-app .topbar,html.amob-menu .topbar{position:fixed!important;top:0;left:0;right:0;z-index:950}
+  html.amob-app #app,html.amob-menu #app{padding-top:var(--amob-th,64px)}
+  /* Menu: drawer */
+  html.amob-menu #nav-main,html.amob-menu #nav-tools{display:none!important}
+  html.amob-menu #amob-burger{display:flex}
+  html.amob-menu #amc-fab,html.amob-menu #nt-ask{width:46px!important;height:46px!important}
+  html.amob-menu #amc-fab{bottom:calc(74px + env(safe-area-inset-bottom,0px))!important}
+  /* Classic: header + tabs tuck away on scroll */
+  html.amob-classic #amob-head{position:sticky;top:0;z-index:900;transition:transform .25s ease}
+  html.amob-classic #amob-head.tuck{transform:translateY(-100%)}
+  html.amob-classic #amob-head .topbar{position:static!important}
+  html.amob-classic #nav-main{flex-wrap:nowrap!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:0!important}
+  html.amob-classic #nav-main::-webkit-scrollbar{display:none}
+  html.amob-classic.amob-scrolling #amc-fab,html.amob-classic.amob-scrolling #nt-ask{opacity:.15}
+}
+#amob-bar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:2400;background:#021620;color:#FBF7EC;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around;align-items:stretch;box-shadow:0 -6px 20px rgba(2,22,32,.18)}
+#amob-bar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:rgba(251,247,236,.62);font:600 10px -apple-system,Helvetica Neue,Inter,sans-serif;padding:4px 2px;position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#amob-bar button svg{width:23px;height:23px}
+#amob-bar button.on{color:#FBF7EC}
+#amob-bar button.on::after{content:'';position:absolute;top:-6px;left:28%;right:28%;height:2px;border-radius:2px;background:#C28A3A}
+#amob-bar button.new span.pl{width:40px;height:40px;margin-top:-14px;border-radius:50%;background:#FBF7EC;color:#021620;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+#amob-bar button.new span.pl svg{width:22px;height:22px}
+#amob-bar .bd{position:absolute;top:0;left:calc(50% + 6px);min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#C0392B;color:#fff;font:700 10px/17px -apple-system,Helvetica Neue,sans-serif;text-align:center}
+#amob-burger{display:none;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;border:1px solid rgba(251,247,236,.25);background:none;color:#FBF7EC;margin-right:4px;flex:0 0 auto;cursor:pointer}
+#amob-burger svg{width:20px;height:20px}
+#amob-sheet{position:fixed;inset:0;z-index:2700;background:rgba(2,22,32,.45);display:none}
+#amob-sheet.open{display:block}
+#amob-sheet .pn{position:absolute;background:#FFFCF4;color:#1A1A1A;overflow:auto;font-family:-apple-system,Helvetica Neue,Inter,sans-serif;box-shadow:0 10px 40px rgba(2,22,32,.3)}
+#amob-sheet.bottom .pn{left:0;right:0;bottom:0;max-height:82vh;border-radius:18px 18px 0 0;padding:8px 0 calc(14px + env(safe-area-inset-bottom,0px));animation:amobUp .22s ease}
+#amob-sheet.left .pn{top:0;bottom:0;left:0;width:min(300px,84vw);padding:calc(env(safe-area-inset-top,0px) + 12px) 0 calc(14px + env(safe-area-inset-bottom,0px));animation:amobIn .22s ease}
+@keyframes amobUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+@keyframes amobIn{from{transform:translateX(-40px);opacity:0}to{transform:none;opacity:1}}
+#amob-sheet .gr{display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8A8275;padding:12px 20px 6px}
+#amob-sheet .it{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;text-align:left;padding:12px 20px;font:500 15px -apple-system,Helvetica Neue,Inter,sans-serif;color:inherit;cursor:pointer}
+#amob-sheet .it.on{background:#F7F1E3;font-weight:700}
+#amob-sheet .it .ic{width:22px;text-align:center;font-size:17px}
+#amob-sheet .it .ct{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:#C0392B;color:#fff;font:700 11px/20px -apple-system,sans-serif;text-align:center}
+#amob-sheet .grab{width:40px;height:4px;border-radius:4px;background:rgba(26,26,26,.18);margin:4px auto 6px}
+#amob-sheet .lay{display:block;width:100%;text-align:left;border:0;background:none;padding:12px 20px;font:500 14px -apple-system,Helvetica Neue,sans-serif;color:inherit;cursor:pointer}
+#amob-sheet .lay small{display:block;font-size:12px;color:#8A8275;font-weight:400;margin-top:2px;line-height:1.4}
+#amob-sheet .lay.on{background:#F7F1E3}
+#amob-sheet .lay.on b::after{content:'  \2713';color:#0F6E56}
+</style>
+<script>
+(function(){
+  'use strict';
+  var KEY = 'amara_phone_layout', html = document.documentElement;
+  var LAYOUTS = [
+    ['app', 'App', 'Slim header, with Dashboard, Messages, Bills, + New and More in a bar at the bottom. Most like a phone app.'],
+    ['menu', 'Menu', 'Slim header with a ☰ button that slides in every tab. Keeps the most screen for the page.'],
+    ['classic', 'Classic', 'Today’s tabs at the top, but the header tucks away as you scroll down and comes back when you scroll up.'],
+    ['off', 'Desktop layout', 'No phone changes (as before).']
+  ];
+  function get(){ try { return localStorage.getItem(KEY) || 'app'; } catch(e){ return 'app'; } }
+  function phone(){ return window.matchMedia && matchMedia('(max-width:760px)').matches; }
+  var ICON = {
+    dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+    messages: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4z" stroke-linejoin="round"/></svg>',
+    bills: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" stroke-linejoin="round"/><path d="M9 8h6M9 12h6"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>',
+    more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+    burger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/></svg>'
+  };
+  var EMOJI = { dashboard: '▦', messages: '💬', bills: '🧾', arrangements: '🗓', medications: '💊', recalls: '🔁', results: '🧪', settings: '⚙️', patients: '👤', fees: '🌐', quotes: '📝', xcheck: '⇄', reports: '📊', guide: '📖' };
+
+  // ── tabs, read from Amara's own tab bar (so permissions / hidden tabs carry over) ──
+  function tabs(){
+    var out = [];
+    document.querySelectorAll('#nav-main .ntab, #nav-tools .ntab').forEach(function(t){
+      if (!t.id || t.id === 'nt-tools' || t.id === 'nt-ask') return;
+      if (t.style.display === 'none' || t.hidden) return;
+      var key = t.id.replace(/^nt-/, ''), badge = '';
+      t.querySelectorAll('span').forEach(function(s){ var v = (s.textContent || '').trim(); if (s.style.display !== 'none' && v && v !== '0' && v !== '–' && /\d/.test(v) && (s.className || '').indexOf('tab-n') < 0) badge = v; });
+      if (key === 'dashboard' || key === 'messages'){ var bb = t.querySelector('span'); if (bb && bb.style.display !== 'none' && /\d/.test(bb.textContent) && bb.textContent.trim() !== '0') badge = bb.textContent.trim(); }
+      out.push({ key: key, el: t, label: (t.childNodes[0] && t.childNodes[0].textContent || t.textContent).replace(/▾/g, '').trim(), badge: badge, on: t.classList.contains('on') });
+    });
+    return out;
+  }
+  function curPage(){ var p = document.querySelector('.page.on'); return p ? p.id.replace(/^page-/, '') : ''; }
+  function go(key){ var t = document.getElementById('nt-' + key); closeSheet(); if (t) t.click(); else if (window.showPage) window.showPage(key); setTimeout(refresh, 50); }
+
+  // ── bottom bar (App) ──
+  var bar = null;
+  function buildBar(){
+    if (bar) return;
+    bar = document.createElement('nav'); bar.id = 'amob-bar'; bar.setAttribute('aria-label', 'Main');
+    bar.innerHTML = btn('dashboard', 'Dashboard') + btn('messages', 'Messages') + '<button class="new" data-k="new" aria-label="New"><span class="pl">' + ICON.plus + '</span>New</button>' + btn('bills', 'Bills') + '<button data-k="more" aria-label="More">' + ICON.more + 'More</button>';
+    document.body.appendChild(bar);
+    bar.addEventListener('click', function(e){
+      var b = e.target.closest('[data-k]'); if (!b) return; var k = b.getAttribute('data-k');
+      if (k === 'more') return openSheet('bottom');
+      if (k === 'new') return openNewSheet();
+      go(k);
+    });
+  }
+  function btn(k, l){ return '<button data-k="' + k + '" aria-label="' + l + '">' + ICON[k] + l + '<span class="bd" style="display:none"></span></button>'; }
+  function openNewSheet(){
+    var items = [];
+    if (typeof window.openNew === 'function') items.push(['🧾', 'New bill', function(){ openNew(); }]);
+    var hasDash = document.getElementById('nt-dashboard') && document.getElementById('nt-dashboard').style.display !== 'none';
+    if (hasDash) items.push(['✅', 'New task', function(){ go('dashboard'); setTimeout(function(){ try { var f = document.getElementById('dash-frame'); f && f.contentWindow && f.contentWindow.postMessage({ amaraDash: 'newtask' }, '*'); var d = f && f.contentDocument; var nb = d && Array.prototype.find.call(d.querySelectorAll('button'), function(x){ return /New task/.test(x.textContent); }); if (nb) nb.click(); } catch(e){} }, 400); }]);
+    if (document.getElementById('nt-messages') && document.getElementById('nt-messages').style.display !== 'none') items.push(['💬', 'New message', function(){ go('messages'); }]);
+    var ask = document.getElementById('nt-ask'); if (ask) items.push(['✦', 'Ask Amara', function(){ ask.click(); }]);
+    sheetHtml('bottom', '<div class="grab"></div><span class="gr">Create</span>' + items.map(function(x, i){ return '<button class="it" data-n="' + i + '"><span class="ic">' + x[0] + '</span>' + x[1] + '</button>'; }).join(''), function(e){ var b = e.target.closest('[data-n]'); if (!b) return; closeSheet(); items[+b.getAttribute('data-n')][2](); });
+  }
+
+  // ── sheet / drawer ──
+  var sheet = null;
+  function ensureSheet(){ if (sheet) return sheet; sheet = document.createElement('div'); sheet.id = 'amob-sheet'; sheet.innerHTML = '<div class="pn" role="dialog" aria-modal="true"></div>'; document.body.appendChild(sheet);
+    sheet.addEventListener('click', function(e){ if (e.target === sheet) closeSheet(); }); return sheet; }
+  var sheetClick = null;
+  function sheetHtml(side, inner, onClick){
+    ensureSheet(); sheet.className = 'open ' + side; var pn = sheet.querySelector('.pn'); pn.innerHTML = inner;
+    if (sheetClick) pn.removeEventListener('click', sheetClick); sheetClick = onClick; pn.addEventListener('click', sheetClick);
+  }
+  function closeSheet(){ if (sheet) sheet.className = ''; }
+  function openSheet(side){
+    var T = tabs(), cur = curPage(), main = ['dashboard', 'messages', 'bills'];
+    var first = side === 'left' ? T.filter(function(t){ return main.indexOf(t.key) >= 0; }) : [];
+    var rest = T.filter(function(t){ return side === 'left' ? main.indexOf(t.key) < 0 : main.indexOf(t.key) < 0; });
+    var work = rest.filter(function(t){ return ['arrangements', 'medications', 'recalls', 'results'].indexOf(t.key) >= 0; });
+    var tools = rest.filter(function(t){ return work.indexOf(t) < 0; });
+    function row(t){ return '<button class="it' + (t.key === cur ? ' on' : '') + '" data-go="' + t.key + '"><span class="ic">' + (EMOJI[t.key] || '•') + '</span>' + esc2(t.label) + (t.badge ? '<span class="ct">' + esc2(t.badge) + '</span>' : '') + '</button>'; }
+    var ask = document.getElementById('nt-ask');
+    var h = (side === 'bottom' ? '<div class="grab"></div>' : '<div style="padding:4px 20px 10px;font:italic 500 24px Cormorant Garamond,Georgia,serif">Amara</div>') +
+      (first.length ? first.map(row).join('') : '') +
+      (work.length ? '<span class="gr">Care</span>' + work.map(row).join('') : '') +
+      (tools.length ? '<span class="gr">Tools</span>' + tools.map(row).join('') : '') +
+      '<span class="gr">This phone</span>' + (ask && html.classList.contains('amob-app') ? '<button class="it" data-x="ask"><span class="ic">✦</span>Ask Amara</button>' : '') +
+      '<button class="it" data-x="layout"><span class="ic">📱</span>Phone layout<span style="margin-left:auto;color:#8A8275;font-size:13px">' + esc2((LAYOUTS.find(function(l){ return l[0] === get(); }) || [])[1] || '') + '</span></button>';
+    sheetHtml(side, h, function(e){
+      var g = e.target.closest('[data-go]'); if (g) return go(g.getAttribute('data-go'));
+      var x = e.target.closest('[data-x]'); if (!x) return;
+      if (x.getAttribute('data-x') === 'ask'){ closeSheet(); if (ask) ask.click(); }
+      if (x.getAttribute('data-x') === 'layout') picker();
+    });
+  }
+  function esc2(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function picker(){
+    var cur = get();
+    sheetHtml('bottom', '<div class="grab"></div><span class="gr">Phone layout — this device only</span>' + LAYOUTS.map(function(l){ return '<button class="lay' + (l[0] === cur ? ' on' : '') + '" data-l="' + l[0] + '"><b>' + l[1] + '</b><small>' + l[2] + '</small></button>'; }).join('') +
+      '<div style="padding:8px 20px 0;font-size:12px;color:#8A8275;line-height:1.5">Try each one; it changes straight away. On a computer Amara always uses the desktop layout.</div>',
+      function(e){ var b = e.target.closest('[data-l]'); if (!b) return; set(b.getAttribute('data-l')); picker(); });
+  }
+  window.amaraPhoneLayoutPicker = function(){ picker(); };
+
+  // ── burger (Menu) ──
+  var burger = null;
+  function buildBurger(){
+    if (burger) return; var tb = document.querySelector('.topbar'); if (!tb) return;
+    burger = document.createElement('button'); burger.id = 'amob-burger'; burger.type = 'button'; burger.setAttribute('aria-label', 'Menu'); burger.innerHTML = ICON.burger;
+    burger.addEventListener('click', function(){ openSheet('left'); });
+    tb.insertBefore(burger, tb.firstChild);
+  }
+  // ── Classic: wrap header + tabs so they tuck away together ──
+  var head = null, lastY = 0;
+  function buildHead(){
+    if (head) return; var tb = document.querySelector('.topbar'), nm = document.getElementById('nav-main'), nt = document.getElementById('nav-tools'); if (!tb || !nm) return;
+    head = document.createElement('div'); head.id = 'amob-head'; tb.parentNode.insertBefore(head, tb); head.appendChild(tb); head.appendChild(nm); if (nt) head.appendChild(nt);
+  }
+  var scrollT;
+  window.addEventListener('scroll', function(){
+    var y = window.scrollY || 0;
+    if (head && html.classList.contains('amob-classic')){ if (y > lastY + 8 && y > 120) head.classList.add('tuck'); else if (y < lastY - 8 || y < 60) head.classList.remove('tuck'); }
+    lastY = y; html.classList.add('amob-scrolling'); clearTimeout(scrollT); scrollT = setTimeout(function(){ html.classList.remove('amob-scrolling'); }, 500);
+  }, { passive: true });
+
+  // ── keep everything in step ──
+  function refresh(){
+    try { var tb = document.querySelector('.topbar'); if (tb && tb.offsetHeight) html.style.setProperty('--amob-th', tb.offsetHeight + 'px'); } catch(e){}
+    if (!bar) return;
+    var cur = curPage(), T = tabs();
+    bar.querySelectorAll('[data-k]').forEach(function(b){
+      var k = b.getAttribute('data-k'), t = T.find(function(x){ return x.key === k; });
+      if (['dashboard', 'messages', 'bills'].indexOf(k) >= 0){ b.style.display = t ? '' : 'none'; b.classList.toggle('on', cur === k); var bd = b.querySelector('.bd'); if (bd){ bd.textContent = t && t.badge ? t.badge : ''; bd.style.display = t && t.badge ? '' : 'none'; } }
+      if (k === 'more'){ var other = T.some(function(x){ return ['dashboard', 'messages', 'bills'].indexOf(x.key) < 0 && x.key === cur; }); b.classList.toggle('on', other); }
+    });
+    fitFrames();
+  }
+  function fitFrames(){
+    if (!html.classList.contains('amob-app')) return;
+    var bh = bar ? bar.offsetHeight : 0;
+    ['dash-frame', 'msg-frame'].forEach(function(id){ var f = document.getElementById(id); if (!f || !f.offsetParent) return; var top = f.getBoundingClientRect().top + window.scrollY; var h = Math.max(320, Math.floor(window.innerHeight - top - bh)); if (Math.abs(f.offsetHeight - h) > 1) f.style.height = h + 'px'; });
+  }
+  function modalWatch(){
+    var open = Array.prototype.some.call(document.querySelectorAll('.ov'), function(o){ return !o.classList.contains('h') && getComputedStyle(o).display !== 'none'; }) || !!document.querySelector('#amara-access, #amara-pw-modal');
+    html.classList.toggle('amob-modal', open);
+  }
+  function apply(){
+    var l = get(), on = phone() && l !== 'off';
+    html.classList.toggle('amob', on);
+    ['app', 'menu', 'classic'].forEach(function(k){ html.classList.toggle('amob-' + k, on && l === k); });
+    if (on && l === 'app') buildBar();
+    if (on && l === 'menu') buildBurger();
+    if (on && l === 'classic') buildHead();
+    if (head && !(on && l === 'classic')) head.classList.remove('tuck');
+    refresh(); setTimeout(fitFrames, 200);
+  }
+  function set(l){ try { localStorage.setItem(KEY, l); } catch(e){} closeSheet(); apply(); if (l !== 'off' && phone()) setTimeout(function(){ if (l === 'menu') openSheet('left'); }, 50); }
+  window.amaraSetPhoneLayout = set;
+
+  if (typeof window.showPage === 'function'){ var sp = window.showPage; window.showPage = function(){ var r = sp.apply(this, arguments); setTimeout(refresh, 30); setTimeout(fitFrames, 300); return r; }; }
+  window.addEventListener('resize', function(){ clearTimeout(window.__amobR); window.__amobR = setTimeout(apply, 150); });
+  var mwq = false; new MutationObserver(function(){ if (mwq) return; mwq = true; requestAnimationFrame(function(){ mwq = false; modalWatch(); }); }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+  setInterval(refresh, 4000);   // badges (messages, tasks, due items) update in the background
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply); else apply();
+  setTimeout(apply, 1500);
+})();
+</script>
+<!-- /AMARA MODULES: phone layouts -->
 </body>
 </html>
