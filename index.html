@@ -84,7 +84,18 @@
     });
     document.body.appendChild(d);
   }
-  function check(){ try { if (blank()) panel(); } catch(_){} }
+  // Only for a page that never finished loading. Once Amara has shown properly in this tab the box never appears
+  // again (Chrome on Windows slows hidden or battery-saving tabs, which used to make a working page look blank).
+  // It also never judges a hidden tab, and a blank screen must still be blank 8 seconds later.
+  var loadedOk = false, tries = 0;
+  function check(){
+    try {
+      if (loadedOk || document.getElementById('amara-guard')) return;
+      if (document.hidden){ if (tries++ < 20) setTimeout(check, 5000); return; }
+      if (!blank()){ var a = document.getElementById('app'); if (a && vis(a)) loadedOk = true; return; }
+      setTimeout(function(){ try { if (!loadedOk && !document.hidden && blank()) panel(); else if (!blank()) loadedOk = true; } catch(_){} }, 8000);
+    } catch(_){}
+  }
   setTimeout(check, 12000);
   window.amaraGuardCheck = check;
 })();
@@ -4530,6 +4541,7 @@ function renderInfoTab(){
 }
 function setAccountsRef(field,val){
   val=(val||'').trim();
+  if(val&&!/[A-Za-z0-9]/.test(val)){toast('Type the real '+(field==='invoiceNo'?'invoice':'SO')+' number, or leave it empty. "'+val+'" would mark the bill '+(field==='invoiceNo'?'Invoiced':'Checked')+' and lock it.','er');try{renderBForm();}catch(_x){}return;}
   // Capture the team's workflow status the first time accounts touches this bill
   if(val&&curBill.status!=='Checked'&&curBill.status!=='Invoiced'){
     curBill._teamStatus=curBill.status;
@@ -4967,11 +4979,12 @@ function renderDF(sk,itemId,f,val){
     // Live fee preview for Medication Logistics (em and im items)
     var _pvItem2=curBill.billingData[sk_]&&curBill.billingData[sk_][id_]||{};
     var _pvPl2=_pvItem2['pl']||_pvItem2['al']||'';
-    var _pvWhen2=_pvItem2['ph2']||'';   // the bill only charges this fee once Hours is chosen, so the preview waits for it too
+    var _pvWhen2=(id_==='im'?_pvItem2['adh_h']:_pvItem2['ph2'])||'';   // the bill only charges this fee once Hours is chosen (external: Hours; internal: its Hours field), so the preview waits for it too
     var _pvAdh2=_pvItem2['adh']||{};
     if(!_pvWhen2)return '<div class="dr" style="font-size:11px;color:#963030;padding:8px 0;font-weight:600;">Choose In Hours or Out of Hours under Hours above: the Medication Logistics fee is only charged once Hours is chosen.</div>';
     var _pvReg2=(_pvPl2==='International'||_pvPl2.toLowerCase().indexOf('international')>=0)?'UAE-International':'UAE-Local';
     var _pvFee2=calcMedLogisticsFee(_pvReg2,_pvWhen2,_pvAdh2);
+    if(FEES.medTime2026){var _pvM=(parseInt(_pvAdh2.h||0)*60+parseInt(_pvAdh2.m||0));return '<div class="dr"><div style="background:var(--wh2);border:1px solid var(--bo);border-radius:var(--r);padding:10px 12px;font-size:12px;line-height:1.8;">'+(_pvM>0?'<div style="display:flex;justify-content:space-between;font-weight:700;"><span>Medication sourcing \u2014 concierge time</span><span>AED '+_pvFee2.total.toLocaleString('en-GB',{minimumFractionDigits:2})+'</span></div><div style="font-size:10px;color:var(--m2);">'+_pvFee2.extraSets+' \u00d7 30 min \u00d7 AED '+_pvFee2.adminRate+' \u00b7 '+_pvWhen2+' \u00b7 '+(_pvPl2||'Local')+' (Amara T&C: sourcing medication is charged as concierge time, per 30 min)</div>':'<div style="color:#963030;font-weight:600;">Enter the time spent: medication is charged as concierge time (per 30 min), so nothing is charged without it.</div>')+'</div></div>';}
     var _pvLines2=[];
     _pvLines2.push('<div style="display:flex;justify-content:space-between;font-weight:600;"><span>Medication Logistics fee</span><span>AED '+_pvFee2.baseFee.toLocaleString()+'</span></div>');
     _pvLines2.push('<div style="font-size:10px;color:var(--m2);margin-bottom:4px;">'+_pvWhen2+' · '+(_pvPl2||'Local')+' · Prescription + 30 min included</div>');
@@ -7380,7 +7393,7 @@ function exportPriceChangeXlsx(){
 // Any report that has to RE-compute something for that bill (a single item's fee, a lab
 // test's price, a follow-up's fee) replays it under the saved price list via _withFrozenRates,
 // so a later price change can never leak into history through a report.
-var APP_BUILD=355;   // bump with every release; the price update records the minimum build it needs
+var APP_BUILD=356;   // bump with every release; the price update records the minimum build it needs
 var _RATE_SKIP_KEYS={labs:1,labsUK:1,_ph:1,_phAt:1,_appMin:1};
 function _appOutdated(){return (FEES._appMin||0)>APP_BUILD;}
 function _appVersionCheck(){
@@ -8150,6 +8163,10 @@ function buildItemCard(item,idata,secCol,secBg,sk){
       var _emFeeTotal=_emSumFee.baseFee+_emSumFee.extraFee;
       summaryRows.push({title:'Medication Logistics',desc:ph2+' · Prescription + 30 min included'+(meds?' · '+meds.slice(0,60):'')+_emTimeNote,fee:_emFeeTotal,amtCur:'AED'});
       if(_emSumFee.totalMins>0&&_emSumFee.totalMins<=30)summaryRows.push({title:'30 min included',desc:'No additional charge',fee:0,amtCur:'AED'});
+    }
+    else if(_isExtMed&&!ph2){
+      var _emMiss=0;try{var _emPl=pl||'Local';var _emRg=(_emPl==='International'||_emPl.toLowerCase().indexOf('international')>=0||_emPl==='Global')?'UAE-International':'UAE-Local';var _emIn=calcMedLogisticsFee(_emRg,'In Hours',idata['adh']);_emMiss=_emIn.baseFee+_emIn.extraFee;}catch(_x){}
+      summaryRows.push({title:'\u26A0 Medication Logistics \u2014 NOT CHARGED',desc:'Hours (In / Out of Hours) wasn\u2019t chosen, so this fee isn\u2019t on the bill'+(_emMiss?' (In Hours would be AED '+_emMiss.toLocaleString('en-GB',{minimumFractionDigits:2})+')':'')+'. Edit the bill, choose Hours and save'+(meds?'. Medication: '+meds.slice(0,120):''),fee:0,amtCur:'AED',highlight:true});
     }
     // Prescription fee (for im/ic items — unchanged)
     var prxFeeAmt=0;var prxFeeCur='AED';
@@ -21137,6 +21154,7 @@ function saveProtPinsAudit(){}
     var b = bills.find(function(x){ return x.id == id; }); if (!b) return;
     var so = (document.getElementById('amara-so') || {}).value || '', inv = (document.getElementById('amara-inv') || {}).value || '';
     so = so.trim(); inv = inv.trim();
+    if ((so && !/[A-Za-z0-9]/.test(so)) || (inv && !/[A-Za-z0-9]/.test(inv))) { toast('Type the real SO / invoice number, or leave it empty. A placeholder like "---" marks the bill Invoiced and locks it.', 'er'); return; }
     if (so === (b.soNumber || '').trim() && inv === (b.invoiceNo || '').trim()) { toast('Nothing to change', 'in'); return; }
     var btn = document.getElementById('amara-acc-save'); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
@@ -23077,12 +23095,16 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-10c'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-12e'; window.AMARA_BUILD = BUILD;
+  var seenNewer = '';
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
     fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(t){
       var m = t && t.match(/var BUILD = '([^']+)'/);
-      if (m && m[1] !== BUILD && !document.getElementById('amara-update')) {
+      // only a NEWER copy counts (GitHub can briefly serve an older one), and it must be seen twice in a row
+      if (!(m && m[1] > BUILD)) { seenNewer = ''; return; }
+      if (seenNewer !== m[1]) { seenNewer = m[1]; setTimeout(checkVersion, 60 * 1000); return; }
+      if (!document.getElementById('amara-update')) {
         var bar = document.createElement('div'); bar.id = 'amara-update';
         bar.setAttribute('role', 'status');
         bar.style.cssText = 'position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3000;background:#021620;color:#FBF7EC;border-radius:99px;padding:8px 8px 8px 16px;display:flex;gap:10px;align-items:center;font:600 12px -apple-system,Helvetica Neue,Inter,sans-serif;box-shadow:0 10px 30px rgba(2,22,32,.35)';
@@ -23768,7 +23790,7 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-bottom:8px;">' +
       card('tasks', 'Teams, emails & task settings', 'Team channels and default views, email settings, SO / invoice review') +
       card('access', 'Roles & access', 'Each person\u2019s role and admin switch, and what each role can open') +
-      card('billcheck', 'Billing check', 'Bills where a fee wasn\u2019t charged (e.g. medication without Hours)') +
+      card('billcheck', 'Billing check', 'Fees not charged (no Hours), \u201c---\u201d SO / invoice numbers, bills invoiced at 0') +
       card('sound', 'Sounds', (soundOn ? 'On' : 'Off') + ' on this device · tap to switch') + '</div>';
     pg.insertBefore(wrap, anchor || pg.firstChild);
     wrap.addEventListener('click', function(ev){
@@ -23834,8 +23856,10 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
   'use strict';
   if (typeof window.saveBill !== 'function') return;
   var MED = { em: 'Medication Logistics', im: 'Internal medication', uem: 'UK medication', gem: 'Global medication' };
+  // where each item keeps its In / Out of Hours (internal medication stores it as adh_h)
+  var HRS = { em: 'ph2', im: 'adh_h', uem: 'ph2', gem: 'ph2' };
   function used(x){ if (!x || typeof x !== 'object') return false;
-    return Object.keys(x).some(function(k){ if (k === 'ph2' || k.charAt(0) === '_') return false; var v = x[k];
+    return Object.keys(x).some(function(k){ if (k === 'ph2' || k === 'adh_h' || k.charAt(0) === '_') return false; var v = x[k];
       if (v && typeof v === 'object') return Array.isArray(v) ? v.length > 0 : (v.amount ? parseFloat(v.amount) > 0 : Object.keys(v).some(function(q){ return v[q]; }));
       return v !== '' && v != null && v !== false; }); }
   // Items on this bill (main sections and follow-ups) that are in use but have no Hours chosen
@@ -23844,7 +23868,7 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     Object.keys(bd || {}).forEach(function(sk){
       var fu = /^_fu(\d+)$/.exec(sk); if (sk.charAt(0) === '_' && !fu) return;
       var sec = bd[sk]; if (!sec || typeof sec !== 'object' || Array.isArray(sec)) return;
-      Object.keys(MED).forEach(function(id){ var x = sec[id]; if (x && used(x) && !x.ph2) out.push(MED[id] + (fu ? ' (follow-up ' + (+fu[1] + 1) + ')' : '')); });
+      Object.keys(MED).forEach(function(id){ var x = sec[id]; if (x && used(x) && !x[HRS[id]]) out.push(MED[id] + (fu ? ' (follow-up ' + (+fu[1] + 1) + ')' : '')); });
     });
     return out;
   }
@@ -23864,22 +23888,60 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     return prevSave.apply(this, arguments);
   };
 
-  // Billing check: existing bills where a medication item has no Hours (so its logistics fee wasn't charged)
+  // Billing check: bills that need a look before they're invoiced (or that were invoiced with a problem)
+  function placeholder(v){ v = String(v || '').trim(); return !!v && !/[A-Za-z0-9]/.test(v); }
+  window.amaraPlaceholderRef = placeholder;
+  function nothingBilled(b){
+    try { var d = (b.billingData && b.billingData._discount) || b.discount || {}; if (d.type === 'Out of goodwill — not billing' || /goodwill/i.test(d.type || '')) return false;
+      var t = typeof _billTotalsByCur === 'function' ? _billTotalsByCur(b) : {}; return !Object.keys(t).some(function(c){ return t[c] > 0.004; }); } catch(x){ return false; }
+  }
+  function issuesOf(b){
+    // existing bills: only external UAE medication actually loses its fee without Hours (the others default to In Hours)
+    var out = [], m = missingHours(b.billingData || {}).filter(function(x){ return /^Medication Logistics/.test(x); });
+    // from 1 Nov (T&C 2026) medication is concierge time: arranged with no time entered = nothing charged
+    try { if (window.amaraMedTimeOn && typeof _withFrozenRates === 'function' && _withFrozenRates(b, function(){ return amaraMedTimeOn(); })) {
+      var bd = b.billingData || {}, noT = [];
+      Object.keys(bd).forEach(function(sk){ var fu = /^_fu(\d+)$/.exec(sk); if (sk.charAt(0) === '_' && !fu) return; var sec = bd[sk]; if (!sec || typeof sec !== 'object' || Array.isArray(sec)) return;
+        ['em', 'im', 'uem', 'gem', 'rx_gli', 'rx_uki', 'uk_med'].forEach(function(id){ var x = sec[id]; if (x && x.meds && String(x.meds).trim() && !((parseInt((x.adh || {}).h) || 0) * 60 + (parseInt((x.adh || {}).m) || 0)) && !(x.imt && /Custom/.test(x.imt))) noT.push(MED[id] || 'Medication'); }); });
+      if (noT.length) out.push({ k: 'medtime', t: 'Medication arranged with no concierge time entered (nothing charged): ' + noT.join(', ') });
+    } } catch(x){}
+    if (m.length) out.unshift({ k: 'hours', t: 'No Hours: ' + m.join(', ') + ' (fee not charged)' });
+    if (placeholder(b.invoiceNo)) out.push({ k: 'ref', t: 'Invoice number is “' + String(b.invoiceNo).trim() + '”, not a real number' });
+    if (placeholder(b.soNumber)) out.push({ k: 'ref', t: 'SO number is “' + String(b.soNumber).trim() + '”, not a real number' });
+    if ((String(b.invoiceNo || '').trim() || String(b.soNumber || '').trim() || /^(invoiced|checked)$/i.test(b.status || '')) && nothingBilled(b)) out.push({ k: 'zero', t: (b.invoiceNo ? 'Invoiced' : 'Checked') + ' with nothing billed (total 0)' });
+    if (b._frozen && Array.isArray(b._frozen.lines) && !b._frozen.lines.some(function(l){ return l && l.amount > 0; }) && m.length) out.push({ k: 'lock', t: 'Prices locked at 0: after choosing Hours, press Recalculate on the bill' });
+    return out;
+  }
+  window.amaraBillIssues = issuesOf;
+  // Bill Detail: say what's wrong at the top, so a zero bill is never mistaken for an empty one
+  if (typeof window.viewBill === 'function'){
+    var prevView = window.viewBill;
+    window.viewBill = function(id){
+      var r = prevView.apply(this, arguments);
+      try {
+        var b = (window.bills || []).find(function(x){ return x.id == id; }), body = document.getElementById('vmod-body');
+        var is = b && !b._isQuote ? issuesOf(b) : [];
+        if (body && is.length && !body.querySelector('.amara-bill-issues')){
+          var e = function(s){ return typeof esc === 'function' ? esc(s) : String(s); };
+          body.insertAdjacentHTML('afterbegin', '<div class="amara-bill-issues no-print" style="background:#FCEAEA;border:1px solid rgba(150,48,48,.3);border-left:3px solid #963030;border-radius:var(--r);padding:10px 14px;margin:0 0 12px;font-size:12px;color:#7E2020;line-height:1.5"><b>\u26A0 Check this bill before it\u2019s invoiced</b><br>' + is.map(function(i){ return '\u2022 ' + e(i.t); }).join('<br>') + '<div style="color:var(--mu);margin-top:4px">Fix: <b>Edit</b> \u2192 choose Hours on the medication item \u2192 Save' + (b._frozen ? ' \u2192 then <b>Recalculate</b> (prices are locked)' : '') + '. Replace any \u201c---\u201d with the real number, or clear it.</div></div>');
+        }
+      } catch(x){}
+      return r;
+    };
+  }
   window.amaraBillCheck = function(){
     var rows = [];
-    (window.bills || []).forEach(function(b){
-      var m = missingHours(b.billingData || {}); if (m.length) rows.push({ b: b, items: m });
-    });
+    (window.bills || []).forEach(function(b){ if (b._isQuote) return; var is = issuesOf(b); if (is.length) rows.push({ b: b, items: is }); });
     rows.sort(function(a, c){ return new Date(c.b.createdAt || 0) - new Date(a.b.createdAt || 0); });
     var e = function(s){ return typeof esc === 'function' ? esc(s) : String(s == null ? '' : s); };
-    var html = '<div style="padding:16px;max-width:720px;max-height:72vh;overflow:auto">' +
-      '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Billing check: fees not charged</div>' +
-      '<div style="font-size:12px;color:var(--m2);margin-bottom:12px;line-height:1.5">Bills with a medication item where <b>Hours</b> (In / Out of Hours) wasn’t chosen, so the Medication Logistics fee isn’t on the bill. Open each one, choose Hours and save (invoiced bills need Accounts first). Nothing is changed automatically.</div>' +
-      (rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;color:var(--m2);font-size:10px;text-transform:uppercase;letter-spacing:.06em"><th style="padding:6px">Bill</th><th style="padding:6px">Patient</th><th style="padding:6px">Date</th><th style="padding:6px">Status</th><th style="padding:6px">Item</th><th></th></tr></thead><tbody>' +
+    var html = '<div style="padding:16px;max-width:820px;max-height:72vh;overflow:auto">' +
+      '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Billing check</div>' +
+      '<div style="font-size:12px;color:var(--m2);margin-bottom:12px;line-height:1.5">Bills where money may be missing: a medication item with no <b>Hours</b> (so the Medication Logistics fee isn’t charged), an SO / invoice number typed as a placeholder like “---”, or a bill marked Checked / Invoiced with nothing billed. Open each one and fix it; if its prices are locked, press <b>Recalculate</b> after saving. Nothing is changed automatically.</div>' +
+      (rows.length ? '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;color:var(--m2);font-size:10px;text-transform:uppercase;letter-spacing:.06em"><th style="padding:6px">Bill</th><th style="padding:6px">Patient</th><th style="padding:6px">Date</th><th style="padding:6px">Status</th><th style="padding:6px">What to check</th><th></th></tr></thead><tbody>' +
         rows.map(function(r){ var b = r.b, no = typeof _billNo === 'function' ? _billNo(b) : '';
-          return '<tr style="border-top:1px solid var(--bo)"><td style="padding:6px;font-weight:700">' + e(no) + '</td><td style="padding:6px">' + e(b.patientName || '') + '</td><td style="padding:6px;white-space:nowrap">' + e(typeof fdt === 'function' ? fdt(b.createdAt) : '') + '</td><td style="padding:6px">' + e(b.status || 'Draft') + (b.invoiceNo ? ' · Invoiced' : '') + '</td><td style="padding:6px">' + e(r.items.join(', ')) + '</td>' +
+          return '<tr style="border-top:1px solid var(--bo)"><td style="padding:6px;font-weight:700">' + e(no) + '</td><td style="padding:6px">' + e(b.patientName || '') + '</td><td style="padding:6px;white-space:nowrap">' + e(typeof fdt === 'function' ? fdt(b.createdAt) : '') + '</td><td style="padding:6px">' + e(b.status || 'Draft') + '</td><td style="padding:6px;color:#963030">' + r.items.map(function(i){ return e(i.t); }).join('<br>') + '</td>' +
             '<td style="padding:6px;white-space:nowrap"><button class="ab" style="font-size:11px;padding:3px 9px" onclick="closeMod(\'lmod\');viewBill(\'' + String(b.id).replace(/'/g, '') + '\')">Open</button></td></tr>'; }).join('') + '</tbody></table>'
-        : '<div style="padding:18px;text-align:center;color:var(--m2)">✓ All bills have Hours chosen on their medication items.</div>') +
+        : '<div style="padding:18px;text-align:center;color:var(--m2)">✓ Nothing to check: every bill has Hours on its medication items, real SO / invoice numbers, and a total.</div>') +
       '<div style="text-align:right;margin-top:14px"><button class="ab" onclick="closeMod(\'lmod\')">Close</button></div></div>';
     var mod = document.getElementById('lmod');
     if (mod){ document.getElementById('lmod-body').innerHTML = html; openMod('lmod'); }
@@ -24106,10 +24168,11 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
       lines.push(o);
     });
     var tot = {}; lines.forEach(function(l){ addTo(tot, l.cur, l.amt); });
-    var inv = String(b.invoiceNo || '').trim(), so = String(b.soNumber || '').trim();
-    var m = { sig: sig, b: b, id: b.id, no: (typeof _billNo === 'function' ? _billNo(b) : ''), patient: b.patientName || '', code: (function(){ try { return pCode(b.patientName) || ''; } catch(e){ return ''; } })(),
+    var inv = String(b.invoiceNo || '').trim(), so = String(b.soNumber || '').trim(), ph = (inv && !/[A-Za-z0-9]/.test(inv)) || (so && !/[A-Za-z0-9]/.test(so));
+    if (inv && !/[A-Za-z0-9]/.test(inv)) inv = ''; if (so && !/[A-Za-z0-9]/.test(so)) so = '';
+    var m = { ph: ph, rawInv: String(b.invoiceNo || '').trim(), rawSo: String(b.soNumber || '').trim(), sig: sig, b: b, id: b.id, no: (typeof _billNo === 'function' ? _billNo(b) : ''), patient: b.patientName || '', code: (function(){ try { return pCode(b.patientName) || ''; } catch(e){ return ''; } })(),
       branch: b.branch || 'UAE', status: b.status || 'Draft', by: alias(b.billedBy || ''), ri: (function(){ try { return _effectiveRI(b) || ''; } catch(e){ return ''; } })(),
-      inv: inv, so: so, gtype: inv ? 'Invoice' : so ? 'SO' : 'None', gkey: inv ? 'I:' + inv.toUpperCase() : so ? 'S:' + so.toUpperCase() : 'N:', glabel: inv ? inv : so ? so : 'Not yet on an invoice',
+      inv: inv, so: so, gtype: 'None', gkey: 'N:', glabel: 'Not yet on an invoice', via: '',
       arr: arr, created: ymd(b.createdAt), lines: lines, times: times, fus: fus, tot: tot,
       arranged: (function(){ try { return billArrangementLines(b) || []; } catch(e){ return []; } })(),
       people: (function(){ try { return _billPeople(b); } catch(e){ return {}; } })() };
@@ -24162,31 +24225,55 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     if (S.hrs && (S.hrs === 'none' ? t.hours : t.hours !== S.hrs)) return false;
     return true;
   }
-  function billsIn(){
-    var all = (window._rptAllBills || window.bills || []).filter(function(b){ return b && !b._isQuote; });
-    var q = S.q.trim().toLowerCase(), num = S.num.trim().toLowerCase(), pat = S.pat.trim().toLowerCase();
-    var out = [];
+  // ── Which invoice a bill belongs to ─────────────────────────────────────────
+  // Numbers match ignoring case, spaces and dashes ("INV-5401" = "inv 5401"), and a bill that only has an SO
+  // number joins the invoice that SO became (another bill with the same SO and an invoice number).
+  function norm(x){ return String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function real(x){ x = String(x || '').trim(); return /[A-Za-z0-9]/.test(x) ? x : ''; }
+  var LINK = { so2inv: {}, invLabel: {}, soLabel: {}, clash: {} };
+  function buildLinks(all){
+    LINK = { so2inv: {}, invLabel: {}, soLabel: {}, clash: {} };
+    all.forEach(function(b){ var i = real(b.invoiceNo), s2 = real(b.soNumber), ni = norm(i), ns = norm(s2);
+      if (i && !LINK.invLabel[ni]) LINK.invLabel[ni] = i; if (s2 && !LINK.soLabel[ns]) LINK.soLabel[ns] = s2;
+      if (i && s2){ if (LINK.so2inv[ns] && LINK.so2inv[ns] !== ni) LINK.clash[ns] = 1; else LINK.so2inv[ns] = ni; } });
+  }
+  function groupOf(b){
+    var i = real(b.invoiceNo), s2 = real(b.soNumber);
+    if (i) return { type: 'Invoice', key: 'I:' + norm(i), label: LINK.invLabel[norm(i)] || i };
+    if (s2 && LINK.so2inv[norm(s2)] && !LINK.clash[norm(s2)]){ var k = LINK.so2inv[norm(s2)]; return { type: 'Invoice', key: 'I:' + k, label: LINK.invLabel[k] || k, via: s2 }; }
+    if (s2) return { type: 'SO', key: 'S:' + norm(s2), label: LINK.soLabel[norm(s2)] || s2 };
+    return { type: 'None', key: 'N:', label: 'Not yet on an invoice' };
+  }
+  // The live bill list: Amara replaces it on every save and sync, so it is read fresh each time
+  function allBills(){ return (Array.isArray(window.bills) ? window.bills : []).filter(function(b){ return b && !b._isQuote; }); }
+  function billsIn(all){
+    var q = S.q.trim().toLowerCase(), num = S.num.trim().toLowerCase(), pat = S.pat.trim().toLowerCase(), numN = norm(S.num);
+    var out = [], hid = [];
     all.forEach(function(b){
-      // cheap checks before the price calculation
-      var inv = String(b.invoiceNo || '').trim(), so = String(b.soNumber || '').trim();
-      var gt = inv ? 'Invoice' : so ? 'SO' : 'None';
-      if (gt === 'Invoice' && !S.showInv) return; if (gt === 'SO' && !S.showSO) return; if (gt === 'None' && !S.showNone) return;
-      if (num && (inv + ' ' + so).toLowerCase().indexOf(num) < 0) return;
-      if (S.br && (b.branch || 'UAE') !== S.br) return;
-      if (S.st && (b.status || 'Draft') !== S.st) return;
-      if (pat && (String(b.patientName || '') + ' ' + (function(){ try { return pCode(b.patientName) || ''; } catch(e){ return ''; } })()).toLowerCase().indexOf(pat) < 0) return;
-      var m = model(b);
-      if (!inRange(m.date())) {
-        // a follow-up dated inside the range still brings its bill in, when the range is by arrangement date
-        if (!(S.fus && S.basis === 'arr' && (S.from || S.to) && m.fus.some(function(f){ return inRange(f.date); }))) return;
+      var g = groupOf(b), why = '';
+      var ph = (String(b.invoiceNo || '').trim() && !real(b.invoiceNo)) || (String(b.soNumber || '').trim() && !real(b.soNumber));
+      if (g.type === 'Invoice' && !S.showInv) why = 'Has an invoice number (“With invoice no.” is unticked)';
+      else if (g.type === 'SO' && !S.showSO) why = 'SO number only (“SO only” is unticked)';
+      else if (g.type === 'None' && !S.showNone) why = ph ? 'Number typed as “' + (String(b.invoiceNo || '').trim() || String(b.soNumber || '').trim()) + '”, not a real number' : 'No invoice or SO number yet';
+      else if (num && (String(b.invoiceNo || '') + ' ' + String(b.soNumber || '') + ' ' + g.label).toLowerCase().indexOf(num) < 0 && (!numN || (norm(b.invoiceNo) + ' ' + norm(b.soNumber) + ' ' + norm(g.label)).indexOf(numN) < 0)) why = 'Invoice / SO number filter';
+      else if (S.br && (b.branch || 'UAE') !== S.br) why = 'Branch filter';
+      else if (S.st && (b.status || 'Draft') !== S.st) why = 'Status filter';
+      else if (pat && (String(b.patientName || '') + ' ' + (function(){ try { return pCode(b.patientName) || ''; } catch(e){ return ''; } })()).toLowerCase().indexOf(pat) < 0) why = 'Patient filter';
+      var m = null;
+      if (!why){
+        m = model(b);
+        if (!inRange(m.date()) && !(S.fus && S.basis === 'arr' && (S.from || S.to) && m.fus.some(function(f){ return inRange(f.date); }))) why = 'Date outside the period (' + (S.basis === 'created' ? 'created ' : 'arranged ') + dShow(m.date()) + ')';
+        else if (S.ri && riName(m.ri) !== S.ri && !(S.ri === '__none' && !m.ri)) why = 'Rolling invoice filter';
+        else if (S.by && m.by !== S.by) why = 'Billed-by filter';
+        else if (S.who && !m.times.some(function(t){ return t.who === S.who; }) && [m.people.doctor, m.people.external, m.people.nurse].join(', ').split(/,\s*/).indexOf(S.who) < 0) why = 'Doctor / person filter';
+        else if (q){ var hay = [m.no, m.patient, m.code, m.inv, m.so, g.label, m.by, m.ri, m.status, m.branch].concat(m.lines.map(function(l){ return l.label + ' ' + l.desc; }), m.fus.map(function(f){ return f.label + ' ' + f.desc; }), m.times.map(function(t){ return t.who; })).join(' ').toLowerCase(); if (hay.indexOf(q) < 0) why = 'Search words'; }
+        if (!why && (S.cat || S.cur || S.hrs) && !m.lines.some(lineOk) && !m.times.some(timeOk)) why = 'Type / currency / Hours filter';
       }
-      if (S.ri && riName(m.ri) !== S.ri && !(S.ri === '__none' && !m.ri)) return;
-      if (S.by && m.by !== S.by) return;
-      if (S.who && !m.times.some(function(t){ return t.who === S.who; }) && [m.people.doctor, m.people.external, m.people.nurse].join(', ').split(/,\s*/).indexOf(S.who) < 0) return;
-      if (q){ var hay = [m.no, m.patient, m.code, m.inv, m.so, m.by, m.ri, m.status, m.branch].concat(m.lines.map(function(l){ return l.label + ' ' + l.desc; }), m.fus.map(function(f){ return f.label + ' ' + f.desc; }), m.times.map(function(t){ return t.who; })).join(' ').toLowerCase(); if (hay.indexOf(q) < 0) return; }
-      if ((S.cat || S.cur || S.hrs) && !m.lines.some(lineOk) && !m.times.some(timeOk)) return;
+      if (why){ hid.push({ b: b, g: g, why: why }); return; }
+      m.gkey = g.key; m.gtype = g.type; m.glabel = g.label; m.via = g.via || '';
       out.push(m);
     });
+    LAST.hidden = hid;
     return out;
   }
   function lineInRange(l){ return S.basis !== 'arr' || inRange(l.date) || (!S.from && !S.to); }
@@ -24248,11 +24335,13 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
       g.bills.forEach(function(m){ invLines(m).forEach(function(l){ rows.push({ m: m, l: l }); addTo(tot, l.cur, l.amt); }); });
       rows.sort(sorter('lines', function(r, c){ var l = r.l, m = r.m; return c === 'date' ? l.date : c === 'pat' ? m.patient : c === 'desc' ? l.label : c === 'bill' ? m.no : c === 'cat' ? l.cat : c === 'hrs' ? l.hours : c === 'amt' ? l.amt : c === 'cur' ? l.cur : l.date; }));
       var multi = curList(tot).length > 1;
+      var nob = g.bills.filter(function(m){ return !invLines(m).length; });
       return '<div class="ivr-grp">' + groupHead(g, tot) + '<div class="ivr-scroll"><table class="ivr-t"><thead><tr>' + th('lines', 'date', 'Date') + th('lines', 'desc', 'Description') + th('lines', 'cat', 'Type') + th('lines', 'hrs', 'Hours') + th('lines', 'bill', 'Bill') + '<th class="num">Qty</th>' + th('lines', 'amt', 'Price', 1) + th('lines', 'amt', 'Amount', 1) + '</tr></thead><tbody>' +
         rows.map(function(r){ var l = r.l, m = r.m;
           return '<tr><td style="white-space:nowrap">' + dShow(l.date) + '</td><td class="ivr-desc"><span class="pt">Patient Name: ' + E(m.patient) + (m.code ? ' (' + E(m.code) + ')' : '') + '</span>\n' + E(l.label) + (l.desc && l.label.indexOf(l.desc) < 0 ? '\n<span class="muted">' + E(String(l.desc).slice(0, 220)) + '</span>' : '') + (l.mins ? '\n<span class="muted">Time: ' + hmWords(l.mins) + '</span>' : '') + (l.merged ? '\n<span class="muted">Includes settlement markup ' + money(l.merged, l.cur) + '</span>' : '') + '</td>' +
             '<td>' + E(l.cat) + '</td><td>' + (l.hours ? hPill(l.hours) : (/admin|coordination|consult|nurse/i.test(l.cat) ? hPill('') : '<span class="muted">—</span>')) + '</td>' +
             '<td style="white-space:nowrap"><a href="#" data-open="' + E(m.id) + '">' + E(m.no) + '</a></td><td class="num">1</td><td class="num">' + (multi ? E(l.cur) + ' ' : '') + money(l.amt) + '</td><td class="num">' + (multi ? E(l.cur) + ' ' : '') + money(l.amt) + '</td></tr>'; }).join('') +
+        (nob.length ? '<tr><td colspan="8" style="background:#FCF4E3;color:#8A5A1A">' + nob.length + ' bill' + (nob.length === 1 ? '' : 's') + ' in this ' + (g.type === 'SO' ? 'SO' : 'invoice') + ' ha' + (nob.length === 1 ? 's' : 've') + ' no billable lines' + (S.from || S.to ? ' in this period' : '') + ': ' + nob.map(function(m){ return '<a href="#" data-open="' + E(m.id) + '">' + E(m.no) + '</a> ' + E(m.patient); }).join(', ') + ' (see Bill cards)</td></tr>' : '') +
         curList(tot).map(function(c){ return '<tr class="tot"><td colspan="7">Total ' + E(c) + ' · ' + rows.filter(function(r){ return r.l.cur === c; }).length + ' lines</td><td class="num">' + money(tot[c], c) + '</td></tr>'; }).join('') +
         '</tbody></table></div></div>';
     }).join('');
@@ -24270,7 +24359,7 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     var ts = m.times.filter(function(t){ return !t.fu; }).filter(timeOk), fs = S.fus ? m.fus : [];
     var rc = riClass(m.ri);
     return '<div class="ivr-card"><div class="ivr-ch"><div><span class="t">' + E(m.no) + ' · ' + E(m.patient) + (m.code ? ' <span class="muted">(' + E(m.code) + ')</span>' : '') + '</span>' +
-      (m.ri ? ' <span class="pill ' + rc + '">' + E(riName(m.ri)) + '</span>' : '') + '<div class="m">' + dShow(m.arr) + ' · ' + E(m.branch) + ' · ' + E(m.status) + (m.by ? ' · Billed by ' + E(m.by) : '') + (m.inv ? ' · Invoice ' + E(m.inv) : '') + (m.so ? ' · SO ' + E(m.so) : '') + ' · created ' + dShow(m.created) + '</div></div>' +
+      (m.ri ? ' <span class="pill ' + rc + '">' + E(riName(m.ri)) + '</span>' : '') + '<div class="m">' + dShow(m.arr) + ' · ' + E(m.branch) + ' · ' + E(m.status) + (m.by ? ' · Billed by ' + E(m.by) : '') + (m.inv ? ' · Invoice ' + E(m.inv) : '') + (m.so ? ' \u00b7 SO ' + E(m.so) + (m.via ? ' (joined to this invoice through its SO)' : '') : '') + ' · created ' + dShow(m.created) + '</div></div>' +
       '<div style="text-align:right"><div style="font-weight:700;font-variant-numeric:tabular-nums">' + E(totText(tot, '<br>')).replace(/&lt;br&gt;/g, '<br>') + '</div><button class="ivr-ab" data-open="' + E(m.id) + '" style="margin-top:4px">Open bill</button></div></div>' +
       (m.arranged.length ? '<div class="ivr-sec">Arranged</div><table class="ivr-mini">' + m.arranged.map(function(a){ return '<tr><td>' + E(a.t) + '</td><td class="num muted">' + (a.d ? dShow(a.d) : '') + '</td></tr>'; }).join('') + '</table>' : '') +
       (ls.length ? '<div class="ivr-sec">Billable</div><table class="ivr-mini">' + ls.map(function(l){ return '<tr><td>' + E(l.label) + (l.desc && l.label.indexOf(l.desc) < 0 ? ' <span class="muted">— ' + E(String(l.desc).slice(0, 120)) + '</span>' : '') + '</td><td>' + (l.hours ? hPill(l.hours) : '') + '</td><td class="num muted">' + (l.mins ? hmWords(l.mins) : '') + '</td><td class="num">' + money(l.amt, l.cur) + '</td></tr>'; }).join('') + '</table>' : '') +
@@ -24313,13 +24402,29 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
   // ── Page ────────────────────────────────────────────────────────────────────
   function opts(list, cur, all){ return '<option value="">' + E(all) + '</option>' + list.map(function(v){ var val = Array.isArray(v) ? v[0] : v, lab = Array.isArray(v) ? v[1] : v; return '<option value="' + E(val) + '"' + (String(cur) === String(val) ? ' selected' : '') + '>' + E(lab) + '</option>'; }).join(''); }
   function uniq(a){ return Array.from(new Set(a.filter(Boolean))).sort(function(x, y){ return String(x).localeCompare(String(y)); }); }
-  var LAST = { ms: [], G: [] };
+  var LAST = { ms: [], G: [], hidden: [] };
+  // Coverage: every bill in Amara is either in the report or listed here with the reason it isn't
+  function coverage(all, ms){
+    var c = { Invoice: 0, SO: 0, None: 0, via: 0 }; all.forEach(function(b){ var g = groupOf(b); c[g.type]++; if (g.via) c.via++; });
+    var hid = LAST.hidden || [], by = {};
+    hid.forEach(function(h){ var k = h.why.replace(/ \(.*$/, '').replace(/“[^”]*”/, '“---”'); by[k] = (by[k] || 0) + 1; });
+    var clash = Object.keys(LINK.clash);
+    return '<div class="ivr-grp" style="padding:12px 16px">' +
+      '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><div style="font-size:12px;line-height:1.6"><b>Coverage:</b> ' + all.length + ' bills in Amara (quotes not counted) · ' + c.Invoice + ' on an invoice' + (c.via ? ' (' + c.via + ' joined through their SO number)' : '') + ' · ' + c.SO + ' SO only · ' + c.None + ' with no number yet' +
+      '<br><b style="color:' + (hid.length ? '#8A5A1A' : '#3B5E38') + '">Showing ' + ms.length + ' of ' + all.length + '</b>' + (hid.length ? ' · not shown: ' + Object.keys(by).map(function(k){ return by[k] + ' — ' + E(k); }).join(' · ') : ' · every bill is included') + '</div>' +
+      (hid.length ? '<button class="ivr-ab" data-c2="showHidden">' + (S.showHidden ? 'Hide the list' : 'List the ' + hid.length + ' bills not shown') + '</button>' : '') + '</div>' +
+      (clash.length ? '<div class="ivr-warn" style="margin:8px 0 0">⚠ SO number' + (clash.length === 1 ? ' ' : 's ') + clash.map(function(k){ return E(LINK.soLabel[k] || k); }).join(', ') + (clash.length === 1 ? ' is' : ' are') + ' on bills with different invoice numbers, so bills with only that SO are listed under the SO, not an invoice.</div>' : '') +
+      (S.showHidden && hid.length ? '<div class="ivr-scroll" style="max-height:340px;margin-top:10px"><table class="ivr-t"><thead><tr><th>Bill</th><th>Patient</th><th>Arranged</th><th>Status</th><th>Invoice no.</th><th>SO no.</th><th>Why it isn’t shown</th></tr></thead><tbody>' +
+        hid.slice().sort(function(a, b){ return String(a.why).localeCompare(String(b.why)) || String(a.b.createdAt).localeCompare(String(b.b.createdAt)); }).map(function(h){ var b = h.b, mm = model(b); return '<tr><td><a href="#" data-open="' + E(b.id) + '">' + E(mm.no) + '</a></td><td>' + E(b.patientName || '') + '</td><td style="white-space:nowrap">' + dShow(mm.arr) + '</td><td>' + E(b.status || '') + '</td><td>' + E(b.invoiceNo || '') + '</td><td>' + E(b.soNumber || '') + '</td><td>' + E(h.why) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '') +
+      '</div>';
+  }
   function render(){
     var pg = document.getElementById('page-reports'); if (!pg) return;
     if (!allowed()){ pg.innerHTML = '<div style="padding:40px;text-align:center;color:var(--m2)">This report is private.</div>'; return; }
     var t0 = performance.now();
-    var all = (window._rptAllBills || window.bills || []).filter(function(b){ return b && !b._isQuote; });
-    var ms = billsIn(), G = groups(ms); LAST = { ms: ms, G: G };
+    var all = allBills(); buildLinks(all);
+    LAST = { ms: [], G: [], hidden: [] };
+    var ms = billsIn(all), G = groups(ms); LAST.ms = ms; LAST.G = G;
     var allM = all.map(model);
     var ris = uniq(allM.map(function(m){ return riName(m.ri); })), bys = uniq(allM.map(function(m){ return m.by; })), sts = uniq(allM.map(function(m){ return m.status; }));
     var whos = uniq([].concat.apply([], allM.map(function(m){ return m.times.map(function(t){ return t.who; }); })));
@@ -24328,6 +24433,8 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     var tot = {}, nl = 0, tm = { 'In Hours': 0, 'Out of Hours': 0, 'Not set': 0 };
     G.forEach(function(g){ curList(g.tot).forEach(function(c){ addTo(tot, c, g.tot[c]); }); Object.keys(g.min).forEach(function(k){ tm[k] += g.min[k]; }); g.bills.forEach(function(m){ nl += invLines(m).length; }); });
     var unset = ms.filter(function(m){ return m.times.some(function(t){ return !t.hours && timeOk(t); }); });
+    var phB = allM.filter(function(m){ return m.ph; });
+    var zeroB = allM.filter(function(m){ return (m.inv || m.so || m.ph) && !curList(m.tot).some(function(c){ return m.tot[c] > 0.004; }) && !m.lines.some(function(l){ return l.gw; }); });
     var V = { lines: 'Invoice lines', cards: 'Bill cards', time: 'Time sheet', sum: 'Summary by number' };
     var h = '<div id="ivr">' +
       '<div class="ivr-head"><div><div class="ivr-title">Invoice / SO report</div><div class="muted" style="font-size:12px">Bills grouped by invoice number (or SO number), with the same amounts as each bill card. Only you can see this report.</div></div>' +
@@ -24368,6 +24475,9 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
         '<div class="ivr-stat"><span>Out of Hours time</span><b>' + hm(tm['Out of Hours']) + '</b></div>' +
       '</div>' +
       (unset.length ? '<div class="ivr-warn">⚠ ' + unset.length + ' bill' + (unset.length === 1 ? ' has' : 's have') + ' time with no In / Out of Hours chosen (shown as <b>Not set</b>): ' + unset.slice(0, 8).map(function(m){ return '<a href="#" data-open="' + E(m.id) + '">' + E(m.no) + '</a>'; }).join(', ') + (unset.length > 8 ? ' …' : '') + '. Choose Hours on those bills so the right rate is charged.</div>' : '') +
+      (phB.length ? '<div class="ivr-warn" style="background:#FCEAEA;border-color:rgba(150,48,48,.3);color:#7E2020">\u26A0 ' + phB.length + ' bill' + (phB.length === 1 ? ' has' : 's have') + ' \u201c---\u201d (or similar) instead of a real SO / invoice number, so ' + (phB.length === 1 ? 'it is' : 'they are') + ' marked Checked / Invoiced and locked without being on an invoice here: ' + phB.slice(0, 10).map(function(m){ return '<a href="#" data-open="' + E(m.id) + '">' + E(m.no) + '</a> ' + E(m.patient); }).join(', ') + (phB.length > 10 ? ' \u2026' : '') + '. Tick \u201cNot yet on an invoice\u201d to see them.</div>' : '') +
+      (zeroB.length ? '<div class="ivr-warn" style="background:#FCEAEA;border-color:rgba(150,48,48,.3);color:#7E2020">\u26A0 ' + zeroB.length + ' bill' + (zeroB.length === 1 ? ' is' : 's are') + ' Checked / Invoiced with nothing billed (total 0): ' + zeroB.slice(0, 10).map(function(m){ return '<a href="#" data-open="' + E(m.id) + '">' + E(m.no) + '</a> ' + E(m.patient); }).join(', ') + (zeroB.length > 10 ? ' \u2026' : '') + '.</div>' : '') +
+      coverage(all, ms) +
       '<div id="ivr-body">' + (S.view === 'cards' ? vCards(G) : S.view === 'time' ? vTime(G) : S.view === 'sum' ? vSum(G) : vLines(G)) + '</div>' +
       '<div class="muted" style="font-size:10px;margin-top:8px">Built in ' + Math.round(performance.now() - t0) + ' ms · amounts from each bill’s own calculation (locked prices respected) · arrangement date = earliest date on the bill; follow-ups use their own date.</div>' +
       '</div>';
@@ -24391,6 +24501,7 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     });
     root.addEventListener('input', function(e){ var k = e.target.getAttribute('data-k'); if (k === 'q' || k === 'num' || k === 'pat'){ S[k] = e.target.value; save(); later(350, k); } });
     root.addEventListener('click', function(e){
+      var c2 = e.target.closest('[data-c2]'); if (c2){ S[c2.getAttribute('data-c2')] = !S[c2.getAttribute('data-c2')]; save(); return render(); }
       var v = e.target.closest('[data-view]'); if (v){ S.view = v.getAttribute('data-view'); save(); return render(); }
       var s = e.target.closest('[data-sort]'); if (s){ var p = s.getAttribute('data-sort').split(':'), cur = S.sort[p[0]] || []; S.sort[p[0]] = [p[1], cur[0] === p[1] ? -cur[1] : 1]; save(); return render(); }
       var o = e.target.closest('[data-open]'); if (o){ e.preventDefault(); var id = o.getAttribute('data-open'); if (typeof viewBill === 'function') viewBill(id); return; }
@@ -24420,6 +24531,8 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
       sheet(Su, 'Summary', [18, 9, 18, 9, 7, 12, 12].concat(curs.map(function(){ return 14; }), [12, 12, 12], curs.map(function(){ return 16; })));
       sheet(L, 'Invoice lines', [16, 9, 11, 8, 22, 10, 14, 8, 12, 14, 46, 30, 18, 13, 10, 5, 8, 12]);
       sheet(T, 'Time sheet', [16, 11, 8, 22, 22, 30, 24, 18, 13, 9, 10, 9]);
+      var Hd = [['Bill', 'Patient', 'Arranged', 'Status', 'Invoice no.', 'SO no.', 'Why it isn\u2019t in the report']]; (LAST.hidden || []).forEach(function(h){ var mm = model(h.b); Hd.push([mm.no, h.b.patientName || '', mm.arr, h.b.status || '', h.b.invoiceNo || '', h.b.soNumber || '', h.why]); });
+      if (Hd.length > 1) sheet(Hd, 'Not included', [8, 22, 11, 12, 14, 14, 50]);
       sheet(B, 'Bills', [16, 8, 13, 11, 22, 10, 14, 8, 12, 14, 14, 14, 10, 10].concat(curs.map(function(){ return 14; })));
       XLSX.writeFile(wb, 'Amara invoice-SO report ' + new Date().toISOString().slice(0, 10) + '.xlsx');
     });
@@ -24447,5 +24560,251 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
 })();
 </script>
 <!-- /AMARA MODULES: Invoice / SO report -->
+
+<!-- AMARA MODULES: Global items + medication as concierge time.
+     (1) Global items get what their UAE versions have: Hours on Global medication, pharmacy / date / doctor / courier,
+         nursing device and injection fees, notes, lab destination, location.
+     (2) Amara T&C 2026: sourcing medication is concierge time (per 30 min, In / Out of Hours) in UAE, UK and Global, with
+         no flat Medication Logistics / prescription fee. Switched on by the price value FEES.medTime2026, which belongs to
+         the November 2026 price list (effective 1 Nov 2026): bills dated earlier keep the old rule and prices. -->
+<script>
+(function(){
+  'use strict';
+  if (typeof window.PRICE_LISTS === 'undefined' || typeof window.calcMedLogisticsFee !== 'function') return;
+  var NOV = '20261101', EFF = '2026-11-01';
+  function on(){ return !!(window.FEES && FEES.medTime2026); }
+  window.amaraMedTimeOn = on;
+  function r2(x){ return Math.round(x * 100) / 100; }
+  function mins(v){ return v && typeof v === 'object' ? (parseInt(v.h) || 0) * 60 + (parseInt(v.m) || 0) : 0; }
+  function ooh(w){ return /out|night|bank/i.test(String(w || '')); }
+
+  // ── 1. Fields ────────────────────────────────────────────────────────────────
+  function ins(arr, afterId, f){
+    if (!Array.isArray(arr) || !f || arr.some(function(x){ return x && x.id === f.id; })) return;
+    var i = afterId ? arr.findIndex(function(x){ return x && x.id === afterId; }) : -1;
+    arr.splice(i >= 0 ? i + 1 : arr.length, 0, JSON.parse(JSON.stringify(f)));
+  }
+  function fieldOf(sk, iid, fid){ try { var it = SECS[sk].items.find(function(x){ return x.id === iid; }); return it && it.fields.find(function(f){ return f.id === fid; }); } catch(e){ return null; } }
+  function addFields(){
+    try {
+      var S = window.SECS; if (!S) return;
+      var gx = S.extGlobal && S.extGlobal.items;
+      if (gx){
+        var gem = gx.find(function(x){ return x.id === 'gem'; }), ges = gx.find(function(x){ return x.id === 'ges'; }), gadm = gx.find(function(x){ return x.id === 'gadm'; });
+        if (gem){
+          ins(gem.fields, 'rx_dn', { id: 'ph2', l: 'Hours', t: 'sel', o: ['In Hours', 'Out of Hours'], req: 1, grp: 'g1' });
+          ins(gem.fields, 'meds', { id: 'arr_date', l: 'Arrangement Date', t: 'date' });
+          ins(gem.fields, 'arr_date', { id: 'hospital', l: 'Pharmacy / Facility', t: 'contactsel' });
+          var adh = gem.fields.find(function(f){ return f.id === 'adh'; }); if (adh) adh.l = 'Concierge time spent sourcing the medication';
+        }
+        if (ges){ var last = 'co';
+          ['ecgf', 'bpf', 'injf', 'ivf', 'vacf'].forEach(function(id){ var f = fieldOf('ext', 'env', id); if (f){ ins(ges.fields, last, f); last = id; } });
+          var nn = fieldOf('ext', 'env', 'nnotes'); if (nn) ins(ges.fields, null, nn);
+        }
+        if (gadm){ var al = fieldOf('ext', 'eadm', 'al'); if (al) ins(gadm.fields, 'adh_h', al); }
+      }
+      var bs = window.CFG && CFG.billingStructure; if (!bs) return;
+      var ORDER = ['Prescription', 'OTC', 'Custom'];
+      (bs.internal_global || []).forEach(function(it){
+        if (!Array.isArray(it.fields)) return;
+        if (it.id === 'rx_gli'){
+          if (!it.fields.some(function(x){ return x && x.id === 'rx_dn'; })) it.fields.unshift({ id: 'rx_dn', l: 'Prescribing / referring doctor', t: 'doctorsel' });
+          ins(it.fields, 'meds', { id: 'imt', l: 'Type', t: 'sel', o: ORDER });
+          ins(it.fields, 'imt', { id: 'arr_date', l: 'Arrangement Date', t: 'date' });
+          ins(it.fields, 'arr_date', { id: 'facility', l: 'Pharmacy / Facility', t: 'facilitysel' });
+          ins(it.fields, 'facility', { id: 'courier', l: 'Courier', t: 'sel', o: ['Custom'], feeFor: ['Custom'], n: 'Enter the courier amount' });
+          var a = it.fields.find(function(f){ return f.id === 'adh'; }); if (a && on()){ a.l = 'Concierge time spent sourcing the medication'; a.n = 'Charged per 30 min (Amara T&C)'; }
+        }
+        if (it.id === 'nurse_gli'){
+          ins(it.fields, 'nvt', { id: 'arr_date', l: 'Arrangement Date', t: 'date' });
+          ins(it.fields, 'arr_date', { id: 'facility', l: 'Facility / Location', t: 'facilitysel' });
+          ins(it.fields, 'labfee', { id: 'labwhere', l: 'Laboratory (where samples sent)', t: 'labsel', cond: { f: 'nvt', has: 'Sample collection' } });
+          ins(it.fields, 'labwhere', { id: 'courier', l: 'Courier — transport samples', t: 'sel', o: ['Custom'], feeFor: ['Custom'], n: 'Enter the courier amount' });
+          var prev = 'courier';
+          [['ecgf', 'ECG fee', 'ecgStandard'], ['bpf', 'BP monitor fee', 'bpMonitor72h'], ['injf', 'Injection fee', 'injection'], ['ivf', 'IV drips fee', 'injection'], ['vacf', 'Vaccine administration fee', 'vaccine']].forEach(function(x){
+            ins(it.fields, prev, { id: x[0], l: x[1], t: 'tog', feesKey: x[2] }); prev = x[0]; });
+          ins(it.fields, null, { id: 'nnotes', l: 'Nurse notes', t: 'mta' });
+        }
+        if (it.id === 'doctor_gli'){
+          ins(it.fields, 'lw', { id: 'labwhere', l: 'Laboratory (Sample Destination)', t: 'labsel' });
+          ins(it.fields, 'labwhere', { id: 'courier', l: 'Medical Courier', t: 'sel', o: ['Custom'], feeFor: ['Custom'], n: 'Enter the courier amount' });
+          ins(it.fields, null, { id: 'docnotes', l: 'Consultation Notes', t: 'mta' });
+        }
+        if (it.id === 'admin_gli'){
+          ins(it.fields, 'dur', { id: 'arr_date', l: 'Arrangement Date', t: 'date' });
+          ins(it.fields, 'arr_date', { id: 'facility', l: 'Facility / Location', t: 'facilitysel' });
+        }
+      });
+      // UK internal medication: concierge time replaces the flat prescription fee
+      (bs.internal_uk || []).forEach(function(it){
+        if (it.id !== 'rx_uki' || !Array.isArray(it.fields) || !on()) return;
+        ins(it.fields, 'meds', { id: 'adh', l: 'Concierge time spent sourcing the medication', t: 'unit', n: 'Charged per 30 min (Amara T&C)' });
+        ins(it.fields, 'adh', { id: 'arr_date', l: 'Arrangement Date', t: 'date' });
+        it.fields.forEach(function(f){ if (f.id === 'pfee'){ f.cond = { f: '__never', has: true }; } });   // the flat fee is no longer charged from 1 Nov
+      });
+      (bs.external_uk || []).forEach(function(it){
+        if (it.id !== 'uk_med' || !Array.isArray(it.fields) || !on()) return;
+        it.fields.forEach(function(f){ if (f.id === 'adh'){ f.l = 'Concierge time spent sourcing the medication'; f.n = 'GBP ' + ((FEES.adminUK && FEES.adminUK['In Hours']) || 45) + ' (In Hours) / GBP ' + ((FEES.adminUK && FEES.adminUK['Out of Hours']) || 75) + ' (Out of Hours) per 30 min'; } });
+      });
+    } catch(e){ console.warn('Global fields', e); }
+  }
+  window.amaraAddGlobalFields = addFields;
+  addFields();
+  ['renderSecTab', 'renderUKSec', 'renderFUTab', 'renderBForm'].forEach(function(n){ var o = window[n]; if (typeof o !== 'function') return; window[n] = function(){ addFields(); return o.apply(this, arguments); }; });
+  ['ensureRichRegions', '_seedGlobalInt', '_seedUKInt'].forEach(function(n){ var o = window[n]; if (typeof o !== 'function') return; window[n] = function(){ var r = o.apply(this, arguments); addFields(); return r; }; });
+
+  // ── 2. Medication = concierge time (from 1 Nov 2026) ─────────────────────────
+  function conciergeRate(region, when){
+    var o = ooh(when) ? 'Out of Hours' : 'In Hours';
+    if (region === 'UK') return (FEES.adminUK && FEES.adminUK[o]) || (o === 'In Hours' ? 45 : 75);
+    if (region === 'Global' && typeof _glActive === 'function' && _glActive() && FEES.teamAdminGlobal) return FEES.teamAdminGlobal[o];
+    var loc = (region === 'UAE-International' || region === 'Global') ? 'International' : 'Inside UAE';
+    return (FEES.teamAdmin && FEES.teamAdmin[o + '-' + loc]) || (loc === 'International' ? (o === 'In Hours' ? 275 : 415) : (o === 'In Hours' ? 250 : 350));
+  }
+  window.amaraMedConciergeRate = conciergeRate;
+  var billingMedFee = window.calcMedLogisticsFee;
+  window.calcMedLogisticsFee = function(region, when, dur, baseFeeOverride){
+    if (!on()) return billingMedFee.apply(this, arguments);
+    var m = mins(dur), u = typeof adminUnits === 'function' ? adminUnits(m) : Math.ceil(m / 30), rate = conciergeRate(region, when);
+    // only a fee the team typed in ("Custom") stays; the OTC / prescription flat fees are not in the T&C
+    var custom = (baseFeeOverride != null && baseFeeOverride > 0 && baseFeeOverride !== (FEES.internalMedOTC || 75) && baseFeeOverride !== (FEES.internalMedPrescription || 195)) ? baseFeeOverride : 0;
+    var extra = r2(u * rate);
+    return { baseFee: custom, extraSets: u, extraFee: extra, total: r2(custom + extra), cur: region === 'UK' ? 'GBP' : 'AED', totalMins: m, adminRate: rate, conciergeTime: true };
+  };
+  // Bill lines: the right words, no "30 min included", no UK flat prescription fee
+  if (typeof window._computeBillTotalLive === 'function'){
+    var billingLive = window._computeBillTotalLive;
+    window._computeBillTotalLive = function(b){
+      var r = billingLive.apply(this, arguments);
+      try {
+        if (on() && Array.isArray(window._BILL_LINES)){
+          window._BILL_LINES = window._BILL_LINES.filter(function(l){
+            if (!l) return false;
+            if (l.label === '30 min included' && !l.amount) return false;
+            if (/^Prescription \(UK, /.test(l.label || '')) return false;
+            return true;
+          }).map(function(l){
+            if (l.label === 'Medication Logistics (additional time)') return Object.assign({}, l, { label: 'Medication sourcing — concierge time' });
+            return l;
+          });
+        }
+      } catch(e){}
+      return r;
+    };
+  }
+  // UK / Global medication items (priced by the UK/Global item calculator)
+  if (typeof window.ukItemLines === 'function'){
+    var billingItemLines = window.ukItemLines;
+    window.ukItemLines = function(item, idata){
+      var r = billingItemLines.apply(this, arguments);
+      if (!on() || !item || !r || !Array.isArray(r.lines)) return r;
+      try {
+        var d = idata || {}, when = d.when || 'In Hours', m, u, rate, lab;
+        var reg = item.id === 'rx_gli' ? 'Global' : (item.id === 'rx_uki' || item.id === 'uk_med') ? 'UK' : '';
+        if (reg){
+          r.lines = r.lines.filter(function(l){ return !/^Prescription fee \(|^Total admin time spent \(|^Total time spent \(including free 30 min\)|^Concierge time spent sourcing the medication \(/.test(l.label || ''); });
+          m = mins(d.adh);
+          if (m > 0){ u = adminUnits(m); rate = conciergeRate(reg, when); lab = 'Concierge time, sourcing medication (' + u + ' × 30 min, ' + (ooh(when) ? 'Out of Hours' : 'In Hours') + ')';
+            r.lines.unshift({ label: lab, amount: r2(u * rate) }); }
+          r.total = r2(r.lines.reduce(function(s, l){ return s + (l.amount || 0); }, 0));
+        }
+      } catch(e){}
+      return r;
+    };
+  }
+  // VAT: standard-rated concierge time on the medication (not the old flat fee, and nothing when no time was entered)
+  if (typeof window._itemStdTax === 'function'){
+    var billingStdTax = window._itemStdTax;
+    window._itemStdTax = function(it, d, sk){
+      var out = billingStdTax.apply(this, arguments);
+      try {
+        if (!on() || !it || !d || (it.id !== 'em' && it.id !== 'im')) return out;
+        out = out.filter(function(o){ return o.label !== 'Prescription sent' && o.label !== 'Concierge admin'; });
+        var loc = it.id === 'em' ? (d.pl || 'Local') : (d.al || 'Local'), when = it.id === 'em' ? d.ph2 : d.adh_h;
+        if (it.id === 'em' && !d.ph2) return out;                       // not charged at all without Hours
+        var reg = /international|global/i.test(loc) ? 'UAE-International' : 'UAE-Local';
+        var f = window.calcMedLogisticsFee(reg, when || 'In Hours', d.adh);
+        if (f && f.extraFee > 0) out.push({ label: 'Medication sourcing (concierge time)', base: f.extraFee, tax: Math.round(f.extraFee * 0.05 * 100) / 100 });
+      } catch(e){}
+      return out;
+    };
+  }
+  // Saved bill's item card: wording
+  if (typeof window.buildItemCard === 'function'){
+    var billingCard = window.buildItemCard;
+    window.buildItemCard = function(item, idata, secCol, secBg, sk){
+      var h = billingCard.apply(this, arguments);
+      try {
+        if (!h || !on() || !item || ['im', 'em', 'uem', 'gem'].indexOf(item.id) < 0) return h;
+        h = h.replace(/(OTC medication|Prescription|Custom fee) \+ 30 min included/g, 'Concierge time, per 30 min').replace(/ \u00b7 30 min \u2014 included/g, '').replace(/ \u00b7 (\d+(?:\.\d+)?) extra sets?/g, ' \u00b7 $1 \u00d7 30 min').replace(/(line-height:1\.3;">)Medication Logistics</g, '$1Medication sourcing \u2014 concierge time<');
+        h = h.replace(/<div[^>]*><span[^>]*>30 min included:<\/span> No additional charge<\/div>/g, '');
+      } catch(e){}
+      return h;
+    };
+  }
+
+  // ── 3. The November 2026 price list (its own Apply, like October's) ──────────
+  if (!PRICE_LISTS.some(function(p){ return p.id === NOV; })) PRICE_LISTS.push({
+    id: NOV, effective: EFF, title: 'November 2026: medication charged as concierge time',
+    sources: 'Amara UAE, UK and Global Terms & Conditions 2026',
+    changes: [{ p: 'medTime2026', to: 1, cur: '', show: 'ON', what: 'Medication is charged as concierge time (per 30 min, In / Out of Hours) instead of a flat Medication Logistics / prescription fee', src: 'T&C 2026: "sourcing medications" is an Amara Concierge / Medical Secretaries service', note: 'UAE AED 250 / 350 (international 275 / 415), UK £45 / £75, Global $65 / $100 per 30 min.' }],
+    verified: [], decisions: [
+      'Medication (UAE external and internal, UK, Global): the flat Medication Logistics fee (UAE AED 250 / 375 incl. 30 min; internal AED 195 / OTC 75; UK prescription £45–£95; UK external medication £55 / £85 per 30 min) is replaced by concierge time at the T&C concierge rate, per 30 min (first 30 min, then 15-minute steps, as all concierge time).',
+      'A "Custom" fee typed on internal medication still counts. Medication with no time entered charges nothing (Billing check lists it).',
+      'Fees settled with the pharmacy are unchanged (they carry the third-party payment fee).'
+    ]
+  });
+  var PLN = PRICE_LISTS.find(function(p){ return p.id === NOV; });
+  function applied(){ try { return _plApplied(NOV); } catch(e){ return false; } }
+  function invoiced(b){ return !!(String(b.invoiceNo || '').trim() || String(b.soNumber || '').trim()); }
+  window.amaraApplyNovemberPrices = async function(){
+    if (window._authProfile && _authProfile.role !== 'admin'){ alert('Only an admin can change prices.'); return; }
+    try { await _plEnsureFresh(); } catch(e){}
+    if (applied()){ toast('The November price list is already applied', 'ok'); return; }
+    if (!_plApplied('20261001') || (window.amaraFees2026Pending && amaraFees2026Pending().length)){ alert('Apply the October 2026 price list (and its 2026 letter prices) first. It is just above this box in Reports.'); return; }
+    var all = bills.filter(function(b){ return !b._isQuote; });
+    var oldSet = all.filter(function(b){ return _plTarget(b, PLN, {}) === 'old'; }), newSet = all.filter(function(b){ return _plTarget(b, PLN, {}) === 'new'; });
+    var toLock = oldSet.filter(function(b){ return !(b._frozen && b._frozen.rates); }).length;
+    var inv = newSet.filter(invoiced), reprice = newSet.filter(function(b){ return !invoiced(b) && b._frozen; });
+    if (!confirm('Apply "' + PLN.title + '" from 1 Nov 2026?\n\n1. Lock ' + toLock + ' bill(s) dated before 1 Nov at their current prices\n2. Charge medication as concierge time on bills dated from 1 Nov\n3. Re-price ' + reprice.length + ' locked bill(s) from 1 Nov that have no invoice / SO number (unlocked ones follow automatically)\n\n' + inv.length + ' bill(s) from 1 Nov already have an invoice / SO number: they keep their totals (press Recalculate on one to move it).\n\nContinue?')) return;
+    toast('Locking older bills…', 'in');
+    var A = await _plLockList(oldSet);
+    if (A.failed || A.mismatch.length){ alert('Stopped before changing anything: ' + (A.failed ? A.failed + ' bill(s) could not be saved. ' : '') + (A.mismatch.length ? A.mismatch.length + ' bill(s) could not be locked safely (' + A.mismatch.slice(0, 8).join(', ') + ').' : '')); return; }
+    FEES._ph = FEES._ph || {}; FEES._phAt = FEES._phAt || {}; FEES._ph[NOV] = {};
+    PLN.changes.forEach(function(c){ var v = _plGetPath(FEES, c.p); FEES._ph[NOV][c.p] = typeof v === 'number' ? v : 0; _plSetPath(FEES, c.p, c.to); });
+    FEES._phAt[NOV] = Date.now(); FEES._appMin = Math.max(FEES._appMin || 0, APP_BUILD);
+    saveFEES(); var ok = true; try { ok = await dbSaveSettings(); } catch(e){ ok = false; }
+    try { _plCheckedAt = 0; } catch(e){}
+    addFields();
+    var n = 0, f = 0, changed = [];
+    for (var i = 0; i < reprice.length; i++){
+      var b = reprice[i];
+      try { var before = _billTotalsByCur(b), u = Object.assign({}, b); u.billingData = Object.assign({}, b.billingData || {}); _freezeBill(u, _curUser || '', true);
+        if (await dbSave(u, { quiet: true })){ n++; var after = _sumLinesByCur(u._frozen.lines); if (Object.keys(Object.assign({}, before, after)).some(function(c){ return Math.abs((before[c] || 0) - (after[c] || 0)) > 0.005; })) changed.push(_billNo(b)); } else f++;
+      } catch(e){ f++; }
+    }
+    try { updCts(); render(); renderReports(); } catch(e){}
+    alert('November price list applied.\n\n• ' + A.done + ' older bill(s) locked at their prices\n• Medication is now charged as concierge time' + (ok ? '' : ' — BUT THE CLOUD SAVE FAILED: colleagues won’t see it until it succeeds') + '\n• ' + n + ' bill(s) re-priced' + (changed.length ? ' (' + changed.length + ' changed: ' + changed.slice(0, 12).join(', ') + (changed.length > 12 ? '…' : '') + ')' : '') + (f ? '; ' + f + ' could not be saved' : '') + '\n• ' + inv.length + ' invoiced / SO bill(s) from 1 Nov left as they are\n\nEveryone should refresh Amara.');
+  };
+  window.amaraUndoNovemberPrices = function(){ if (typeof undoPriceList === 'function') undoPriceList(NOV); };
+  if (typeof window._plBlock === 'function'){
+    var billingPlBlock = window._plBlock;
+    window._plBlock = function(){
+      var h = billingPlBlock.apply(this, arguments);
+      try {
+        var all = (window._rptAllBills || bills).filter(function(b){ return !b._isQuote; });
+        var nNew = all.filter(function(b){ return _plTarget(b, PLN, {}) === 'new'; }).length;
+        var box = '<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);padding:12px 14px;margin:0 0 14px;font-size:12.5px;line-height:1.65;">' +
+          '<div style="font-size:15px;font-weight:700;margin-bottom:4px;">Price list effective 1 Nov 2026 — medication as concierge time</div>' +
+          (applied() ? '<b style="color:#0F6E56;">Applied</b> on ' + esc(new Date(_plHist()[NOV]).toLocaleString('en-GB')) + '. Bills dated from 1 Nov charge medication as concierge time; earlier bills keep the flat fee.'
+                     : '<b>Not applied yet.</b> From 1 Nov, medication is charged as concierge time per 30 min (Amara T&C 2026) instead of a flat Medication Logistics / prescription fee: UAE AED 250 / 350 (international 275 / 415), UK £45 / £75, Global $65 / $100. ' + nNew + ' bill(s) are dated from 1 Nov; invoiced ones keep their totals.') +
+          '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">' + (applied() ? '<button class="ab" style="color:#963030;" onclick="amaraUndoNovemberPrices()">Undo</button>' : '<button class="ab" style="background:#0F6E56;color:#fff;font-weight:600;" onclick="amaraApplyNovemberPrices()">Apply the November price list</button>') + '</div></div>';
+        return box + h;
+      } catch(e){ return h; }
+    };
+  }
+})();
+</script>
+<!-- /AMARA MODULES: Global items + medication as concierge time -->
 </body>
 </html>
