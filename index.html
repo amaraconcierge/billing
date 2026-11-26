@@ -17088,9 +17088,9 @@ function renderUKSec(sk,structKey){
     if(item.active===false||item.followupOnly)return;
     var idata=item.id==='uk_lab'?_ukLabIdata(sdata):(sdata[item.id]||{});
     var r=ukItemLines(item,idata);
-    var checked=r.lines.length>0;
+    var checked=r.lines.length>0||Object.keys(idata||{}).some(function(k){var v=idata[k];if(k.charAt(0)==='_'||v==null||v===''||v===false)return false;if(Array.isArray(v))return v.length>0;if(typeof v==='object')return !!(parseFloat(v.amount)||parseInt(v.h)||parseInt(v.m)||v.on);return true;});
     var isOpen=!!openItems[sk+'_'+item.id];
-    h+='<div class="linen-card" style="border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\')" ondblclick="clearBI(\''+sk+'\',\''+item.id+'\')">'+
+    h+='<div class="linen-card" style="border:1px solid var(--bo);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(26,26,26,.05);"><div class="bl-row" onclick="toggleBI(\''+sk+'\',\''+item.id+'\',event)" ondblclick="clearBI(\''+sk+'\',\''+item.id+'\')">'+
       '<div class="bl-cb'+(checked?' on bl-cb-clr':'')+'">'+(checked?'&#10003;':'')+'</div>'+
       '<div class="bl-lbl"><div class="bl-lt">'+esc(item.displayName||item.name)+(r.total>0?' <span style="font-size:11px;color:#0C447C;font-weight:700;">\u00b7 GBP '+r.total.toLocaleString('en-GB')+'</span>':'')+'</div></div>'+
       '<span class="bl-cv'+(isOpen?' op':'')+'">&#9662;</span></div>';
@@ -20197,7 +20197,7 @@ function saveProtPinsAudit(){}
 
   // ── 4. Third-party payment fee (replaces the settlement markup) ─────────────────
   function sched(cur){
-    if (!on() || !FEES.tpFee) return null;
+    if (!(on() || FEES.tpFee2026) || !FEES.tpFee) return null;
     var t = FEES.tpFee[cur === 'AED' ? 'AED' : cur === 'GBP' ? 'GBP' : 'USD'];
     if (!t || !((t.pct || 0) > 0 || (t.flat || 0) > 0)) return null;
     var mul = cur === 'SAR' ? 3.75 : 1;
@@ -20208,7 +20208,7 @@ function saveProtPinsAudit(){}
   window._settledTotal = function(raw, cur){ var a = parseFloat(raw) || 0, f = amaraThirdPartyFee(a, cur); return f == null ? billingSettled.apply(this, arguments) : r2(a + f); };
   // fees settled on UK / Global items ("if settled by Amara"): billing added 10%
   window._amPass = function(fee, v, item){
-    if (!on()) return r2(fee * 1.10);
+    if (!(on() || FEES.tpFee2026)) return r2(fee * 1.10);
     var gl = item && (/_gli$|_global$|^gl_/.test(item.id || '') || item.cur === 'USD');
     if (gl && _glActive()) { var s = sched('USD'); if (s) return r2(fee + Math.min(s.flat * FEES.fxUSD + fee * s.pct / 100, s.cap * FEES.fxUSD)); }
     var f = amaraThirdPartyFee(fee, gl ? 'AED' : 'GBP'); return f == null ? r2(fee * 1.10) : r2(fee + f);
@@ -20217,7 +20217,7 @@ function saveProtPinsAudit(){}
   window._amMk = function(amt, cur){ var f = amaraThirdPartyFee(amt, cur || 'AED'); return f == null ? amt * 1.05 : amt + f; };
   // External Fees report: the fee that applies on each bill's date
   window._amFeeRow = function(b, amt, cur, settled){
-    var s = null; try { s = _withFrozenRates(b, function(){ return on() ? _settledTotal(amt, cur || 'AED') : null; }); } catch (e) {}
+    var s = null; try { s = _withFrozenRates(b, function(){ return (on() || FEES.tpFee2026) ? _settledTotal(amt, cur || 'AED') : null; }); } catch (e) {}
     if (s == null) return settled ? amt * (cur === 'GBP' ? 1.10 : 1.05) : amt * (cur === 'GBP' ? 0.10 : 0.05);
     return settled ? s : s - amt;
   };
@@ -23101,7 +23101,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-20b'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-25b'; window.AMARA_BUILD = BUILD;
   var seenNewer = '';
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
@@ -23956,6 +23956,27 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
 })();
 </script>
 <!-- /AMARA MODULES: billing checks -->
+<!-- AMARA MODULES: a visible "Remove this service" on every ticked item in the bill form -->
+<script>
+(function(){
+  'use strict';
+  // Each item card in the form: if it is ticked and open, put a clear Remove button at the top of its details
+  function addRemove(h){
+    if (typeof h !== 'string' || h.indexOf('bl-det') < 0) return h;
+    return h.split('class="linen-card"').map(function(chunk, i){
+      if (i === 0 || chunk.indexOf('bl-cb on') < 0 || chunk.indexOf('<div class="bl-det">') < 0) return chunk;
+      var m = /toggleBI\('([^']+)','([^']+)'/.exec(chunk); if (!m) return chunk;
+      return chunk.replace('<div class="bl-det">', '<div class="bl-det"><div class="no-print" style="display:flex;justify-content:flex-end;margin:-2px 0 8px;"><button type="button" class="ab amara-rm-svc" style="font-size:11px;padding:4px 11px;color:var(--re);border-color:rgba(150,48,48,.3);" onclick="event.stopPropagation();amaraRemoveService(\'' + m[1] + '\',\'' + m[2] + '\')">✕ Remove this service</button></div>');
+    }).join('class="linen-card"');
+  }
+  window.amaraRemoveService = function(sk, id){
+    if (!confirm('Remove this service from the bill? What was entered for it will be cleared. You can still cancel without saving.')) return;
+    clearBI(sk, id);
+  };
+  ['renderSecTab', 'renderUKSec'].forEach(function(n){ var o = window[n]; if (typeof o !== 'function') return; window[n] = function(){ return addRemove(o.apply(this, arguments)); }; });
+})();
+</script>
+<!-- /AMARA MODULES: remove service -->
 
 <!-- AMARA MODULES: Invoice / SO report. Reports → "Invoice / SO" (Carmela only). Bills grouped by invoice number
      (else SO number), oldest to latest, with four views: Invoice lines (laid out like the invoice), Bill cards
@@ -24992,6 +25013,100 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
     h += '<div style="margin-top:6px;color:var(--mu);">Ticked by default: bills with no invoice / SO number and with time entered. Invoiced bills and bills without time are left for you to decide.</div>';
     return h + '</div>';
   }
+
+  // ── 5. Fee settled: amount paid + 3% + AED 90 / £25 / $25, no cap, bills from 1 Oct (Carmela, 25 Nov) ──
+  // Its own price list, so it can be switched on without the rest of the 2026 letters. Older bills keep the 5% / 10% markup.
+  var TPID = '20261000z', TPEFF = '2026-10-01';   // sorts just before the October list, so a bill dated 1 Oct is on the new side
+  var TPV = { AED: { flat: 90, pct: 3, cap: 0 }, GBP: { flat: 25, pct: 3, cap: 0 }, USD: { flat: 25, pct: 3, cap: 0 } };   // cap 0 = no cap
+  if (!PRICE_LISTS.some(function(p){ return p.id === TPID; })) PRICE_LISTS.push({
+    id: TPID, effective: TPEFF, title: 'Fee settled: amount paid + 3% + AED 90 / £25 / $25 (no cap)',
+    sources: 'Amara T&C 2026 (third-party payment fee); Carmela, 25 Nov 2026: no cap',
+    changes: [{ p: 'tpFee2026', to: 1, cur: '', show: 'ON', what: 'Fees settled for the patient are charged as amount paid + 3% + a flat fee, instead of the 5% (UAE) / 10% (UK, Global) markup', src: 'T&C 2026', note: '' }]
+      .concat(['AED', 'GBP', 'USD'].reduce(function(a, c){ return a.concat([
+        { p: 'tpFee|' + c + '|flat', to: TPV[c].flat, cur: c, what: 'Third-party payment fee, flat part (' + c + ')' },
+        { p: 'tpFee|' + c + '|pct', to: TPV[c].pct, cur: '%', what: 'Third-party payment fee, percentage (' + c + ')' },
+        { p: 'tpFee|' + c + '|cap', to: TPV[c].cap, cur: c, what: 'Third-party payment fee, cap per payment (' + c + '): 0 = no cap' }]); }, [])),
+    verified: [], decisions: ['No cap (Carmela, 25 Nov), although the T&C mention AED 7,000 / £1,500 / $2,000.', 'Shown as one line, e.g. "Fee settled AED 1,120" for AED 1,000 paid.', 'EUR / CHF payments use the dollar figures; SAR uses them × 3.75 (as the 2026 module).']
+  });
+  var TPL = PRICE_LISTS.find(function(p){ return p.id === TPID; });
+  function tpApplied(){ try { return _plApplied(TPID); } catch(e){ return false; } }
+  function tpRates(b, on){
+    var r = JSON.parse(JSON.stringify(b._frozen.rates)); r.fees = r.fees || {};
+    if (on){ r.fees.tpFee2026 = 1; r.fees.tpFee = JSON.parse(JSON.stringify(TPV)); }
+    else { var old = (FEES._ph && FEES._ph[TPID]) || {}; r.fees.tpFee2026 = 0; Object.keys(old).forEach(function(k){ if (k.indexOf('tpFee|') === 0) _plSetPath(r.fees, k, old[k]); }); }
+    return r;
+  }
+  async function tpReprice(list, on){
+    var n = 0, f = 0, changed = [], by = _curUser || '';
+    for (var i = 0; i < list.length; i++){
+      var b = list[i];
+      try {
+        var before = _billTotalsByCur(b), u = Object.assign({}, b), r = tpRates(b, on), L = [], gt = 0;
+        _withRates(r, function(){ _computeBillTotalLive(u); L = (window._BILL_LINES || []).slice(); gt = window._BILL_GT || 0; });
+        u._frozen = Object.assign({}, b._frozen, { v: 2, lines: L, grandTotal: gt, rates: r, at: new Date().toISOString(), by: by });
+        if (await dbSave(u, { quiet: true })){ n++; var after = _sumLinesByCur(L); if (Object.keys(Object.assign({}, before, after)).some(function(c){ return Math.abs((before[c] || 0) - (after[c] || 0)) > 0.005; })) changed.push(_billNo(b)); } else f++;
+      } catch(e){ f++; }
+      if (i % 25 === 24) toast('Re-pricing… ' + (i + 1) + ' of ' + list.length, 'in');
+    }
+    try { if (window.amaraInvSoInvalidate) amaraInvSoInvalidate(); } catch(e){}
+    return { n: n, f: f, changed: changed };
+  }
+  window.amaraApplyFeeSettled = async function(){
+    if (window._authProfile && _authProfile.role !== 'admin'){ alert('Only an admin can change prices.'); return; }
+    try { await _plEnsureFresh(); } catch(e){}
+    if (tpApplied()){ toast('The fee-settled rule is already applied', 'ok'); return; }
+    var all = bills.filter(function(b){ return !b._isQuote; });
+    var oldSet = all.filter(function(b){ return _plTarget(b, TPL, {}) === 'old'; }), newSet = all.filter(function(b){ return _plTarget(b, TPL, {}) === 'new'; });
+    var locked = newSet.filter(function(b){ return b._frozen && b._frozen.rates; }), inv = locked.filter(invoiced), plain = locked.filter(function(b){ return !invoiced(b); });
+    if (!confirm('Fees settled from 1 Oct 2026: amount paid + 3% + AED 90 / £25 / $25, no cap.\n\n1. Bills dated before 1 Oct keep the 5% / 10% markup (' + oldSet.filter(function(b){ return !(b._frozen && b._frozen.rates); }).length + ' will be locked at their prices first)\n2. ' + plain.length + ' locked bill(s) from 1 Oct without an invoice / SO number are re-priced; unlocked ones follow automatically\n3. ' + inv.length + ' bill(s) from 1 Oct already have an invoice / SO number: you choose next\n\nOnly the fee-settled lines change. Continue?')) return;
+    var withInv = inv.length && confirm('Also re-price the ' + inv.length + ' bill(s) from 1 Oct that already have an invoice / SO number?\n\nOK = yes: their totals will no longer match the invoices already sent.\nCancel = no: they keep their totals (press Recalculate on one to move it later).');
+    toast('Locking older bills…', 'in');
+    var A = await _plLockList(oldSet);
+    if (A.failed || A.mismatch.length){ alert('Stopped before changing anything: ' + (A.failed ? A.failed + ' bill(s) could not be saved. ' : '') + (A.mismatch.length ? A.mismatch.length + ' bill(s) could not be locked safely (' + A.mismatch.slice(0, 8).join(', ') + ').' : '')); return; }
+    FEES._ph = FEES._ph || {}; FEES._phAt = FEES._phAt || {}; FEES._ph[TPID] = {};
+    TPL.changes.forEach(function(c){ var v = _plGetPath(FEES, c.p); FEES._ph[TPID][c.p] = typeof v === 'number' ? v : 0; _plSetPath(FEES, c.p, c.to); });
+    FEES._phAt[TPID] = Date.now(); FEES._appMin = Math.max(FEES._appMin || 0, APP_BUILD);
+    saveFEES(); var ok = true; try { ok = await dbSaveSettings(); } catch(e){ ok = false; }
+    try { _plCheckedAt = 0; } catch(e){}
+    var R = await tpReprice(withInv ? plain.concat(inv) : plain, true);
+    try { updCts(); render(); renderReports(); } catch(e){}
+    alert('Fee-settled rule applied.\n\n• ' + A.done + ' older bill(s) locked at their prices\n• Fees settled on bills from 1 Oct: amount + 3% + AED 90 / £25 / $25' + (ok ? '' : ' — BUT THE CLOUD SAVE FAILED: colleagues won’t see it until it succeeds') + '\n• ' + R.n + ' locked bill(s) re-priced' + (R.changed.length ? ' (' + R.changed.length + ' changed: ' + R.changed.slice(0, 12).join(', ') + (R.changed.length > 12 ? '…' : '') + ')' : '') + (R.f ? '; ' + R.f + ' could not be saved' : '') + (inv.length && !withInv ? '\n• ' + inv.length + ' invoiced / SO bill(s) kept their totals' : '') + '\n\nEveryone should refresh Amara.');
+  };
+  window.amaraUndoFeeSettled = async function(){
+    if (window._authProfile && _authProfile.role !== 'admin'){ alert('Only an admin can change prices.'); return; }
+    if (!tpApplied()) return;
+    if (!confirm('Undo the fee-settled rule? Fees settled go back to the 5% / 10% markup, and locked bills from 1 Oct that carry the rule are re-priced.')) return;
+    var list = bills.filter(function(b){ return !b._isQuote && b._frozen && b._frozen.rates && b._frozen.rates.fees && b._frozen.rates.fees.tpFee2026; });
+    var R = await tpReprice(list, false);
+    var old = FEES._ph[TPID] || {}; Object.keys(old).forEach(function(k){ _plSetPath(FEES, k, old[k]); }); delete FEES._ph[TPID]; delete FEES._phAt[TPID];
+    saveFEES(); try { await dbSaveSettings(); } catch(e){}
+    try { updCts(); render(); renderReports(); } catch(e){}
+    alert('Undone. ' + R.n + ' bill(s) re-priced' + (R.f ? ', ' + R.f + ' could not be saved' : '') + '. Everyone should refresh Amara.');
+  };
+  // Applying the rest of the 2026 letters later must not bring the T&C caps back
+  if (typeof window.amaraApply2026 === 'function'){
+    var apply2026 = window.amaraApply2026;
+    window.amaraApply2026 = async function(){
+      var r = await apply2026.apply(this, arguments);
+      try { if (tpApplied() && FEES.tpFee && ['AED', 'GBP', 'USD'].some(function(c){ return FEES.tpFee[c] && FEES.tpFee[c].cap; })){ ['AED', 'GBP', 'USD'].forEach(function(c){ if (FEES.tpFee[c]) FEES.tpFee[c].cap = 0; }); saveFEES(); await dbSaveSettings(); } } catch(e){}
+      return r;
+    };
+  }
+  if (typeof window._plBlock === 'function'){
+    var tpPlBlock = window._plBlock;
+    window._plBlock = function(){
+      var h = tpPlBlock.apply(this, arguments);
+      try {
+        var box = '<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);padding:12px 14px;margin:0 0 14px;font-size:12.5px;line-height:1.65;">' +
+          '<div style="font-size:15px;font-weight:700;margin-bottom:4px;">Fee settled from 1 Oct 2026 — amount paid + 3% + flat fee</div>' +
+          (tpApplied() ? '<b style="color:#0F6E56;">Applied</b> on ' + esc(new Date(_plHist()[TPID]).toLocaleString('en-GB')) + '. Fees settled on bills dated from 1 Oct: amount + 3% + AED 90 / £25 / $25, no cap. Earlier bills keep the 5% / 10% markup.'
+                       : '<b>Not applied yet.</b> Fees settled for the patient are still charged with the 5% (UAE) / 10% (UK, Global) markup. From 1 Oct they become amount paid + 3% + AED 90 (UAE) / £25 (UK) / $25 (Global), with no cap: e.g. AED 1,000 → AED 1,120, £1,000 → £1,055.') +
+          '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">' + (tpApplied() ? '<button class="ab" style="color:#963030;" onclick="amaraUndoFeeSettled()">Undo</button>' : '<button class="ab" style="background:#0F6E56;color:#fff;font-weight:600;" onclick="amaraApplyFeeSettled()">Apply the fee-settled rule</button>') + '</div></div>';
+        return box + h;
+      } catch(e){ return h; }
+    };
+  }
+
   if (typeof window._plBlock === 'function'){
     var novPlBlock = window._plBlock;
     window._plBlock = function(){
