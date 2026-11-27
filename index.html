@@ -23115,7 +23115,7 @@ body.dash-panel-open .amara-ask-fab{display:none!important;}
   // New version check: browsers (Safari especially, and Amara saved to a phone's home screen) can keep showing
   // an old copy of this page. Every 10 minutes, and when the page comes back into view, look for a newer copy
   // and offer a one-tap reload.
-  var BUILD = '2026-11-26b'; window.AMARA_BUILD = BUILD;
+  var BUILD = '2026-11-27b'; window.AMARA_BUILD = BUILD;
   var seenNewer = '';
   function checkVersion(){
     if (!window.fetch || document.hidden) return;
@@ -25838,5 +25838,205 @@ body.amara-no-messages #amc-fab,body.amara-no-messages #amc-panel{display:none!i
 })();
 </script>
 <!-- /AMARA MODULES: lighter sync -->
+<!-- AMARA MODULES: T&C 2026 price corrections from 1 Oct (Carmela, 27 Nov) -->
+<script>
+(function(){
+  'use strict';
+  if (typeof window.PRICE_LISTS === 'undefined' || typeof window.calcDocFee !== 'function') return;
+  var ID = '20261000zz', EFF = '2026-10-01';   // sorts after the fee-settled list and before the October list: a 1 Oct bill is on the new side
+  var CAPS = { AED: 7000, GBP: 1500, USD: 2000 };
+  function on(){ return !!(window.FEES && FEES.tcFix2026); }
+  function T(){ return (FEES && FEES.tcFix) || {}; }
+  function mins(h, m){ return (parseInt(h) || 0) * 60 + (parseInt(m) || 0); }
+  function remote(mode){ return /virtual|video|zoom|tele|phone|remote/i.test(String(mode || '')); }
+  function r2(x){ return Math.round(x * 100) / 100; }
+
+  if (!PRICE_LISTS.some(function(p){ return p.id === ID; })) PRICE_LISTS.push({
+    id: ID, effective: EFF, title: 'T&C 2026 corrections (UAE out of hours and extended, UK remote extended, international doctor time, fee-settled caps)',
+    sources: 'Amara UAE / UK / Global T&C 2026; Carmela, 27 Nov 2026',
+    changes: [
+      { p: 'tcFix2026', to: 1, cur: '', show: 'ON', what: 'Consultation rules below follow the T&C 2026', src: 'T&C 2026', note: '' },
+      { p: 'tcFix|uaeOOH30', to: 1750, cur: 'AED', what: 'UAE consultation up to 30 min at home / office / hotel, out of hours', src: 'UAE T&C: AED 1,750 out of hours', note: 'Was AED 2,450.' },
+      { p: 'tcFix|uaeExtFirst|In Hours', to: 1750, cur: 'AED', what: 'UAE consultation up to 1 hour, in hours', src: 'UAE T&C: AED 1,750', note: 'Was AED 875 per 30 min.' },
+      { p: 'tcFix|uaeExtFirst|Out of Hours', to: 2450, cur: 'AED', what: 'UAE consultation up to 1 hour, out of hours', src: 'UAE T&C: AED 2,450', note: 'Was AED 1,225 per 30 min.' },
+      { p: 'tcFix|uaeExtExtra|In Hours', to: 700, cur: 'AED', what: 'UAE each further 30 min after the first hour, in hours', src: 'UAE T&C: additional 30 min AED 700', note: '' },
+      { p: 'tcFix|uaeExtExtra|Out of Hours', to: 1225, cur: 'AED', what: 'UAE each further 30 min after the first hour, out of hours', src: 'Not in the T&C: kept at the current AED 1,225', note: 'Please confirm.' },
+      { p: 'tcFix|ukRemote', to: 1, cur: '', show: 'ON', what: 'UK remote (video / telephone) extended consultations: £295 per 30 min in hours, £375 out of hours', src: 'UK T&C: remote consultations (30 min increments) £295; 8pm–8am £375', note: 'Was up to 1 hour £595 then £250 per 30 min.' },
+      { p: 'physAdmin|In Hours-International', to: 1377.1875, cur: 'AED', what: 'International doctor research and planning time, per 30 min, in hours', src: 'Global T&C: $375 × 3.6725', note: 'Was AED 1,469 ($400).' },
+      { p: 'physAdmin|Out of Hours-International', to: 1836.25, cur: 'AED', what: 'International doctor research and planning time, per 30 min, out of hours', src: 'Global T&C: $500 × 3.6725', note: 'Was AED 2,204 ($600).' },
+      { p: 'tpFee|AED|cap', to: CAPS.AED, cur: 'AED', what: 'Fee settled: cap per payment (AED)', src: 'UAE T&C: capped at AED 7,000', note: 'Was no cap.' },
+      { p: 'tpFee|GBP|cap', to: CAPS.GBP, cur: 'GBP', what: 'Fee settled: cap per payment (GBP)', src: 'UK T&C: capped at £1,500', note: 'Was no cap.' },
+      { p: 'tpFee|USD|cap', to: CAPS.USD, cur: 'USD', what: 'Fee settled: cap per payment (USD)', src: 'Global T&C: capped at $2,000', note: 'Was no cap.' }
+    ],
+    verified: [], decisions: ['Carmela, 27 Nov: follow the T&C, from 1 Oct 2026, caps back. Onboarding and other items stay in the app until discussed.', 'UAE out-of-hours time after the first hour is not in the T&C: kept at AED 1,225 per 30 min.']
+  });
+  var PL = PRICE_LISTS.find(function(p){ return p.id === ID; });
+
+  // ── Consultation fees ─────────────────────────────────────────────────────
+  var inner = window.calcDocFee;
+  window.calcDocFee = function(ct, ch, branch, durH, durM, idata){
+    if (on()) try {
+      var d = idata || {}, key = (ct === 'Brief/Follow up Consultation' || ct === 'Follow up') ? 'Brief' : (ct || 'Brief'), when = ch === 'Out of Hours' ? 'Out of Hours' : 'In Hours', mode = d.mode || '', t = T();
+      var travel = /accompaniment/i.test(mode) && (parseFloat(d.acc_days) || 0) > 0;
+      if (branch !== 'UK' && branch !== 'Global' && !travel) {
+        if (key === 'Standard' && when === 'Out of Hours' && /home visit|face-to-face|face to face/i.test(mode) && t.uaeOOH30) return t.uaeOOH30;
+        if (key === 'Extended' && t.uaeExtFirst && t.uaeExtFirst[when]) {
+          var u = Math.max(1, adminUnits(mins(durH, durM))), ex = (t.uaeExtExtra && t.uaeExtExtra[when]) || 0;
+          return u <= 2 ? t.uaeExtFirst[when] : r2(t.uaeExtFirst[when] + (u - 2) * ex);
+        }
+      }
+      if (branch === 'UK' && key === 'Extended' && t.ukRemote && remote(mode)) {
+        var uk = Math.max(1, Math.ceil(Math.max(30, mins(durH, durM)) / 30)), rate = FEES.docFlat && FEES.docFlat['Standard-' + when + '-UK'];
+        if (rate) return uk * rate;
+      }
+    } catch (e) {}
+    return inner.apply(this, arguments);
+  };
+  var innerUK = window.ukItemLines;
+  if (typeof innerUK === 'function') window.ukItemLines = function(item, idata){
+    var r = innerUK.apply(this, arguments);
+    try {
+      var d = idata || {}, t = T();
+      if (on() && t.ukRemote && item && item.id === 'doctor_uki' && (d.ctype === 'Extended') && remote(d.mode) && !d.no_consult && !(d.ukOverride != null && String(d.ukOverride).trim() !== '' && !isNaN(parseFloat(d.ukOverride)))) {
+        var when = d.when === 'Out of Hours' ? 'Out of Hours' : 'In Hours', rate = FEES.docFlat && FEES.docFlat['Standard-' + when + '-UK'];
+        var i = r.lines.findIndex(function(l){ return l.label.indexOf(when + ' ') === 0 && /consultation/.test(l.label); });
+        if (rate && i >= 0) { var m = d.dur ? mins(d.dur.h, d.dur.m) : 0, u = Math.max(1, Math.ceil(Math.max(30, m) / 30)); r.lines[i] = Object.assign({}, r.lines[i], { amount: u * rate, label: r.lines[i].label + ' (' + u + ' × 30 min remote)' }); }
+      }
+    } catch (e) {}
+    return r;
+  };
+
+  // ── Apply / Undo (same pattern as the fee-settled list) ───────────────────
+  function applied(){ try { return _plApplied(ID); } catch(e){ return false; } }
+  function feeSettledOn(){ try { return _plApplied('20261000z'); } catch(e){ return false; } }
+  function invoiced(b){ return !!(String(b.invoiceNo || '').trim() || String(b.soNumber || '').trim() || String(((b.billingData || {})._soNumber) || '').trim()); }
+  function rates(b, turnOn){
+    var r = JSON.parse(JSON.stringify(b._frozen.rates)); r.fees = r.fees || {};
+    if (turnOn) PL.changes.forEach(function(c){ if (c.p.indexOf('tpFee|') === 0 && !r.fees.tpFee) return; _plSetPath(r.fees, c.p, c.to); });
+    else { var old = (FEES._ph && FEES._ph[ID]) || {}; Object.keys(old).forEach(function(k){ if (k.indexOf('tpFee|') === 0 && !r.fees.tpFee) return; _plSetPath(r.fees, k, old[k]); }); r.fees.tcFix2026 = 0; }
+    return r;
+  }
+  async function reprice(list, turnOn){
+    var n = 0, f = 0, changed = [], by = _curUser || '';
+    for (var i = 0; i < list.length; i++){
+      var b = list[i];
+      try {
+        var before = _billTotalsByCur(b), u = Object.assign({}, b), r = rates(b, turnOn), L = [], gt = 0;
+        _withRates(r, function(){ _computeBillTotalLive(u); L = (window._BILL_LINES || []).slice(); gt = window._BILL_GT || 0; });
+        u._frozen = Object.assign({}, b._frozen, { v: 2, lines: L, grandTotal: gt, rates: r, at: new Date().toISOString(), by: by });
+        var after = _sumLinesByCur(L), diff = Object.keys(Object.assign({}, before, after)).some(function(c){ return Math.abs((before[c] || 0) - (after[c] || 0)) > 0.005; });
+        if (await dbSave(u, { quiet: true })){ n++; if (diff) changed.push(_billNo(b)); } else f++;
+      } catch(e){ f++; }
+      if (i % 25 === 24) toast('Re-pricing… ' + (i + 1) + ' of ' + list.length, 'in');
+    }
+    try { if (window.amaraInvSoInvalidate) amaraInvSoInvalidate(); } catch(e){}
+    return { n: n, f: f, changed: changed };
+  }
+  window.amaraApplyTcFix = async function(){
+    if (window._authProfile && _authProfile.role !== 'admin'){ alert('Only an admin can change prices.'); return; }
+    try { await _plEnsureFresh(); } catch(e){}
+    if (applied()){ toast('The T&C corrections are already applied', 'ok'); return; }
+    if (!feeSettledOn()){ alert('Please apply "Fee settled from 1 Oct 2026" first (just above). The caps go on top of it.'); return; }
+    var all = bills.filter(function(b){ return !b._isQuote; });
+    var oldSet = all.filter(function(b){ return _plTarget(b, PL, {}) === 'old'; }), newSet = all.filter(function(b){ return _plTarget(b, PL, {}) === 'new'; });
+    var locked = newSet.filter(function(b){ return b._frozen && b._frozen.rates; }), inv = locked.filter(invoiced), plain = locked.filter(function(b){ return !invoiced(b); });
+    if (!confirm('T&C 2026 corrections for bills from 1 Oct 2026:\n• UAE in-person out of hours (30 min): AED 1,750\n• UAE up to 1 hour: AED 1,750 / 2,450, then AED 700 per 30 min (out of hours: 1,225)\n• UK remote extended: £295 per 30 min (£375 out of hours)\n• International doctor time: AED 1,377.19 / 1,836.25 per 30 min ($375 / $500)\n• Fee settled capped at AED 7,000 / £1,500 / $2,000 per payment\n\n1. Bills before 1 Oct keep their prices (' + oldSet.filter(function(b){ return !(b._frozen && b._frozen.rates); }).length + ' will be locked first)\n2. ' + plain.length + ' locked bill(s) from 1 Oct without an invoice / SO number are re-priced; unlocked ones follow automatically\n3. ' + inv.length + ' bill(s) from 1 Oct already have an invoice / SO number: you choose next\n\nContinue?')) return;
+    var withInv = inv.length && confirm('Also re-price the ' + inv.length + ' bill(s) from 1 Oct that already have an invoice / SO number?\n\nOK = yes: their totals may no longer match the invoices already sent.\nCancel = no: they keep their totals.');
+    toast('Locking older bills…', 'in');
+    var A = await _plLockList(oldSet);
+    if (A.failed || A.mismatch.length){ alert('Stopped before changing anything: ' + (A.failed ? A.failed + ' bill(s) could not be saved. ' : '') + (A.mismatch.length ? A.mismatch.length + ' bill(s) could not be locked safely (' + A.mismatch.slice(0, 8).join(', ') + ').' : '')); return; }
+    FEES._ph = FEES._ph || {}; FEES._phAt = FEES._phAt || {}; FEES._ph[ID] = {};
+    PL.changes.forEach(function(c){ var v = _plGetPath(FEES, c.p); FEES._ph[ID][c.p] = typeof v === 'number' ? v : 0; _plSetPath(FEES, c.p, c.to); });
+    FEES._phAt[ID] = Date.now(); FEES._appMin = Math.max(FEES._appMin || 0, APP_BUILD);
+    saveFEES(); var ok = true; try { ok = await dbSaveSettings(); } catch(e){ ok = false; }
+    try { _plCheckedAt = 0; } catch(e){}
+    var R = await reprice(withInv ? plain.concat(inv) : plain, true);
+    try { updCts(); render(); renderReports(); } catch(e){}
+    alert('T&C corrections applied.' + (ok ? '' : ' BUT THE CLOUD SAVE FAILED: colleagues won’t see it until it succeeds.') + '\n\n• ' + A.done + ' older bill(s) locked at their prices\n• ' + R.n + ' locked bill(s) from 1 Oct re-priced' + (R.changed.length ? ' (' + R.changed.length + ' changed: ' + R.changed.slice(0, 12).join(', ') + (R.changed.length > 12 ? '…' : '') + ')' : '') + (R.f ? '; ' + R.f + ' could not be saved' : '') + (inv.length && !withInv ? '\n• ' + inv.length + ' invoiced / SO bill(s) kept their totals' : '') + '\n\nEveryone should refresh Amara.');
+  };
+  window.amaraUndoTcFix = async function(){
+    if (window._authProfile && _authProfile.role !== 'admin'){ alert('Only an admin can change prices.'); return; }
+    if (!applied() || !confirm('Undo the T&C corrections? Prices go back to what they were, and locked bills from 1 Oct that carry them are re-priced.')) return;
+    var list = bills.filter(function(b){ return !b._isQuote && b._frozen && b._frozen.rates && b._frozen.rates.fees && b._frozen.rates.fees.tcFix2026; });
+    var R = await reprice(list, false);
+    var old = FEES._ph[ID] || {}; Object.keys(old).forEach(function(k){ _plSetPath(FEES, k, old[k]); }); FEES.tcFix2026 = 0; delete FEES._ph[ID]; delete FEES._phAt[ID];
+    saveFEES(); try { await dbSaveSettings(); } catch(e){}
+    try { updCts(); render(); renderReports(); } catch(e){}
+    alert('Undone. ' + R.n + ' bill(s) re-priced' + (R.f ? ', ' + R.f + ' could not be saved' : '') + '. Everyone should refresh Amara.');
+  };
+  // Applying the 2026 letters (or the fee-settled rule again) later must keep the T&C caps
+  ['amaraApply2026', 'amaraApplyFeeSettled'].forEach(function(fn){
+    var orig = window[fn]; if (typeof orig !== 'function') return;
+    window[fn] = async function(){
+      var r = await orig.apply(this, arguments);
+      try { if (applied() && FEES.tpFee){ var ch = false; Object.keys(CAPS).forEach(function(c){ if (FEES.tpFee[c] && FEES.tpFee[c].cap !== CAPS[c]){ FEES.tpFee[c].cap = CAPS[c]; ch = true; } }); if (ch){ saveFEES(); await dbSaveSettings(); } } } catch(e){}
+      return r;
+    };
+  });
+  if (typeof window._plBlock === 'function'){
+    var base = window._plBlock;
+    window._plBlock = function(){
+      var h = base.apply(this, arguments);
+      try {
+        var box = '<div style="background:var(--wh);border:1px solid var(--bo);border-radius:var(--rl);padding:12px 14px;margin:0 0 14px;font-size:12.5px;line-height:1.65;">' +
+          '<div style="font-size:15px;font-weight:700;margin-bottom:4px;">T&amp;C 2026 corrections from 1 Oct 2026</div>' +
+          (applied() ? '<b style="color:#0F6E56;">Applied</b> on ' + esc(new Date(_plHist()[ID]).toLocaleString('en-GB')) + '.' : '<b>Not applied yet.</b>') +
+          ' UAE in-person out of hours AED 1,750 · UAE up to 1 hour AED 1,750 / 2,450, then AED 700 per 30 min · UK remote extended £295 per 30 min · international doctor time $375 / $500 per 30 min · fee settled capped at AED 7,000 / £1,500 / $2,000. Bills before 1 Oct don’t change.' +
+          '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">' + (applied() ? '<button class="ab" style="color:#963030;" onclick="amaraUndoTcFix()">Undo</button>' : '<button class="ab" style="background:#0F6E56;color:#fff;font-weight:600;" onclick="amaraApplyTcFix()">Apply the T&amp;C corrections</button>') + '</div></div>';
+        return box + h;
+      } catch(e){ return h; }
+    };
+  }
+})();
+</script>
+<!-- /AMARA MODULES: T&C 2026 price corrections -->
+<!-- AMARA MODULES: clearer save checks (27 Nov) -->
+<script>
+(function(){
+  'use strict';
+  var MEDS = { em: 1, im: 1, uem: 1, gem: 1, rx_uki: 1, uk_med: 1, rx_gli: 1 };
+  // 1. Medication time IS charged (as concierge time) without a separate switch: don't warn that it isn't
+  if (typeof window._findUnbilledTime === 'function'){
+    var unbilled = window._findUnbilledTime;
+    window._findUnbilledTime = function(bd){ return unbilled.apply(this, arguments).filter(function(m){ return !(MEDS[m.item] && /^Concierge admin time/.test(m.what)); }); };
+  }
+  // 2. Medication is concierge work, not a doctor's: don't ask for a doctor just because medication is listed
+  if (typeof window._findUnlinkedWork === 'function'){
+    var unlinked = window._findUnlinkedWork;
+    window._findUnlinkedWork = function(bd){
+      return unlinked.apply(this, arguments).map(function(m){ var w = String(m.what).split(' + ').filter(function(x){ return x !== 'medication'; }); return w.length ? { item: m.item, what: w.join(' + ') } : null; }).filter(Boolean);
+    };
+  }
+  // 3. An item with details entered that charges NOTHING (e.g. no fee, no duration, no time): say so before saving
+  function hasData(x){ return Object.keys(x || {}).some(function(k){ var v = x[k]; if (k.charAt(0) === '_' || v == null || v === '' || v === false) return false; if (Array.isArray(v)) return v.length > 0; if (typeof v === 'object') return !!(parseFloat(v.amount) || parseInt(v.h) || parseInt(v.m) || v.on); return true; }); }
+  function itemName(sk, iid){
+    try { var s = window.SECS && SECS[sk]; var it = s && (s.items || []).find(function(i){ return i.id === iid; }); if (it) return it.label; } catch(e){}
+    try { var BS = CFG.billingStructure || {}, k = { intUK: 'internal_uk', extUK: 'external_uk', intGL: 'internal_global' }[sk]; var r = (BS[k] || []).find(function(i){ return i.id === iid; }); if (r) return r.displayName || r.name; } catch(e){}
+    return iid;
+  }
+  window.amaraZeroItems = function(bill){
+    var out = [], bd = (bill && bill.billingData) || {};
+    Object.keys(bd).forEach(function(sk){
+      if (sk.charAt(0) === '_') return; var sd = bd[sk]; if (!sd || typeof sd !== 'object' || Array.isArray(sd)) return;
+      Object.keys(sd).forEach(function(iid){
+        var x = sd[iid]; if (!x || typeof x !== 'object' || !hasData(x)) return;
+        var one = {}; one[sk] = {}; one[sk][iid] = x;
+        var tmp = { id: '_zero_check', patientName: bill.patientName, branch: bill.branch, billedBy: bill.billedBy, createdAt: bill.createdAt || new Date().toISOString(), billingData: one };
+        try { _computeBillTotalLive(tmp); var L = (window._BILL_LINES || []).filter(function(l){ return l && Math.abs(l.amount || 0) > 0.004; }); if (!L.length) out.push({ item: itemName(sk, iid), what: 'nothing is charged (no fee, duration or time that bills)' }); } catch(e){}
+      });
+    });
+    return out;
+  };
+  if (typeof window._findEmptySwitches === 'function'){
+    var empty = window._findEmptySwitches;
+    window._findEmptySwitches = function(bd){
+      var r = empty.apply(this, arguments);
+      try { if (window.curBill && bd === curBill.billingData) { var seen = {}; r.forEach(function(m){ seen[m.item] = 1; }); amaraZeroItems(curBill).forEach(function(m){ if (!seen[m.item]) r.push(m); }); } } catch(e){}
+      return r;
+    };
+  }
+})();
+</script>
+<!-- /AMARA MODULES: clearer save checks -->
 </body>
 </html>
